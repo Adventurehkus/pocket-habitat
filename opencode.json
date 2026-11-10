@@ -12,6 +12,16 @@
           "limit": {
             "output": 1024
           }
+        },
+        "qwen/qwen3.8-27b": {
+          "body": {
+            "max_completion_tokens": 1024,
+            "reasoning_effort": "low",
+            "reasoning_format": "hidden"
+          },
+          "limit": {
+            "output": 1024
+          }
         }
       }
     }
