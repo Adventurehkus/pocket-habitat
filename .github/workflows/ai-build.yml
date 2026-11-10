@@ -60,6 +60,10 @@ jobs:
           TASK: ${{ inputs.task }}
         shell: bash
         run: |
+          # GitHub Actions starts Bash with errexit enabled. Disable errexit in
+          # this step so a provider's non-zero response can be classified and
+          # routed to the next model instead of terminating the whole step.
+          set +e
           set -uo pipefail
 
           # Ordered from preferred models to independent-provider fallbacks.
