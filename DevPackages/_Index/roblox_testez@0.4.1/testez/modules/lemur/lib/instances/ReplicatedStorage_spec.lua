@@ -1,9 +1,9 @@
 local ReplicatedStorage = import("./ReplicatedStorage")
 
 describe("instances.ReplicatedStorage", function()
-    it("should instantiate", function()
-        local instance = ReplicatedStorage:new()
+	it("should instantiate", function()
+		local instance = ReplicatedStorage:new()
 
-        assert.not_nil(instance)
-    end)
+		assert.not_nil(instance)
+	end)
 end)

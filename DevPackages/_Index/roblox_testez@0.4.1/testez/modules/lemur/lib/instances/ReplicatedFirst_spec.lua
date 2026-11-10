@@ -1,9 +1,9 @@
 local ReplicatedFirst = import("./ReplicatedFirst")
 
 describe("instances.ReplicatedFirst", function()
-    it("should instantiate", function()
-        local instance = ReplicatedFirst:new()
+	it("should instantiate", function()
+		local instance = ReplicatedFirst:new()
 
-        assert.not_nil(instance)
-    end)
+		assert.not_nil(instance)
+	end)
 end)

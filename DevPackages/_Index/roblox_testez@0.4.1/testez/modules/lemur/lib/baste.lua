@@ -30,43 +30,43 @@
 local baste = {}
 
 local function componentsFromPathString(input)
-    local components = {}
-    local sliceStart = 1
-    local sliceEnd = 0
+	local components = {}
+	local sliceStart = 1
+	local sliceEnd = 0
 
-    for i = 1, #input do
-        local char = input:sub(i, i)
+	for i = 1, #input do
+		local char = input:sub(i, i)
 
-        if char == "/" or char == "\\" then
-            if sliceEnd ~= 0 then
-                local slice = input:sub(sliceStart, sliceEnd)
+		if char == "/" or char == "\\" then
+			if sliceEnd ~= 0 then
+				local slice = input:sub(sliceStart, sliceEnd)
 
-                if slice == ".." then
-                    local lastComponent = components[#components]
+				if slice == ".." then
+					local lastComponent = components[#components]
 
-                    if lastComponent ~= nil and lastComponent ~= ".." then
-                        table.remove(components)
-                    else
-                        table.insert(components, slice)
-                    end
-                elseif slice ~= "." then
-                    table.insert(components, slice)
-                end
-            end
+					if lastComponent ~= nil and lastComponent ~= ".." then
+						table.remove(components)
+					else
+						table.insert(components, slice)
+					end
+				elseif slice ~= "." then
+					table.insert(components, slice)
+				end
+			end
 
-            sliceStart = i + 1
-            sliceEnd = 0
-        else
-            sliceEnd = i
-        end
-    end
+			sliceStart = i + 1
+			sliceEnd = 0
+		else
+			sliceEnd = i
+		end
+	end
 
-    if sliceEnd ~= 0 then
-        local slice = input:sub(sliceStart, sliceEnd)
-        table.insert(components, slice)
-    end
+	if sliceEnd ~= 0 then
+		local slice = input:sub(sliceStart, sliceEnd)
+		table.insert(components, slice)
+	end
 
-    return components
+	return components
 end
 
 local Path = {}
@@ -74,99 +74,99 @@ Path.prototype = {}
 Path.__index = Path.prototype
 
 function Path.fromString(input)
-    if type(input) ~= "string" then
-        error("Path.fromString expects a string, but got " .. type(input), 2)
-    end
+	if type(input) ~= "string" then
+		error("Path.fromString expects a string, but got " .. type(input), 2)
+	end
 
-    local isAbsolute = input:sub(1, 1) == "/"
+	local isAbsolute = input:sub(1, 1) == "/"
 
-    local path = {
-        isAbsolute = isAbsolute,
-        components = componentsFromPathString(input),
-    }
+	local path = {
+		isAbsolute = isAbsolute,
+		components = componentsFromPathString(input),
+	}
 
-    setmetatable(path, Path)
+	setmetatable(path, Path)
 
-    return path
+	return path
 end
 
 function Path:__tostring()
-    if self.__stringRepresentation ~= nil then
-        return self.__stringRepresentation
-    end
+	if self.__stringRepresentation ~= nil then
+		return self.__stringRepresentation
+	end
 
-    local output = table.concat(self.components, "/")
+	local output = table.concat(self.components, "/")
 
-    if self.isAbsolute then
-        output = "/" .. output
-    end
+	if self.isAbsolute then
+		output = "/" .. output
+	end
 
-    self.__stringRepresentation = output
+	self.__stringRepresentation = output
 
-    return output
+	return output
 end
 
 function Path.prototype:getExtension()
-    local lastComponent = self.components[#self.components]
+	local lastComponent = self.components[#self.components]
 
-    if lastComponent == nil then
-        return nil
-    end
+	if lastComponent == nil then
+		return nil
+	end
 
-    -- TODO: Handle files that start with a dot?
+	-- TODO: Handle files that start with a dot?
 
-    return lastComponent:match("%.[^.]+")
+	return lastComponent:match("%.[^.]+")
 end
 
 function Path.prototype:clone()
-    local components = {}
+	local components = {}
 
-    for _, component in ipairs(self.components) do
-        table.insert(components, component)
-    end
+	for _, component in ipairs(self.components) do
+		table.insert(components, component)
+	end
 
-    local newPath = {
-        isAbsolute = self.isAbsolute,
-        components = components,
-    }
+	local newPath = {
+		isAbsolute = self.isAbsolute,
+		components = components,
+	}
 
-    setmetatable(newPath, getmetatable(self))
+	setmetatable(newPath, getmetatable(self))
 
-    return newPath
+	return newPath
 end
 
 function Path.prototype:push(input)
-    self = self:clone()
+	self = self:clone()
 
-    local newComponents = componentsFromPathString(input)
+	local newComponents = componentsFromPathString(input)
 
-    for _, component in ipairs(newComponents) do
-        if component == ".." then
-            if #self.components > 0 then
-                table.remove(self.components)
-            else
-                table.insert(self.components, component)
-            end
-        elseif component ~= "." then
-            table.insert(self.components, component)
-        end
-    end
+	for _, component in ipairs(newComponents) do
+		if component == ".." then
+			if #self.components > 0 then
+				table.remove(self.components)
+			else
+				table.insert(self.components, component)
+			end
+		elseif component ~= "." then
+			table.insert(self.components, component)
+		end
+	end
 
-    return self
+	return self
 end
 
 function Path.prototype:pop()
-    self = self:clone()
-    table.remove(self.components)
+	self = self:clone()
+	table.remove(self.components)
 
-    return self
+	return self
 end
 
 function Path.prototype:addExtension(extension)
-    self = self:clone()
-    self.components[#self.components] = self.components[#self.components] .. extension
+	self = self:clone()
+	self.components[#self.components] = self.components[#self.components] .. extension
 
-    return self
+	return self
 end
 
 baste._Path = Path
@@ -174,54 +174,54 @@ baste._Path = Path
 -- Abstraction over loadstring and load
 local loadWithEnv
 if setfenv then
-    -- 5.1, LuaJIT
-    loadWithEnv = function(source, name, env)
-        local chunk, err = loadstring(source, name)
+	-- 5.1, LuaJIT
+	loadWithEnv = function(source, name, env)
+		local chunk, err = loadstring(source, name)
 
-        if not chunk then
-            return nil, err
-        end
+		if not chunk then
+			return nil, err
+		end
 
-        if env then
-            setfenv(chunk, env)
-        end
+		if env then
+			setfenv(chunk, env)
+		end
 
-        return chunk
-    end
+		return chunk
+	end
 else
-    -- 5.2+
-    loadWithEnv = function(source, name, env)
-        return load(source, name, "bt", env)
-    end
+	-- 5.2+
+	loadWithEnv = function(source, name, env)
+		return load(source, name, "bt", env)
+	end
 end
 
 -- Abstraction over filesystem APIs
 local function readFile(path)
-    local handle, err = io.open(path, "r")
+	local handle, err = io.open(path, "r")
 
-    if not handle then
-        return nil, err
-    end
+	if not handle then
+		return nil, err
+	end
 
-    local contents = handle:read("*all")
-    handle:close()
+	local contents = handle:read("*all")
+	handle:close()
 
-    return contents
+	return contents
 end
 
 if love then
-    local oldReadFile = readFile
+	local oldReadFile = readFile
 
-    readFile = function(path)
-        local contents = love.filesystem.read(path)
+	readFile = function(path)
+		local contents = love.filesystem.read(path)
 
-        -- It could still exist outside the sandbox!
-        if not contents then
-            return oldReadFile(path)
-        end
+		-- It could still exist outside the sandbox!
+		if not contents then
+			return oldReadFile(path)
+		end
 
-        return contents
-    end
+		return contents
+	end
 end
 
 local loadedModules = {}
@@ -236,98 +236,97 @@ local moduleResults = {}
 	debug library calls.
 ]]
 local function makeImport(rootPath)
-    return function(modulePath)
-        local currentPath = rootPath
+	return function(modulePath)
+		local currentPath = rootPath
 
-        if currentPath == nil then
-            currentPath = Path.fromString(debug.getinfo(2, "S").source:gsub("^@", ""))
-        end
+		if currentPath == nil then
+			currentPath = Path.fromString(debug.getinfo(2, "S").source:gsub("^@", ""))
+		end
 
-        if type(modulePath) ~= "string" then
-            local message = "Bad argument #1 to import, expected string but got %s"
-            error(string.format(message, type(modulePath)), 2)
-        end
+		if type(modulePath) ~= "string" then
+			local message = "Bad argument #1 to import, expected string but got %s"
+			error(string.format(message, type(modulePath)), 2)
+		end
 
-        -- Relative import!
-        if modulePath:sub(1, 1) == "." then
-            local currentDirectory = currentPath:pop()
-            local relativeModulePath = currentDirectory:push(modulePath)
+		-- Relative import!
+		if modulePath:sub(1, 1) == "." then
+			local currentDirectory = currentPath:pop()
+			local relativeModulePath = currentDirectory:push(modulePath)
 
-            local pathsToTry = { relativeModulePath }
+			local pathsToTry = {relativeModulePath}
 
-            if Path.fromString(modulePath):getExtension() == nil then
-                table.insert(pathsToTry, relativeModulePath:addExtension(".lua"))
-                table.insert(pathsToTry, relativeModulePath:push("init.lua"))
-            end
+			if Path.fromString(modulePath):getExtension() == nil then
+				table.insert(pathsToTry, relativeModulePath:addExtension(".lua"))
+				table.insert(pathsToTry, relativeModulePath:push("init.lua"))
+			end
 
-            -- TODO: Plug-in point for adding additional paths to try
+			-- TODO: Plug-in point for adding additional paths to try
 
-            -- Have we loaded this module before?
-            for _, path in ipairs(pathsToTry) do
-                if loadedModules[tostring(path)] then
-                    return moduleResults[tostring(path)]
-                end
-            end
+			-- Have we loaded this module before?
+			for _, path in ipairs(pathsToTry) do
+				if loadedModules[tostring(path)] then
+					return moduleResults[tostring(path)]
+				end
+			end
 
-            -- Let's try to load from these paths!
-            for _, path in ipairs(pathsToTry) do
-                -- Hand-craft an environment for the module we're loading
-                -- The module won't be able to iterate over globals!
-                local env = setmetatable({
-                    import = makeImport(path),
-                }, {
-                    __index = _G,
-                    __newindex = _G,
-                })
+			-- Let's try to load from these paths!
+			for _, path in ipairs(pathsToTry) do
+				-- Hand-craft an environment for the module we're loading
+				-- The module won't be able to iterate over globals!
+				local env = setmetatable({
+					import = makeImport(path),
+				}, {
+					__index = _G,
+					__newindex = _G,
+				})
 
-                -- TODO: Plug-in point for adding extra loaders
+				-- TODO: Plug-in point for adding extra loaders
 
-                local source = readFile(tostring(path))
+				local source = readFile(tostring(path))
 
-                if source then
-                    local chunk, err = loadWithEnv(source, "@" .. tostring(path), env)
+				if source then
+					local chunk, err = loadWithEnv(source, "@" .. tostring(path), env)
 
-                    if chunk then
-                        local result = chunk()
-                        loadedModules[tostring(path)] = true
-                        moduleResults[tostring(path)] = result
+					if chunk then
+						local result = chunk()
+						loadedModules[tostring(path)] = true
+						moduleResults[tostring(path)] = result
 
-                        return result
-                    else
-                        -- Syntax error!
-                        error(err, 2)
-                    end
-                end
-            end
+						return result
+					else
+						-- Syntax error!
+						error(err, 2)
+					end
+				end
+			end
 
-            local pathsToTryAsStrings = {}
+			local pathsToTryAsStrings = {}
 
-            for _, path in ipairs(pathsToTry) do
-                table.insert(pathsToTryAsStrings, tostring(path))
-            end
+			for _, path in ipairs(pathsToTry) do
+				table.insert(pathsToTryAsStrings, tostring(path))
+			end
 
-            -- We didn't find any modules.
-            local message = string.format(
-                "Couldn't import %q from file %s, tried:\n\t%s",
-                modulePath,
-                tostring(currentPath),
-                table.concat(pathsToTryAsStrings, "\n\t")
-            )
+			-- We didn't find any modules.
+			local message = string.format("Couldn't import %q from file %s, tried:\n\t%s",
+				modulePath,
+				tostring(currentPath),
+				table.concat(pathsToTryAsStrings, "\n\t")
+			)
 
-            error(message, 2)
-        else
-            -- TODO: check `baste_modules` folder (or similar)
-            return require(modulePath)
-        end
-    end
+			error(message, 2)
+		else
+			-- TODO: check `baste_modules` folder (or similar)
+			return require(modulePath)
+		end
+	end
 end
 
 baste.import = makeImport()
 
 function baste.global()
-    _G.import = baste.import
+	_G.import = baste.import
 
-    return baste
+	return baste
 end
 
 return baste

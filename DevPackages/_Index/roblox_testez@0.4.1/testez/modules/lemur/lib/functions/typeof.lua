@@ -1,21 +1,21 @@
 local typeKey = import("../typeKey")
 
 local function typeof(object)
-    local realType = type(object)
+	local realType = type(object)
 
-    if realType == "userdata" then
-        local metatable = getmetatable(object)
+	if realType == "userdata" then
+		local metatable = getmetatable(object)
 
-        if metatable == nil then
-            return "userdata"
-        end
+		if metatable == nil then
+			return "userdata"
+		end
 
-        if metatable[typeKey] ~= nil then
-            return metatable[typeKey]
-        end
-    end
+		if metatable[typeKey] ~= nil then
+			return metatable[typeKey]
+		end
+	end
 
-    return realType
+	return realType
 end
 
 return typeof
