@@ -1,0 +1,19 @@
+# .gitignore
+# Roblox model files
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+
+# Wally packages
+packages/**
+
+# Build artifacts
+out/**
+
+# Temporary files
+*.log
+*.tmp
+
+# macOS
+.DS_Store
