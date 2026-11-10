@@ -29,9 +29,9 @@ jobs:
           persist-credentials: true
 
       - name: Install OpenCode
-        shell: bash
         run: |
           curl -fsSL https://opencode.ai/v2/install | bash
+          export PATH="$HOME/.opencode/bin:$PATH"
           echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
           opencode --version
 
