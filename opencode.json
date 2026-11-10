@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "providers": {
+    "groq": {
+      "models": {
+        "openai/gpt-oss-120b": {
+          "body": {
+            "max_completion_tokens": 2048
+          },
+          "limit": {
+            "output": 2048
+          }
+        }
+      }
+    }
+  }
+}
