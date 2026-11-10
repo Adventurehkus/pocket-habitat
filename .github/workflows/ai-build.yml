@@ -98,6 +98,7 @@ jobs:
                   --model "$MODEL" \
                   --agent build \
                   "$TASK" 2>&1 | tee "$LOG_FILE"
+                STATUS=${PIPESTATUS[0]}
               else
                 opencode run \
                   --standalone \
@@ -107,8 +108,8 @@ jobs:
                   --agent build \
                   "Continue the original task in this existing session. The previous model/provider reached a quota or temporary availability limit. Preserve all completed work, inspect the current repository state, do not restart or repeat completed work, and continue the original task to completion. You are now using fallback model $MODEL." \
                   2>&1 | tee "$LOG_FILE"
+                STATUS=${PIPESTATUS[0]}
               fi
-              STATUS=${PIPESTATUS[0]}
               SESSION_ACTIVE=true
 
               if [[ "$STATUS" -eq 0 ]]; then
