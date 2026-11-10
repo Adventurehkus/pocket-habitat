@@ -70,6 +70,7 @@ jobs:
           if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
             MODEL_CHAIN+=(
               "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+              "openrouter/cohere/north-mini-code:free"
             )
           fi
 
