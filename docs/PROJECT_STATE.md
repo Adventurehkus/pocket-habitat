@@ -42,3 +42,9 @@
 - Every model change uses OpenCode `--continue` with an explicit `--model`, preserving the same session and task context.
 - Local shell syntax and simulated daily-quota/RPM fallback paths passed. Actual end-to-end provider switching remains to be verified in the next workflow run.
 - OpenRouter free tier is a last-resort pool currently advertised at 50 requests/day and 20 RPM; the two configured OpenRouter models share that account-level free allowance. NVIDIA's free Nemotron endpoint states that request data may be logged and used to improve NVIDIA products. Do not send confidential information or credentials to that fallback.
+
+## Latest extended-sprint workflow failure and correction
+- Workflow run 42911900811 (run 9) did not begin gameplay implementation. It used only Gemini 3.5 Flash-Lite, then hit the Google Free Tier input-token-per-minute quota (250,000 TPM), not the daily request quota.
+- The multi-model fallback did not run because GitHub Actions Bash had `errexit` enabled: the failed OpenCode pipeline terminated the shell before its status could be classified. This is now fixed in `main` by explicitly disabling `errexit` in the model-routing step and handling pipeline statuses inside `if` conditions.
+- The failed agent tried to install the Roblox toolchain itself, although the checkout had no Rokit tools installed, and created an invalid 9-byte archive. That file was removed. The official Rokit installer, pinned tool installation, Wally dependency installation, version checks, and initial Rojo build are now deterministic steps before the agent starts.
+- The failed run's persistence checkpoint contained no gameplay implementation. The new workflow fixes are committed to `main`; actual model-to-model fallback still needs a live workflow verification.
