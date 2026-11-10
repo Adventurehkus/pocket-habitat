@@ -1,19 +1,19 @@
 local ContextActionService = import("./ContextActionService")
 
 describe("instances.ContextActionService", function()
-	it("should instantiate", function()
-		local instance = ContextActionService:new()
+    it("should instantiate", function()
+        local instance = ContextActionService:new()
 
-		assert.not_nil(instance)
-	end)
+        assert.not_nil(instance)
+    end)
 
-	it("should have core binding methods", function()
-		local instance = ContextActionService:new()
+    it("should have core binding methods", function()
+        local instance = ContextActionService:new()
 
-		instance:BindCoreAction("Foo", function()
-			-- no op
-		end, false)
+        instance:BindCoreAction("Foo", function()
+            -- no op
+        end, false)
 
-		instance:UnbindCoreAction("Foo")
-	end)
+        instance:UnbindCoreAction("Foo")
+    end)
 end)

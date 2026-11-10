@@ -4,8 +4,8 @@
 
 -- If you add any dependencies, add them to this table so they'll be loaded!
 local LOAD_MODULES = {
-	{"src", "TestEZ"},
-	{"tests", "TestEZTests"},
+    { "src", "TestEZ" },
+    { "tests", "TestEZTests" },
 }
 
 -- This makes sure we can load Lemur and other libraries that depend on init.lua
@@ -22,9 +22,9 @@ local ReplicatedStorage = habitat.game:GetService("ReplicatedStorage")
 
 -- Load all of the modules specified above
 for _, module in ipairs(LOAD_MODULES) do
-	local container = habitat:loadFromFs(module[1])
-	container.Name = module[2]
-	container.Parent = ReplicatedStorage
+    local container = habitat:loadFromFs(module[1])
+    container.Name = module[2]
+    container.Parent = ReplicatedStorage
 end
 
 -- When Lemur implements a proper scheduling interface, we'll use that instead.

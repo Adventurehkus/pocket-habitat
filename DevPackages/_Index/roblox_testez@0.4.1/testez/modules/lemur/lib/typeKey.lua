@@ -9,7 +9,7 @@
 local typeKey = newproxy(true)
 
 getmetatable(typeKey).__tostring = function()
-	return "<Lemur Type Identifier>"
+    return "<Lemur Type Identifier>"
 end
 
 return typeKey

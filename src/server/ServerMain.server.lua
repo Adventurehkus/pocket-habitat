@@ -8,34 +8,38 @@ local ResourceManager = require(script.Parent:WaitForChild("ResourceManager"))
 local PlantManager = require(script.Parent:WaitForChild("PlantManager"))
 local QuestManager = require(script.Parent:WaitForChild("QuestManager"))
 local EconomyManager = require(script.Parent:WaitForChild("EconomyManager"))
+local WorldBuilder = require(script.Parent:WaitForChild("WorldBuilder"))
 local RemoteEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RemoteEvents"))
 
 print("[ServerMain] Starting Pocket Habitat Server...")
 
+WorldBuilder.init()
 ResourceManager.init()
 PlantManager.init()
 QuestManager.init()
 
-RemoteEvents.PurchaseUpgrade.OnServerInvoke = function(player: Player, upgradeId: string)
-	return EconomyManager.purchaseUpgrade(player, upgradeId)
+RemoteEvents.PurchaseUpgrade.OnServerInvoke = function(player: Player, upgradeId: any)
+    return EconomyManager.purchaseUpgrade(player, upgradeId)
 end
 
 Players.PlayerAdded:Connect(function(player)
-	print("[ServerMain] Player added: " .. player.Name)
-	local data = DataStoreManager.loadPlayerData(player)
-	task.wait(1)
-	RemoteEvents.SyncData:FireClient(player, data)
+    print("[ServerMain] Player added: " .. player.Name)
+    local data = DataStoreManager.loadPlayerData(player)
+    if data then
+        task.wait(1)
+        RemoteEvents.SyncData:FireClient(player, data)
+    end
 end)
 
 Players.PlayerRemoving:Connect(function(player)
-	print("[ServerMain] Player removing: " .. player.Name)
-	DataStoreManager.removeSession(player)
+    print("[ServerMain] Player removing: " .. player.Name)
+    DataStoreManager.removeSession(player)
 end)
 
 game:BindToClose(function()
-	for _, player in ipairs(Players:GetPlayers()) do
-		DataStoreManager.removeSession(player)
-	end
+    for _, player in ipairs(Players:GetPlayers()) do
+        DataStoreManager.removeSession(player)
+    end
 end)
 
 print("[ServerMain] Pocket Habitat Server initialized successfully.")

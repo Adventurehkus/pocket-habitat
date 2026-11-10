@@ -11,14 +11,19 @@ local ContextActionService = BaseInstance:extend("ContextActionService")
 	* Binding a different action to the same name (overwrites existing action)
 	* Unbinding actions that were never bound does not error
 ]]
-function ContextActionService.prototype:BindCoreAction(actionName, functionToBind, createTouchButton, ...)
-	validateType("actionName", actionName, "string")
-	validateType("functionToBind", functionToBind, "function")
-	validateType("createTouchButton", createTouchButton, "boolean")
+function ContextActionService.prototype:BindCoreAction(
+    actionName,
+    functionToBind,
+    createTouchButton,
+    ...
+)
+    validateType("actionName", actionName, "string")
+    validateType("functionToBind", functionToBind, "function")
+    validateType("createTouchButton", createTouchButton, "boolean")
 end
 
 function ContextActionService.prototype:UnbindCoreAction(actionName)
-	validateType("actionName", actionName, "string")
+    validateType("actionName", actionName, "string")
 end
 
 return ContextActionService

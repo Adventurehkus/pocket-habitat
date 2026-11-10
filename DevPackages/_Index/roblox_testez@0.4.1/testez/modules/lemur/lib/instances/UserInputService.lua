@@ -7,25 +7,25 @@ local Platform = import("../Enum/Platform")
 local UserInputService = BaseInstance:extend("UserInputService")
 
 function UserInputService.prototype:GetPlatform()
-	return Platform.Windows
+    return Platform.Windows
 end
 
 UserInputService.properties.InputBegan = InstanceProperty.readOnly({
-	getDefault = function()
-		return Signal.new()
-	end,
+    getDefault = function()
+        return Signal.new()
+    end,
 })
 
 UserInputService.properties.InputChanged = InstanceProperty.readOnly({
-	getDefault = function()
-		return Signal.new()
-	end,
+    getDefault = function()
+        return Signal.new()
+    end,
 })
 
 UserInputService.properties.MouseBehavior = InstanceProperty.normal({
-	getDefault = function()
-		return MouseBehavior.Default
-	end
+    getDefault = function()
+        return MouseBehavior.Default
+    end,
 })
 
 return UserInputService

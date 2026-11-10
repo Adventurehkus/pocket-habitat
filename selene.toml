@@ -1,1 +1,13 @@
 std = "roblox"
+
+[config.files]
+exclude = ["DevPackages/**"]
+
+[globals]
+describe = "read"
+it = "read"
+beforeAll = "read"
+beforeEach = "read"
+afterAll = "read"
+afterEach = "read"
+expect = "read"

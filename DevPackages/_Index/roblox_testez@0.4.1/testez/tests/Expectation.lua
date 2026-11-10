@@ -3,8 +3,7 @@ local Expectation = require(TestEZ.Expectation)
 
 return {
     ["it should succeed if an empty function is expected to never throw"] = function()
-        local function shouldNotThrow()
-        end
+        local function shouldNotThrow() end
 
         local expect = Expectation.new(shouldNotThrow)
 
@@ -45,8 +44,7 @@ return {
         )
     end,
     ["it should fail if an empty function is expected to throw"] = function()
-        local function shouldNotThrow()
-        end
+        local function shouldNotThrow() end
 
         local expect = Expectation.new(shouldNotThrow)
 
@@ -61,8 +59,7 @@ return {
         )
     end,
     ["it should fail if an empty function is expected to throw with a message"] = function()
-        local function shouldNotThrow()
-        end
+        local function shouldNotThrow() end
 
         local expect = Expectation.new(shouldNotThrow)
 
@@ -72,7 +69,7 @@ return {
 
         assert(not success, "should fail")
         assert(
-            message:match("Expected function to throw an error containing \"foo\", but it did not."),
+            message:match('Expected function to throw an error containing "foo", but it did not.'),
             ("Error message does not match:\n%s\n"):format(message)
         )
     end,
@@ -90,18 +87,14 @@ return {
         assert(not success, "should fail")
         -- Make sure we state the expected error
         assert(
-            message:match("Expected function to throw an error containing \"foo\""),
+            message:match('Expected function to throw an error containing "foo"'),
             ("Error message does not match:\n%s\n"):format(message)
         )
         -- Make sure we state the actual error
-        assert(
-            message:match(": oof"),
-            ("Error message does not match:\n%s\n"):format(message)
-        )
+        assert(message:match(": oof"), ("Error message does not match:\n%s\n"):format(message))
     end,
     ["should succeed if it doesn't fail when it was expecting to never throw with a message"] = function()
-        local function shouldNotThrow()
-        end
+        local function shouldNotThrow() end
 
         local expect = Expectation.new(shouldNotThrow)
 
@@ -138,14 +131,11 @@ return {
         assert(not success, "should fail")
         -- Make sure we state the expected error
         assert(
-            message:match("Expected function to never throw an error containing \"oof\""),
+            message:match('Expected function to never throw an error containing "oof"'),
             ("Error message does not match:\n%s\n"):format(message)
         )
         -- Make sure we state the actual error
-        assert(
-            message:match(": foo%-oof"),
-            ("Error message does not match:\n%s\n"):format(message)
-        )
+        assert(message:match(": foo%-oof"), ("Error message does not match:\n%s\n"):format(message))
     end,
     ["it should succeed if types match"] = function()
         local expectNumber = Expectation.new(5)
@@ -253,7 +243,9 @@ return {
 
         assert(not success, "should fail")
         assert(
-            message:match("Expected value to be near %d+.%d+ %(within %d+.%d+%) but got %d+.%d+ instead"),
+            message:match(
+                "Expected value to be near %d+.%d+ %(within %d+.%d+%) but got %d+.%d+ instead"
+            ),
             ("Error message does not match:\n%s\n"):format(message)
         )
     end,
