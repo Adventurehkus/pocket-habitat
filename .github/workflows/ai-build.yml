@@ -58,6 +58,7 @@ jobs:
                 --model "$MODEL" \
                 --agent build \
                 "$TASK" 2>&1 | tee "$LOG_FILE"
+              STATUS=${PIPESTATUS[0]}
             else
               opencode run \
                 --standalone \
@@ -67,9 +68,9 @@ jobs:
                 --agent build \
                 "The previous response was interrupted by Gemini's temporary requests-per-minute limit. Continue the existing session and finish the original task. First inspect the current repository state and existing changes; do not redo work that is already complete." \
                 2>&1 | tee "$LOG_FILE"
+              STATUS=${PIPESTATUS[0]}
             fi
 
-            STATUS=${PIPESTATUS[0]}
             echo "::endgroup::"
 
             if [ "$STATUS" -eq 0 ]; then
