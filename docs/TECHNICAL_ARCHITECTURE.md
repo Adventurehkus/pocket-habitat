@@ -17,7 +17,11 @@ Pocket Habitat follows a strict **Client-Server Architecture** with **Server-Aut
 - **Assets (`assets/runtime`)**:
   - Low-poly models, prefabs, particles, and sounds stored in ServerStorage during runtime.
 
-## Data Persistence & Security
-- **DataStores**: Uses versioned, safe DataStore persistence with retry logic, exponential backoff, and robust error handling.
-- **Multiplayer Isolation**: Player data is strictly isolated per `UserId` session, preventing cross-player data pollution or race conditions.
-- **Client Validation**: The client acts purely as a presentation and input collection layer; all requests are validated against server state before applying mutations.
+## Data Persistence & Security (Planned Requirements)
+The following are required design constraints; they are not implemented or verified yet:
+- **DataStores**: Add versioned player data, safe migrations, retry logic with bounded backoff, and clear failure handling.
+- **Multiplayer Isolation**: Key player records by `UserId` and prevent cross-player state changes or save races.
+- **Client Validation**: Treat the client as presentation/input only. Validate requests, ownership, distance, cooldowns, and rewards on the server before mutating state.
+
+## Implementation Status
+This document describes the intended architecture. It does not claim the listed managers, persistence layer, network wrappers, or gameplay systems already exist.
