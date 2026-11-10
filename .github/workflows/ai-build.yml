@@ -28,6 +28,22 @@ jobs:
           ref: ai/game-build
           persist-credentials: true
 
+      - name: Install Roblox toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/rojo-rbx/rokit/main/scripts/install.sh | bash
+          echo "$HOME/.rokit/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.rokit/bin:$PATH"
+          rokit --version
+          rokit install --no-trust-check
+          wally install
+          rojo --version
+          stylua --version
+          selene --version
+          wally --version
+          rojo build default.project.json -o "$RUNNER_TEMP/pocket-habitat-toolchain-check.rbxl"
+
       - name: Install OpenCode
         shell: bash
         run: |
@@ -94,23 +110,29 @@ jobs:
               echo "Running ${MODEL} (attempt $((MODEL_RETRIES + 1)) for this model)."
 
               if [[ "$SESSION_ACTIVE" == "false" ]]; then
-                opencode run \
+                if opencode run \
                   --standalone \
                   --auto \
                   --model "$MODEL" \
                   --agent build \
-                  "$TASK" 2>&1 | tee "$LOG_FILE"
-                STATUS=${PIPESTATUS[0]}
+                  "$TASK" 2>&1 | tee "$LOG_FILE"; then
+                  STATUS=0
+                else
+                  STATUS=$?
+                fi
               else
-                opencode run \
+                if opencode run \
                   --standalone \
                   --auto \
                   --continue \
                   --model "$MODEL" \
                   --agent build \
                   "Continue the original task in this existing session. The previous model/provider reached a quota or temporary availability limit. Preserve all completed work, inspect the current repository state, do not restart or repeat completed work, and continue the original task to completion. You are now using fallback model $MODEL." \
-                  2>&1 | tee "$LOG_FILE"
-                STATUS=${PIPESTATUS[0]}
+                  2>&1 | tee "$LOG_FILE"; then
+                  STATUS=0
+                else
+                  STATUS=$?
+                fi
               fi
               SESSION_ACTIVE=true
 
