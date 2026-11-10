@@ -2,7 +2,7 @@
 
 ## Current status
 - **Current milestone:** Milestone 0 — Foundation.
-- **Status:** Partially complete. The required documentation pages now exist, but the toolchain and project directory mappings have not been validated successfully.
+- **Status:** Documentation suite is complete and all directory paths referenced by `default.project.json` now have committed placeholders. Toolchain installation and Rojo/StyLua/Selene checks remain unverified.
 - **Last AI run:** GitHub Actions run `42905401642`; agent terminated after Google's Gemini 3.5 Flash-Lite free-tier limit of 15 generate-content requests per minute was reached.
 - **Latest saved checkpoint at that run:** `7ef9e43` (documentation checkpoint). Additional documentation corrections were committed afterward.
 
@@ -26,7 +26,6 @@
 - Agent-written claims that all seven docs and all tooling checks passed were inaccurate; this file supersedes those claims.
 
 ## Known gaps
-- Ensure all paths referenced by `default.project.json` are actual directories and are committed with placeholder files where empty.
 - Install Rokit by its supported installation method in CI, then use it to install pinned tools.
 - Verify whether the Wally pin/distribution is valid and adjust based on official installation instructions.
 - Add a CI validation script for Rojo build, StyLua, and Selene.
@@ -34,4 +33,4 @@
 - OpenCode/Gemini can hit the free-tier per-minute request cap during highly tool-heavy runs. Keep each run tightly scoped and reduce tool-call count.
 
 ## Exact next task
-Complete the CI toolchain setup in a single focused task: install Rokit using its supported release installer, install pinned tools from `rokit.toml`, validate `default.project.json` with Rojo, and run StyLua/Selene on any Luau files. Correct the empty source/asset/Packages paths referenced by Rojo. Record only actual outcomes here. Do not implement gameplay or publish to Roblox yet.
+Complete the CI toolchain setup in a single focused task: install Rokit using its supported official installer, install pinned tools from `rokit.toml`, validate `default.project.json` with Rojo, and run StyLua/Selene on any Luau files. Confirm all mapped directories resolve. Record only actual outcomes here. Do not implement gameplay or publish to Roblox yet.
