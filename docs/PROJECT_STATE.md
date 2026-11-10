@@ -64,7 +64,7 @@
 - The job exhausted Gemini 3.5 Flash-Lite's input-token-per-minute capacity after four outer retries. Gemini 3.1 Flash-Lite then returned repeated temporary "model is currently experiencing high demand" errors; OpenCode internally retried those requests before the workflow stopped.
 - The workflow classifier did not recognize that provider-capacity wording. The main workflow was corrected in commit `ae1d395` to classify "high demand", "spikes in demand", and "try again later" as provider-availability errors and continue to the next configured model.
 - Run 11 checkpoint `55a4509` was persisted successfully to `ai/game-build` with 10 Luau files and 752 inserted lines.
-- Next: dispatch a new run to verify the expanded classifier reaches Gemini 2.5 Flash-Lite or the next available provider, then continue the original Milestone 1 implementation and require post-agent build, lint, format, and tests.
+- Next: dispatch a new run to verify fallback from Gemini 3.1 to Gemini 3.8 Flash (then Gemma/Groq/OpenRouter if needed), continue Milestone 1, and require post-agent build, lint, format, and tests.
 
 
 ## Workflow run 12 — Gemini 2.5 fallback blocked and checkpoint saved
@@ -72,6 +72,6 @@
 - Gemini 3.5 Flash-Lite hit 15-RPM and 250,000-TPM limits. Gemini 3.1 Flash-Lite then hit TPM limits and repeated high-demand responses. The workflow correctly advanced past Gemini 3.1.
 - Gemini 2.5 Flash-Lite was rejected with: "This model ... is no longer available to new users." Google documents that access to Gemini 2.5 models is limited to users who actively used them before; for new projects it recommends Gemini 3.5 Flash-Lite or Gemini 3.8 Flash.
 - Main workflow commit `3e956a7` removes Gemini 2.5 Flash-Lite from the fallback order and adds retired/restricted model wording to the provider-availability classifier. Gemini 3.8 Flash is now next after Gemini 3.1.
-- Run 12 checkpoint `04a4108` added `src/client/ClientMain.client.lua`, created `src/server/WorldBuilder.lua` and `src/shared/PocketHabitat.spec.lua` (both empty at this checkpoint), and modified server modules. No successful post-agent Rojo/lint/format/TestEZ run is recorded.
+- Run 12 checkpoint `04a4108` added `src/client/ClientMain.client.lua`, implemented a basic `WorldBuilder.init()` with a baseplate/resource markers/garden plots, added a TestEZ spec for shared constants, and modified server modules. The test spec was not executed, and no successful post-agent Rojo/lint/format/TestEZ run is recorded.
 - The run reformatted many vendored TestEZ files under `DevPackages/_Index`. Corrective commit `25750bf` restores the vendored dependency tree to its pre-run contents while retaining game-source changes. `AGENTS.md` now directs formatting/linting to `src/` only.
 - The next workflow run must verify that Gemini 3.8 Flash or later Google/Groq/OpenRouter models can take over, and it must validate the saved Luau source after agent execution.
