@@ -36,18 +36,71 @@ jobs:
           echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
           opencode --version
 
-      - name: Run autonomous development agent
+      - name: Run autonomous development agent (retry Gemini RPM limits)
         env:
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TASK: ${{ inputs.task }}
         shell: bash
         run: |
-          opencode run \
-            --standalone \
-            --auto \
-            --model google/gemini-3.5-flash-lite \
-            --agent build \
-            "$TASK"
+          set -uo pipefail
+
+          MODEL="google/gemini-3.5-flash-lite"
+          ATTEMPT=1
+
+          while true; do
+            LOG_FILE="$RUNNER_TEMP/opencode-attempt-${ATTEMPT}.log"
+            echo "::group::OpenCode attempt ${ATTEMPT}"
+
+            if [ "$ATTEMPT" -eq 1 ]; then
+              opencode run \
+                --standalone \
+                --auto \
+                --model "$MODEL" \
+                --agent build \
+                "$TASK" 2>&1 | tee "$LOG_FILE"
+            else
+              opencode run \
+                --standalone \
+                --auto \
+                --continue \
+                --model "$MODEL" \
+                --agent build \
+                "The previous response was interrupted by Gemini's temporary requests-per-minute limit. Continue the existing session and finish the original task. First inspect the current repository state and existing changes; do not redo work that is already complete." \
+                2>&1 | tee "$LOG_FILE"
+            fi
+
+            STATUS=${PIPESTATUS[0]}
+            echo "::endgroup::"
+
+            if [ "$STATUS" -eq 0 ]; then
+              echo "OpenCode completed successfully."
+              exit 0
+            fi
+
+            # Retry only an explicit per-minute rate limit. Daily quota,
+            # authentication, configuration, and other failures still fail fast.
+            if grep -Eiq 'requests per minute limit exceeded|per-minute limit exceeded|requests-per-minute|RPM limit' "$LOG_FILE"; then
+              RETRY_HINT=$(sed -nE 's/.*retry in ([0-9]+([.][0-9]+)?)s.*/\1/ip' "$LOG_FILE" | tail -n 1)
+
+              if [ -n "$RETRY_HINT" ]; then
+                DELAY=$(awk -v seconds="$RETRY_HINT" 'BEGIN { printf "%d", seconds + 10 }')
+              else
+                DELAY=65
+              fi
+
+              if [ "$DELAY" -lt 15 ]; then DELAY=15; fi
+
+              echo "Gemini RPM limit reached. Preserving this OpenCode session."
+              echo "Waiting ${DELAY} seconds, then continuing the same session..."
+              sleep "$DELAY"
+
+              ATTEMPT=$((ATTEMPT + 1))
+              continue
+            fi
+
+            echo "OpenCode failed for a reason other than a recognized Gemini RPM limit (exit code $STATUS)."
+            exit "$STATUS"
+          done
 
       - name: Persist work to GitHub
         if: always()
