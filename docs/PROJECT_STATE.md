@@ -3,9 +3,9 @@
 ## Current status
 - **Current milestone:** Milestone 1 — Playable Core (in progress; initial server/shared scaffolding committed, but not yet verified as playable).
 - **Status:** Documentation suite, CI toolchain, and initial Milestone 1 server/shared modules are present. The latest run verified the corrected Rojo smoke test and persisted 10 Luau files. The new gameplay code still needs review, client/world implementation, post-agent build/lint/format checks, and tests.
-- **Last AI run:** Workflow run 42915434078 (run 11); gameplay scaffolding was persisted, then model-provider availability stopped the agent.
-- **Latest workflow checkpoint:** `55a4509` — initial Milestone 1 server/shared Luau scaffolding (10 files, 752 insertions). Follow-up documentation checkpoint: `67ab0c3`.
-- **Workflow conclusion:** Run 11 passed pre-agent toolchain and Rojo validation, then persisted initial gameplay modules. The agent step ended after Gemini provider capacity errors; classifier handling has since been expanded on `main`.
+- **Last AI run:** Workflow run 42917643374 (run 12); the agent added a first client entry point and attempted more gameplay scaffolding before the restricted Gemini 2.5 fallback stopped execution.
+- **Latest gameplay checkpoint:** `04a4108` — client entry point and initial UI/world/test scaffolding, plus server-module refinements. Latest cleanup commit: `25750bf` restores vendored TestEZ files.
+- **Workflow conclusion:** Run 12 passed pre-agent toolchain and Rojo validation, fell through Gemini 3.5 and Gemini 3.1, then stopped on Gemini 2.5 Flash-Lite access restriction. The model was removed from the fallback chain; Gemini 3.8 Flash is now the next Google fallback.
 
 ## Implemented and documented
 - Pocket Habitat game concept and core loops are documented in `GAME_DESIGN.md`.
@@ -35,7 +35,7 @@
 - Begin Milestone 1: implement the playable core in small, verifiable increments, preserving server authority, multiplayer isolation, and PC/mobile support.
 
 ## CI model fallback configuration
-- The `main` workflow now uses an ordered fallback chain: Gemini 3.5 Flash-Lite → Gemini 3.1 Flash-Lite → Gemini 2.5 Flash-Lite → Gemini 3.8 Flash → Gemma 4 31B IT → Gemma 4 26B A4B IT → Groq Qwen 3.8 27B → Groq GPT-OSS 120B → OpenRouter NVIDIA Nemotron 3 Ultra (free, optional) → OpenRouter Cohere North Mini Code (free, optional).
+- The `main` workflow now uses an ordered fallback chain: Gemini 3.5 Flash-Lite → Gemini 3.1 Flash-Lite → Gemini 3.8 Flash → Gemma 4 31B IT → Gemma 4 26B A4B IT → Groq Qwen 3.8 27B → Groq GPT-OSS 120B → OpenRouter NVIDIA Nemotron 3 Ultra (free, optional) → OpenRouter Cohere North Mini Code (free, optional).
 - Google model definitions are configured in `opencode.json` on `ai/game-build`. Groq and OpenRouter use OpenCode's built-in providers.
 - `GEMINI_API_KEY` remains the required primary credential. `GROQ_API_KEY` is included as a secondary credential (already used by earlier workflow revisions). Add `OPENROUTER_API_KEY` as a repository Actions secret to enable the final independent-provider fallback; without it, that model is skipped.
 - A daily request/token quota moves immediately to the next configured model. RPM/TPM limits wait for the provider's retry hint and continue the same OpenCode session, with up to four same-model retries before moving on. Recognized provider availability/auth/model errors also move to the next model. Unknown errors fail fast.
@@ -65,3 +65,13 @@
 - The workflow classifier did not recognize that provider-capacity wording. The main workflow was corrected in commit `ae1d395` to classify "high demand", "spikes in demand", and "try again later" as provider-availability errors and continue to the next configured model.
 - Run 11 checkpoint `55a4509` was persisted successfully to `ai/game-build` with 10 Luau files and 752 inserted lines.
 - Next: dispatch a new run to verify the expanded classifier reaches Gemini 2.5 Flash-Lite or the next available provider, then continue the original Milestone 1 implementation and require post-agent build, lint, format, and tests.
+
+
+## Workflow run 12 — Gemini 2.5 fallback blocked and checkpoint saved
+- Workflow run 42917643374 passed the toolchain and pre-agent Rojo build, then started the agent.
+- Gemini 3.5 Flash-Lite hit 15-RPM and 250,000-TPM limits. Gemini 3.1 Flash-Lite then hit TPM limits and repeated high-demand responses. The workflow correctly advanced past Gemini 3.1.
+- Gemini 2.5 Flash-Lite was rejected with: "This model ... is no longer available to new users." Google documents that access to Gemini 2.5 models is limited to users who actively used them before; for new projects it recommends Gemini 3.5 Flash-Lite or Gemini 3.8 Flash.
+- Main workflow commit `3e956a7` removes Gemini 2.5 Flash-Lite from the fallback order and adds retired/restricted model wording to the provider-availability classifier. Gemini 3.8 Flash is now next after Gemini 3.1.
+- Run 12 checkpoint `04a4108` added `src/client/ClientMain.client.lua`, created `src/server/WorldBuilder.lua` and `src/shared/PocketHabitat.spec.lua` (both empty at this checkpoint), and modified server modules. No successful post-agent Rojo/lint/format/TestEZ run is recorded.
+- The run reformatted many vendored TestEZ files under `DevPackages/_Index`. Corrective commit `25750bf` restores the vendored dependency tree to its pre-run contents while retaining game-source changes. `AGENTS.md` now directs formatting/linting to `src/` only.
+- The next workflow run must verify that Gemini 3.8 Flash or later Google/Groq/OpenRouter models can take over, and it must validate the saved Luau source after agent execution.
