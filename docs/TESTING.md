@@ -59,3 +59,10 @@ Provider keys are read from GitHub Actions repository secrets. `GEMINI_API_KEY` 
 On a daily request/token quota error, the workflow moves to the next model. On explicit RPM/TPM errors, it waits for the provider's retry hint and resumes the same OpenCode session, up to four retries per model before moving on. Recognized temporary provider/auth/model availability errors also move to the next model. Unrecognized errors fail fast rather than hiding actual agent/tool failures. Every model switch continues the same OpenCode session and original task; GitHub Actions persists the working tree at job end.
 
 OpenRouter's free tier currently advertises 50 requests/day and 20 requests/minute; failed free-model attempts count toward its daily cap. Treat it as a small last-resort reserve, not another 500-request pool. The NVIDIA free Nemotron endpoint states that request data may be logged and used to improve NVIDIA products. Avoid sending confidential information when that fallback is selected; never include credentials in prompts.
+
+## Recent fallback regression test
+- Workflow run 42911900811 reached Gemini 3.5 Flash-Lite but hit Google's 250,000 input-token-per-minute Free Tier limit. This was not a daily quota failure.
+- The fallback script initially failed to catch the error because GitHub Actions enables Bash `errexit` by default. The failed pipeline exited before the classifier could run.
+- The workflow now explicitly disables `errexit` in the model-routing step and wraps each OpenCode pipeline in an `if` condition to capture its actual status safely.
+- Roblox toolchain installation is now a dedicated pre-agent workflow step: official Rokit installer, pinned tools, Wally dependencies, version checks, and a Rojo build smoke test. The agent no longer needs to spend model calls installing basic CI tools.
+- A local Bash simulation verified that a nonzero OpenCode pipeline is captured and the Gemini input-token-per-minute message matches the RPM/TPM classifier. The updated workflow has not yet completed a live provider-switch test.
