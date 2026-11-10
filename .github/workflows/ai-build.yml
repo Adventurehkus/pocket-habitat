@@ -38,14 +38,14 @@ jobs:
 
       - name: Run autonomous development agent
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TASK: ${{ inputs.task }}
         shell: bash
         run: |
           opencode run \
             --standalone \
             --auto \
-            --model groq/qwen/qwen3.8-27b \
+            --model google/gemini-3.8-flash \
             --agent build \
             "$TASK"
 
