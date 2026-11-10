@@ -45,14 +45,13 @@ Repeat StyLua and Selene checks after Luau source files are added. Add TestEZ su
 The autonomous GitHub Actions workflow tries configured models in this order:
 1. Google Gemini 3.5 Flash-Lite.
 2. Google Gemini 3.1 Flash-Lite.
-3. Google Gemini 2.5 Flash-Lite.
 4. Google Gemini 3.8 Flash.
-5. Google Gemma 4 31B IT.
-6. Google Gemma 4 26B A4B IT.
-7. Groq Qwen 3.8 27B.
-8. Groq GPT-OSS 120B.
-9. OpenRouter NVIDIA Nemotron 3 Ultra (free).
-10. OpenRouter Cohere North Mini Code (free), when `OPENROUTER_API_KEY` is configured.
+4. Google Gemma 4 31B IT.
+5. Google Gemma 4 26B A4B IT.
+6. Groq Qwen 3.8 27B.
+7. Groq GPT-OSS 120B.
+8. OpenRouter NVIDIA Nemotron 3 Ultra (free).
+9. OpenRouter Cohere North Mini Code (free), when `OPENROUTER_API_KEY` is configured.
 
 Provider keys are read from GitHub Actions repository secrets. `GEMINI_API_KEY` and `GROQ_API_KEY` are already used by the workflow; OpenRouter is optional. To enable its last-resort free fallback, create an OpenRouter API key and add it to repository Settings → Secrets and variables → Actions as `OPENROUTER_API_KEY`. Never paste API keys into prompts, source files, or chat.
 
@@ -82,3 +81,11 @@ OpenRouter's free tier currently advertises 50 requests/day and 20 requests/minu
 - The log shows Gemini 3.5 Flash-Lite repeatedly rate-limited for input tokens per minute; Gemini 3.1 Flash-Lite returned "This model is currently experiencing high demand" until OpenCode exited. The workflow previously failed to recognize that specific provider-capacity error.
 - Main workflow commit `ae1d395` adds `high demand|spikes in demand|try again later` to provider-availability classification so a new run can proceed to later configured models.
 - No post-agent Rojo build, StyLua, Selene, TestEZ, Roblox engine, or manual Studio test is recorded for the newly created gameplay modules. Run all static checks and add targeted tests before relying on these systems.
+
+
+## Workflow run 12 — restricted Google fallback model
+- Run 42917643374 passed the pre-agent toolchain and Rojo smoke test. Gemini 3.5 Flash-Lite ran out of RPM/TPM capacity; Gemini 3.1 Flash-Lite then encountered TPM limits and repeated high-demand errors.
+- The fallback logic advanced to Gemini 2.5 Flash-Lite, but Google rejected it because the model is no longer available to new users. Google currently limits 2.5 model access to users who actively used them before and recommends Gemini 3.5 Flash-Lite or Gemini 3.8 Flash for new projects.
+- Main workflow commit `3e956a7` removes the restricted Gemini 2.5 model and classifies "no longer available" / "not available to new users" as provider/model availability failures. Gemini 3.8 Flash is now next in the configured chain.
+- Run 12 saved client/UI scaffolding and server-module changes in commit `04a4108`, but the agent stopped before post-agent validations completed. No post-agent Rojo build, StyLua, Selene, TestEZ, Roblox engine, or manual Studio test is recorded.
+- Run 12 also reformatted tracked third-party TestEZ package sources. Commit `25750bf` restored the vendored `DevPackages` directory. `AGENTS.md` now explicitly restricts formatting/linting to project-owned code under `src/`.
