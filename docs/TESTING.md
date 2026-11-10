@@ -46,11 +46,12 @@ The autonomous GitHub Actions workflow tries configured models in this order:
 1. Google Gemini 3.5 Flash-Lite.
 2. Google Gemini 3.1 Flash-Lite.
 3. Google Gemini 2.5 Flash-Lite.
-4. Google Gemma 4 31B IT.
-5. Google Gemma 4 26B A4B IT.
-6. Groq Qwen 3.8 27B.
-7. Groq GPT-OSS 120B.
-8. OpenRouter NVIDIA Nemotron 3 Ultra (free), when `OPENROUTER_API_KEY` is configured.
+4. Google Gemini 3.8 Flash.
+5. Google Gemma 4 31B IT.
+6. Google Gemma 4 26B A4B IT.
+7. Groq Qwen 3.8 27B.
+8. Groq GPT-OSS 120B.
+9. OpenRouter NVIDIA Nemotron 3 Ultra (free), when `OPENROUTER_API_KEY` is configured.
 
 Provider keys are read from GitHub Actions repository secrets. `GEMINI_API_KEY` and `GROQ_API_KEY` are already used by the workflow; OpenRouter is optional. To enable its last-resort free fallback, create an OpenRouter API key and add it to repository Settings → Secrets and variables → Actions as `OPENROUTER_API_KEY`. Never paste API keys into prompts, source files, or chat.
 
