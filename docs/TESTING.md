@@ -66,3 +66,10 @@ OpenRouter's free tier currently advertises 50 requests/day and 20 requests/minu
 - The workflow now explicitly disables `errexit` in the model-routing step and wraps each OpenCode pipeline in an `if` condition to capture its actual status safely.
 - Roblox toolchain installation is now a dedicated pre-agent workflow step: official Rokit installer, pinned tools, Wally dependencies, version checks, and a Rojo build smoke test. The agent no longer needs to spend model calls installing basic CI tools.
 - A local Bash simulation verified that a nonzero OpenCode pipeline is captured and the Gemini input-token-per-minute message matches the RPM/TPM classifier. The updated workflow has not yet completed a live provider-switch test.
+
+
+## Latest toolchain smoke-test failure (workflow run 10)
+- Rokit 1.2.0, Rojo 7.6.1, StyLua 2.6.0, Selene 0.28.0, and Wally 0.3.2 installed successfully; `wally install` completed and installed TestEZ under `DevPackages`.
+- `rojo build default.project.json` then failed because the project mapped `ReplicatedStorage.Packages` to a directory that did not exist after Wally install. The manifest currently has only a dev dependency, so no shared/runtime `Packages` directory is expected.
+- Commit `05221ee` removes the unused `Packages` mapping. The corrected project configuration has not yet been tested by a fresh workflow run. If a normal `[dependencies]` entry is added later, add its `Packages` Rojo mapping at the same time.
+- OpenCode was skipped and no gameplay implementation or provider fallback test occurred in run 10.
