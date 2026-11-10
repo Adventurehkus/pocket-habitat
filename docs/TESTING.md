@@ -45,7 +45,7 @@ Repeat StyLua and Selene checks after Luau source files are added. Add TestEZ su
 The autonomous GitHub Actions workflow tries configured models in this order:
 1. Google Gemini 3.5 Flash-Lite.
 2. Google Gemini 3.1 Flash-Lite.
-4. Google Gemini 3.8 Flash.
+3. Google Gemini 3.8 Flash.
 4. Google Gemma 4 31B IT.
 5. Google Gemma 4 26B A4B IT.
 6. Groq Qwen 3.8 27B.
