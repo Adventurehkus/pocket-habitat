@@ -1,11 +1,11 @@
 # Pocket Habitat — Project State
 
 ## Current status
-- **Current milestone:** Milestone 0 — Foundation (completed).
-- **Status:** Documentation suite and CI toolchain foundation are in place. Rokit-managed tools installed, Wally dependencies installed, and Rojo build verified. StyLua and Selene checks passed against the current placeholder-only game source tree; repeat them after gameplay scripts are added.
-- **Last AI run:** Workflow run 42906659145.
-- **Latest checkpoint:** `5bac5eb` — toolchain setup, dependency installation, build validation, and state update were persisted to `ai/game-build`.
-- **Workflow conclusion:** The agent step ended with Gemini's free-tier 15-requests-per-minute quota error during its final response. The separate persistence step succeeded, so the checkpoint was not lost.
+- **Current milestone:** Milestone 0 — Foundation (implementation complete; CI Rojo smoke test pending after the latest project-config correction).
+- **Status:** Documentation suite and CI toolchain foundation are in place. Rokit-managed tools and Wally dependencies install successfully. The latest run exposed and the latest commit corrected an unused Rojo package path; a fresh CI smoke test is still required. StyLua and Selene checks passed against the current placeholder-only game source tree; repeat them after gameplay scripts are added.
+- **Last AI run:** Workflow run 42913879785 (run 10); the agent did not start because pre-agent Rojo validation failed.
+- **Latest workflow checkpoint:** `bc258ed` — Wally install removed the empty `Packages` placeholder directory. Corrective project-config commit: `05221ee`.
+- **Workflow conclusion:** Run 10 installed Rokit, Rojo, StyLua, Selene, and Wally successfully, but `rojo build` failed because `default.project.json` referenced `Packages` even though the manifest has no shared/runtime Wally dependencies. The agent was skipped. The persistence step saved the Wally directory cleanup, and the unused mapping has since been removed.
 
 ## Implemented and documented
 - Pocket Habitat game concept and core loops are documented in `GAME_DESIGN.md`.
@@ -48,3 +48,10 @@
 - The multi-model fallback did not run because GitHub Actions Bash had `errexit` enabled: the failed OpenCode pipeline terminated the shell before its status could be classified. This is now fixed in `main` by explicitly disabling `errexit` in the model-routing step and handling pipeline statuses inside `if` conditions.
 - The failed agent tried to install the Roblox toolchain itself, although the checkout had no Rokit tools installed, and created an invalid 9-byte archive. That file was removed. The official Rokit installer, pinned tool installation, Wally dependency installation, version checks, and initial Rojo build are now deterministic steps before the agent starts.
 - The failed run's persistence checkpoint contained no gameplay implementation. The new workflow fixes are committed to `main`; actual model-to-model fallback still needs a live workflow verification.
+
+
+## Latest toolchain validation failure and correction
+- Workflow run 42913879785 (run 10) successfully installed Rokit 1.2.0, Rojo 7.6.1, StyLua 2.6.0, Selene 0.28.0, and Wally 0.3.2; `wally install` also completed and installed TestEZ 0.4.1 under `DevPackages`.
+- The subsequent Rojo build failed because `default.project.json` still mapped `ReplicatedStorage.Packages` to a `Packages` directory that Wally had removed. The current `wally.toml` contains only a `[dev-dependencies]` entry, so there are no shared/runtime packages to populate `Packages`.
+- Corrective commit `05221ee` removes that unused `$path` mapping from `default.project.json`. When a runtime dependency is added under `[dependencies]`, restore the `Packages` mapping alongside that dependency.
+- Run 10 never started OpenCode and made no gameplay changes. The next workflow dispatch must verify the corrected Rojo build before Milestone 1 begins.
