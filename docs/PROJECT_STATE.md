@@ -1,11 +1,11 @@
 # Pocket Habitat — Project State
 
 ## Current status
-- **Current milestone:** Milestone 0 — Foundation (implementation complete; CI Rojo smoke test pending after the latest project-config correction).
-- **Status:** Documentation suite and CI toolchain foundation are in place. Rokit-managed tools and Wally dependencies install successfully. The latest run exposed and the latest commit corrected an unused Rojo package path; a fresh CI smoke test is still required. StyLua and Selene checks passed against the current placeholder-only game source tree; repeat them after gameplay scripts are added.
-- **Last AI run:** Workflow run 42913879785 (run 10); the agent did not start because pre-agent Rojo validation failed.
-- **Latest workflow checkpoint:** `bc258ed` — Wally install removed the empty `Packages` placeholder directory. Corrective project-config commit: `05221ee`.
-- **Workflow conclusion:** Run 10 installed Rokit, Rojo, StyLua, Selene, and Wally successfully, but `rojo build` failed because `default.project.json` referenced `Packages` even though the manifest has no shared/runtime Wally dependencies. The agent was skipped. The persistence step saved the Wally directory cleanup, and the unused mapping has since been removed.
+- **Current milestone:** Milestone 1 — Playable Core (in progress; initial server/shared scaffolding committed, but not yet verified as playable).
+- **Status:** Documentation suite, CI toolchain, and initial Milestone 1 server/shared modules are present. The latest run verified the corrected Rojo smoke test and persisted 10 Luau files. The new gameplay code still needs review, client/world implementation, post-agent build/lint/format checks, and tests.
+- **Last AI run:** Workflow run 42915434078 (run 11); gameplay scaffolding was persisted, then model-provider availability stopped the agent.
+- **Latest workflow checkpoint:** `55a4509` — initial Milestone 1 server/shared Luau scaffolding (10 files, 752 insertions). Follow-up documentation checkpoint: `67ab0c3`.
+- **Workflow conclusion:** Run 11 passed pre-agent toolchain and Rojo validation, then persisted initial gameplay modules. The agent step ended after Gemini provider capacity errors; classifier handling has since been expanded on `main`.
 
 ## Implemented and documented
 - Pocket Habitat game concept and core loops are documented in `GAME_DESIGN.md`.
