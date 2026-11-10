@@ -25,5 +25,26 @@
         }
       }
     }
+  },
+  "agent": {
+    "build": {
+      "tools": {
+        "bash": true,
+        "read": true,
+        "edit": true,
+        "write": true,
+        "glob": true,
+        "grep": true,
+        "list": true,
+        "patch": false,
+        "task": false,
+        "todowrite": false,
+        "webfetch": false,
+        "websearch": false,
+        "question": false,
+        "lsp": false,
+        "skill": false
+      }
+    }
   }
 }
