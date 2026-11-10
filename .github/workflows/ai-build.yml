@@ -36,72 +36,138 @@ jobs:
           echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
           opencode --version
 
-      - name: Run autonomous development agent (retry Gemini RPM limits)
+      - name: Run autonomous development agent with model fallback
         env:
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TASK: ${{ inputs.task }}
         shell: bash
         run: |
           set -uo pipefail
 
-          MODEL="google/gemini-3.5-flash-lite"
-          ATTEMPT=1
+          # Ordered from preferred models to independent-provider fallbacks.
+          # Models are added only when their provider credential is available.
+          MODEL_CHAIN=()
+          if [[ -n "${GOOGLE_GENERATIVE_AI_API_KEY:-}" ]]; then
+            MODEL_CHAIN+=(
+              "google/gemini-3.5-flash-lite"
+              "google/gemini-3.1-flash-lite"
+              "google/gemini-2.5-flash-lite"
+              "google/gemma-4-31b-it"
+              "google/gemma-4-26b-a4b-it"
+            )
+          fi
 
-          while true; do
-            LOG_FILE="$RUNNER_TEMP/opencode-attempt-${ATTEMPT}.log"
-            echo "::group::OpenCode attempt ${ATTEMPT}"
+          if [[ -n "${GROQ_API_KEY:-}" ]]; then
+            MODEL_CHAIN+=(
+              "groq/qwen/qwen3.8-27b"
+              "groq/openai/gpt-oss-120b"
+            )
+          fi
 
-            if [ "$ATTEMPT" -eq 1 ]; then
-              opencode run \
-                --standalone \
-                --auto \
-                --model "$MODEL" \
-                --agent build \
-                "$TASK" 2>&1 | tee "$LOG_FILE"
-              STATUS=${PIPESTATUS[0]}
-            else
-              opencode run \
-                --standalone \
-                --auto \
-                --continue \
-                --model "$MODEL" \
-                --agent build \
-                "The previous response was interrupted by Gemini's temporary requests-per-minute limit. Continue the existing session and finish the original task. First inspect the current repository state and existing changes; do not redo work that is already complete." \
-                2>&1 | tee "$LOG_FILE"
-              STATUS=${PIPESTATUS[0]}
-            fi
+          if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+            MODEL_CHAIN+=(
+              "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+            )
+          fi
 
-            echo "::endgroup::"
+          if [[ "${#MODEL_CHAIN[@]}" -eq 0 ]]; then
+            echo "::error::No model provider credentials are configured."
+            echo "Add GEMINI_API_KEY, and optionally GROQ_API_KEY and OPENROUTER_API_KEY, under repository Actions secrets."
+            exit 1
+          fi
 
-            if [ "$STATUS" -eq 0 ]; then
-              echo "OpenCode completed successfully."
-              exit 0
-            fi
+          SESSION_ACTIVE=false
+          RUN_COUNTER=0
+          MAX_MINUTE_RETRIES=4
 
-            # Retry only an explicit per-minute rate limit. Daily quota,
-            # authentication, configuration, and other failures still fail fast.
-            if grep -Eiq 'requests per minute limit exceeded|per-minute limit exceeded|requests-per-minute|RPM limit' "$LOG_FILE"; then
-              RETRY_HINT=$(sed -nE 's/.*retry in ([0-9]+([.][0-9]+)?)s.*/\1/ip' "$LOG_FILE" | tail -n 1)
+          for MODEL in "${MODEL_CHAIN[@]}"; do
+            echo "::group::Model fallback: ${MODEL}"
+            MODEL_RETRIES=0
 
-              if [ -n "$RETRY_HINT" ]; then
-                DELAY=$(awk -v seconds="$RETRY_HINT" 'BEGIN { printf "%d", seconds + 10 }')
+            while true; do
+              RUN_COUNTER=$((RUN_COUNTER + 1))
+              LOG_FILE="$RUNNER_TEMP/opencode-${RUN_COUNTER}.log"
+              echo "Running ${MODEL} (attempt $((MODEL_RETRIES + 1)) for this model)."
+
+              if [[ "$SESSION_ACTIVE" == "false" ]]; then
+                opencode run \
+                  --standalone \
+                  --auto \
+                  --model "$MODEL" \
+                  --agent build \
+                  "$TASK" 2>&1 | tee "$LOG_FILE"
               else
-                DELAY=65
+                opencode run \
+                  --standalone \
+                  --auto \
+                  --continue \
+                  --model "$MODEL" \
+                  --agent build \
+                  "Continue the original task in this existing session. The previous model/provider reached a quota or temporary availability limit. Preserve all completed work, inspect the current repository state, do not restart or repeat completed work, and continue the original task to completion. You are now using fallback model $MODEL." \
+                  2>&1 | tee "$LOG_FILE"
+              fi
+              STATUS=${PIPESTATUS[0]}
+              SESSION_ACTIVE=true
+
+              if [[ "$STATUS" -eq 0 ]]; then
+                echo "OpenCode completed successfully using $MODEL."
+                exit 0
               fi
 
-              if [ "$DELAY" -lt 15 ]; then DELAY=15; fi
+              # A daily request/token cap cannot be fixed by waiting one minute.
+              # Move directly to the next model, retaining this OpenCode session.
+              if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|quota.*day|day.*quota' "$LOG_FILE"; then
+                echo "::warning::Daily quota reached for $MODEL; switching to the next model."
+                break
+              fi
 
-              echo "Gemini RPM limit reached. Preserving this OpenCode session."
-              echo "Waiting ${DELAY} seconds, then continuing the same session..."
-              sleep "$DELAY"
+              # RPM/TPM limits are temporary. Wait for the provider's retry
+              # hint, then resume the same session on the same model.
+              if grep -Eiq 'requests per minute|tokens per minute|input tokens per minute|output tokens per minute|per-minute limit|requests-per-minute|tokens-per-minute' "$LOG_FILE"; then
+                MODEL_RETRIES=$((MODEL_RETRIES + 1))
 
-              ATTEMPT=$((ATTEMPT + 1))
-              continue
-            fi
+                if [[ "$MODEL_RETRIES" -gt "$MAX_MINUTE_RETRIES" ]]; then
+                  echo "::warning::$MODEL remained rate-limited after $MAX_MINUTE_RETRIES retries; switching to the next model."
+                  break
+                fi
 
-            echo "OpenCode failed for a reason other than a recognized Gemini RPM limit (exit code $STATUS)."
-            exit "$STATUS"
+                RETRY_HINT=$(grep -Eio 'retry in [0-9]+([.][0-9]+)?s' "$LOG_FILE" | tail -n 1 | sed -E 's/.*retry in ([0-9]+([.][0-9]+)?)s/\1/i')
+                if [[ -n "$RETRY_HINT" ]]; then
+                  DELAY=$(awk -v s="$RETRY_HINT" 'BEGIN { d = int(s + 0.999) + 10; if (d < 20) d = 20; print d }')
+                else
+                  DELAY=65
+                fi
+
+                if [[ "$DELAY" -gt 600 ]]; then
+                  echo "::warning::Provider retry delay is $DELAY seconds; switching to the next model instead of holding this slot."
+                  break
+                fi
+
+                echo "Temporary RPM/TPM limit on $MODEL. Waiting ${DELAY}s, then continuing the same session."
+                sleep "$DELAY"
+                continue
+              fi
+
+              # Provider outages, auth errors, and unavailable model IDs should
+              # not kill the entire chain when another configured provider exists.
+              if grep -Eiq '429|RESOURCE_EXHAUSTED|rate.?limit|quota exceeded|temporarily unavailable|overloaded|service unavailable|HTTP 5[0-9][0-9]|unauthorized|invalid.*api.?key|API key.*invalid|HTTP 40[13]|model.*not found|no model is available|model unavailable' "$LOG_FILE"; then
+                echo "::warning::$MODEL is unavailable or rejected the request; switching to the next model."
+                break
+              fi
+
+              echo "::error::OpenCode failed for an error not recognized as a quota/provider availability issue (exit code $STATUS)."
+              echo "Not switching models because this may be an actual task or tool failure."
+              exit "$STATUS"
+            done
+
+            echo "::endgroup::"
           done
+
+          echo "::error::Every configured fallback model was exhausted or unavailable."
+          echo "Any changes already made will still be saved by the following persistence step."
+          exit 1
 
       - name: Persist work to GitHub
         if: always()
