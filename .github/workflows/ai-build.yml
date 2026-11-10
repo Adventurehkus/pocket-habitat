@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout AI build branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ai/game-build
           persist-credentials: true
@@ -66,7 +66,7 @@ jobs:
 
       - name: Save generated build artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pocket-habitat-build-${{ github.run_number }}
           path: build/
