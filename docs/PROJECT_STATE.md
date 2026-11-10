@@ -55,3 +55,13 @@
 - The subsequent Rojo build failed because `default.project.json` still mapped `ReplicatedStorage.Packages` to a `Packages` directory that Wally had removed. The current `wally.toml` contains only a `[dev-dependencies]` entry, so there are no shared/runtime packages to populate `Packages`.
 - Corrective commit `05221ee` removes that unused `$path` mapping from `default.project.json`. When a runtime dependency is added under `[dependencies]`, restore the `Packages` mapping alongside that dependency.
 - Run 10 never started OpenCode and made no gameplay changes. The next workflow dispatch must verify the corrected Rojo build before Milestone 1 begins.
+
+
+## First Milestone 1 implementation checkpoint (workflow run 11)
+- Workflow run 42915434078 passed checkout, Roblox toolchain installation, Wally install, and the pre-agent Rojo build smoke test. This confirms the missing `Packages` mapping correction worked.
+- The agent began Milestone 1 and created the first server/shared Luau modules: `CreatureManager.lua`, `DataStoreManager.lua`, `EconomyManager.lua`, `PlantManager.lua`, `QuestManager.lua`, `ResourceManager.lua`, `ServerMain.server.lua`, `Constants.lua`, `RemoteEvents.lua`, and `Types.lua`.
+- These are an initial code checkpoint only, not a completed playable milestone. No client UI/world-building modules, formal TestEZ tests, or post-agent Rojo/StyLua/Selene checks are evidenced in this run. Review and validate the generated gameplay code before calling it playable or secure.
+- The job exhausted Gemini 3.5 Flash-Lite's input-token-per-minute capacity after four outer retries. Gemini 3.1 Flash-Lite then returned repeated temporary "model is currently experiencing high demand" errors; OpenCode internally retried those requests before the workflow stopped.
+- The workflow classifier did not recognize that provider-capacity wording. The main workflow was corrected in commit `ae1d395` to classify "high demand", "spikes in demand", and "try again later" as provider-availability errors and continue to the next configured model.
+- Run 11 checkpoint `55a4509` was persisted successfully to `ai/game-build` with 10 Luau files and 752 inserted lines.
+- Next: dispatch a new run to verify the expanded classifier reaches Gemini 2.5 Flash-Lite or the next available provider, then continue the original Milestone 1 implementation and require post-agent build, lint, format, and tests.
