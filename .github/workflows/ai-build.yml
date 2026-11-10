@@ -121,7 +121,7 @@ jobs:
 
               # A daily request/token cap cannot be fixed by waiting one minute.
               # Move directly to the next model, retaining this OpenCode session.
-              if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|quota.*day|day.*quota' "$LOG_FILE"; then
+              if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|quota.*day|day.*quota|RPD|TPD' "$LOG_FILE"; then
                 echo "::warning::Daily quota reached for $MODEL; switching to the next model."
                 break
               fi
@@ -155,7 +155,7 @@ jobs:
 
               # Provider outages, auth errors, and unavailable model IDs should
               # not kill the entire chain when another configured provider exists.
-              if grep -Eiq '429|RESOURCE_EXHAUSTED|rate.?limit|quota exceeded|temporarily unavailable|overloaded|service unavailable|HTTP 5[0-9][0-9]|unauthorized|invalid.*api.?key|API key.*invalid|HTTP 40[13]|model.*not found|no model is available|model unavailable' "$LOG_FILE"; then
+              if grep -Eiq '429|RESOURCE_EXHAUSTED|rate.?limit|quota exceeded|temporarily unavailable|overloaded|service unavailable|HTTP 5[0-9][0-9]|unauthorized|invalid.*api.?key|API key.*invalid|HTTP 40[123]|model.*not found|no model is available|model unavailable|insufficient credits|not enough credits|payment required|context length|context window|input too long|maximum context' "$LOG_FILE"; then
                 echo "::warning::$MODEL is unavailable or rejected the request; switching to the next model."
                 break
               fi
