@@ -35,7 +35,7 @@
 - Begin Milestone 1: implement the playable core in small, verifiable increments, preserving server authority, multiplayer isolation, and PC/mobile support.
 
 ## CI model fallback configuration
-- The `main` workflow now uses an ordered fallback chain: Gemini 3.5 Flash-Lite → Gemini 3.1 Flash-Lite → Gemini 2.5 Flash-Lite → Gemma 4 31B IT → Gemma 4 26B A4B IT → Groq Qwen 3.8 27B → Groq GPT-OSS 120B → OpenRouter NVIDIA Nemotron 3 Ultra (free, optional).
+- The `main` workflow now uses an ordered fallback chain: Gemini 3.5 Flash-Lite → Gemini 3.1 Flash-Lite → Gemini 2.5 Flash-Lite → Gemini 3.8 Flash → Gemma 4 31B IT → Gemma 4 26B A4B IT → Groq Qwen 3.8 27B → Groq GPT-OSS 120B → OpenRouter NVIDIA Nemotron 3 Ultra (free, optional) → OpenRouter Cohere North Mini Code (free, optional).
 - Google model definitions are configured in `opencode.json` on `ai/game-build`. Groq and OpenRouter use OpenCode's built-in providers.
 - `GEMINI_API_KEY` remains the required primary credential. `GROQ_API_KEY` is included as a secondary credential (already used by earlier workflow revisions). Add `OPENROUTER_API_KEY` as a repository Actions secret to enable the final independent-provider fallback; without it, that model is skipped.
 - A daily request/token quota moves immediately to the next configured model. RPM/TPM limits wait for the provider's retry hint and continue the same OpenCode session, with up to four same-model retries before moving on. Recognized provider availability/auth/model errors also move to the next model. Unknown errors fail fast.
