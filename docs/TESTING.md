@@ -73,3 +73,12 @@ OpenRouter's free tier currently advertises 50 requests/day and 20 requests/minu
 - `rojo build default.project.json` then failed because the project mapped `ReplicatedStorage.Packages` to a directory that did not exist after Wally install. The manifest currently has only a dev dependency, so no shared/runtime `Packages` directory is expected.
 - Commit `05221ee` removes the unused `Packages` mapping. The corrected project configuration has not yet been tested by a fresh workflow run. If a normal `[dependencies]` entry is added later, add its `Packages` Rojo mapping at the same time.
 - OpenCode was skipped and no gameplay implementation or provider fallback test occurred in run 10.
+
+
+## Workflow run 11 — first gameplay code checkpoint
+- Pre-agent checks passed: pinned Roblox tools installed, Wally completed, and `rojo build default.project.json` succeeded with the corrected project mapping.
+- Initial Milestone 1 modules were committed: server-side data, economy, resource gathering, planting, quests, and creature-discovery modules, plus shared constants/remotes/types and server startup.
+- The code was persisted despite the agent job failing on model availability. This was an interrupted implementation checkpoint, not a validated playable build.
+- The log shows Gemini 3.5 Flash-Lite repeatedly rate-limited for input tokens per minute; Gemini 3.1 Flash-Lite returned "This model is currently experiencing high demand" until OpenCode exited. The workflow previously failed to recognize that specific provider-capacity error.
+- Main workflow commit `ae1d395` adds `high demand|spikes in demand|try again later` to provider-availability classification so a new run can proceed to later configured models.
+- No post-agent Rojo build, StyLua, Selene, TestEZ, Roblox engine, or manual Studio test is recorded for the newly created gameplay modules. Run all static checks and add targeted tests before relying on these systems.
