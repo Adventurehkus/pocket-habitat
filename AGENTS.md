@@ -22,3 +22,8 @@ Develop Pocket Habitat: a polished, low-poly Roblox habitat builder about collec
 
 ## Required docs
 Maintain docs/GAME_DESIGN.md, ROADMAP.md, PROJECT_STATE.md, TECHNICAL_ARCHITECTURE.md, ASSET_PIPELINE.md, TESTING.md, MONETIZATION.md. Keep PROJECT_STATE.md accurate about current milestone, implemented systems, actual tests, issues, and exact next task.
+
+## Formatting and dependency boundaries
+- Format and lint project-owned Luau files under `src/` only (for example, `stylua src` and `selene src`).
+- Do not run StyLua over the repository root or modify vendored dependency sources under `DevPackages/_Index/`. Treat installed Wally package contents as third-party source.
+- Do not reformat or rewrite `DevPackages` to satisfy project formatting preferences.
