@@ -1,0 +1,73 @@
+name: Autonomous Roblox Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Task for the autonomous development agent
+        required: true
+        type: string
+        default: "Read AGENTS.md and continue the next incomplete milestone."
+
+permissions:
+  contents: write
+
+concurrency:
+  group: roblox-ai-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout AI build branch
+        uses: actions/checkout@v4
+        with:
+          ref: ai/game-build
+          persist-credentials: true
+
+      - name: Install OpenCode
+        shell: bash
+        run: |
+          curl -fsSL https://opencode.ai/v2/install | bash
+          echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
+          opencode --version
+
+      - name: Run autonomous development agent
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TASK: ${{ inputs.task }}
+        shell: bash
+        run: |
+          opencode run \
+            --standalone \
+            --auto \
+            --model groq/openai/gpt-oss-120b \
+            --agent build \
+            "$TASK"
+
+      - name: Persist work to GitHub
+        if: always()
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if ! git diff --cached --quiet; then
+            git commit -m "AI development checkpoint ${GITHUB_RUN_NUMBER}"
+            git push origin HEAD:ai/game-build
+          fi
+
+      - name: Save generated build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocket-habitat-build-${{ github.run_number }}
+          path: build/
+          if-no-files-found: ignore
+          retention-days: 14
