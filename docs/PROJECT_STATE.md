@@ -41,4 +41,4 @@
 - A daily request/token quota moves immediately to the next configured model. RPM/TPM limits wait for the provider's retry hint and continue the same OpenCode session, with up to four same-model retries before moving on. Recognized provider availability/auth/model errors also move to the next model. Unknown errors fail fast.
 - Every model change uses OpenCode `--continue` with an explicit `--model`, preserving the same session and task context.
 - Local shell syntax and simulated daily-quota/RPM fallback paths passed. Actual end-to-end provider switching remains to be verified in the next workflow run.
-- OpenRouter free tier is a last-resort pool currently advertised at 50 requests/day and 20 RPM; free endpoint prompt logging/data-improvement terms apply. Do not put credentials or private data in prompts.
+- OpenRouter free tier is a last-resort pool currently advertised at 50 requests/day and 20 RPM; the two configured OpenRouter models share that account-level free allowance. NVIDIA's free Nemotron endpoint states that request data may be logged and used to improve NVIDIA products. Do not send confidential information or credentials to that fallback.
