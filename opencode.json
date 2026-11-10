@@ -5,10 +5,12 @@
       "models": {
         "openai/gpt-oss-120b": {
           "body": {
-            "max_completion_tokens": 2048
+            "max_completion_tokens": 1024,
+            "reasoning_effort": "low",
+            "reasoning_format": "hidden"
           },
           "limit": {
-            "output": 2048
+            "output": 1024
           }
         }
       }
