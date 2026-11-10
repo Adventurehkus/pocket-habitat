@@ -40,3 +40,20 @@
 
 ## Next verification
 Repeat StyLua and Selene checks after Luau source files are added. Add TestEZ suites before treating unit testing as available, and retain separate Roblox engine and manual client testing.
+
+## CI model fallback
+The autonomous GitHub Actions workflow tries configured models in this order:
+1. Google Gemini 3.5 Flash-Lite.
+2. Google Gemini 3.1 Flash-Lite.
+3. Google Gemini 2.5 Flash-Lite.
+4. Google Gemma 4 31B IT.
+5. Google Gemma 4 26B A4B IT.
+6. Groq Qwen 3.8 27B.
+7. Groq GPT-OSS 120B.
+8. OpenRouter NVIDIA Nemotron 3 Ultra (free), when `OPENROUTER_API_KEY` is configured.
+
+Provider keys are read from GitHub Actions repository secrets. `GEMINI_API_KEY` and `GROQ_API_KEY` are already used by the workflow; OpenRouter is optional. To enable its last-resort free fallback, create an OpenRouter API key and add it to repository Settings → Secrets and variables → Actions as `OPENROUTER_API_KEY`. Never paste API keys into prompts, source files, or chat.
+
+On a daily request/token quota error, the workflow moves to the next model. On explicit RPM/TPM errors, it waits for the provider's retry hint and resumes the same OpenCode session, up to four retries per model before moving on. Recognized temporary provider/auth/model availability errors also move to the next model. Unrecognized errors fail fast rather than hiding actual agent/tool failures. Every model switch continues the same OpenCode session and original task; GitHub Actions persists the working tree at job end.
+
+OpenRouter's free tier currently advertises 50 requests/day and 20 requests/minute; failed free-model attempts count toward its daily cap. Treat it as a small last-resort reserve, not another 500-request pool. Free OpenRouter/NVIDIA endpoints may log prompts for service improvement, so do not put private data or credentials in project prompts.
