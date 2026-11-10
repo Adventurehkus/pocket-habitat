@@ -77,6 +77,13 @@
             "context": 1048576,
             "output": 8192
           }
+        },
+        "cohere/north-mini-code:free": {
+          "name": "Cohere North Mini Code (Free Fallback)",
+          "limit": {
+            "context": 262144,
+            "output": 8192
+          }
         }
       }
     }
