@@ -196,7 +196,7 @@ jobs:
               return 0
             fi
 
-            normalized="$(sed -E $'s/\\033\\[[0-9;]*[[:alpha:]]//g' "$1")"
+            normalized="$(sed -E 's/\x1B\[[0-9;]*[[:alpha:]]//g' "$1")"
             if grep -Eq '^[[:space:]]*REVIEW_FINDINGS:[[:space:]]*YES[[:space:]]*$' <<< "$normalized"; then
               echo "YES"
             elif grep -Eq '^[[:space:]]*REVIEW_FINDINGS:[[:space:]]*NO[[:space:]]*$' <<< "$normalized"; then
@@ -223,22 +223,22 @@ jobs:
           echo "Cloudflare daily Neurons quota classifier regression tests passed."
 
           review_classifier_test_file="$RUNNER_TEMP/review-classifier-test.log"
-          printf '%s\\n' 'REVIEW_FINDINGS: YES' > "$review_classifier_test_file"
+          printf '%s\n' 'REVIEW_FINDINGS: YES' > "$review_classifier_test_file"
           if [[ "$(review_decision "$review_classifier_test_file")" != "YES" ]]; then
             echo "::error::Reviewer response classifier failed its YES regression test."
             exit 1
           fi
-          printf '%s\\n' 'REVIEW_FINDINGS: NO' > "$review_classifier_test_file"
+          printf '%s\n' 'REVIEW_FINDINGS: NO' > "$review_classifier_test_file"
           if [[ "$(review_decision "$review_classifier_test_file")" != "NO" ]]; then
             echo "::error::Reviewer response classifier failed its NO regression test."
             exit 1
           fi
-          printf '%s\\n' 'Reviewer returned a summary without the required decision.' > "$review_classifier_test_file"
+          printf '%s\n' 'Reviewer returned a summary without the required decision.' > "$review_classifier_test_file"
           if [[ "$(review_decision "$review_classifier_test_file")" != "INVALID" ]]; then
             echo "::error::Reviewer response classifier failed its invalid-output regression test."
             exit 1
           fi
-          printf '\\033[32mREVIEW_FINDINGS: YES\\033[0m\\n' > "$review_classifier_test_file"
+          printf '\033[32mREVIEW_FINDINGS: YES\033[0m\n' > "$review_classifier_test_file"
           if [[ "$(review_decision "$review_classifier_test_file")" != "YES" ]]; then
             echo "::error::Reviewer response classifier failed its ANSI-colored-header regression test."
             exit 1
@@ -337,7 +337,1199 @@ jobs:
                         # workspace (notably RUNNER_TEMP). Inline this small,
                         # non-secret validation report so repair never depends on
                         # interactive approval to inspect its evidence.
-                        copilot_prompt+=$'\\n\\nBEGIN COMPLETE DETERMINISTIC VALIDATION OUTPUT\\n'
+                        copilot_prompt+=
+                        copilot_prompt+="$(cat "$attachment")"
+                        copilot_prompt+=
+                      else
+                        copilot_prompt+=" Supporting pipeline file to read before acting: $attachment."
+                      fi
+                    fi
+                  done
+                  command_args+=(
+                    copilot -p "$copilot_prompt" --allow-all-tools
+                    --deny-tool='shell(git commit)'
+                    --deny-tool='shell(git push)'
+                    --deny-tool='shell(gh workflow run)'
+                    --deny-tool='shell(gh release create)'
+                    --deny-tool='shell(rojo upload)'
+                  )
+                else
+                  command_args+=(
+                    opencode run --standalone --auto
+                    --model "$model" --agent "$agent"
+                    --title "Pocket Habitat ${stage} run ${GITHUB_RUN_NUMBER}"
+                  )
+                  for attachment in "${STAGE_FILES[@]}"; do
+                    if [[ -f "$attachment" ]]; then
+                      command_args+=(--file "$attachment")
+                    fi
+                  done
+                  command_args+=("$prompt")
+                fi
+
+                if "${command_args[@]}" 2>&1 | tee "$log_file"; then
+                  status=0
+                else
+                  status=$?
+                fi
+                echo "::endgroup::"
+                STAGE_LOG["$stage"]="$log_file"
+
+                if [[ "$status" -eq 0 ]]; then
+                  STAGE_STATUS["$stage"]="SUCCESS"
+                  STAGE_MODEL["$stage"]="$model"
+                  STAGE_PROVIDER["$stage"]="$provider"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SUCCESS" ""
+                  echo "Stage $stage completed using $model."
+                  return 0
+                fi
+
+                # Cloudflare Workers AI Free reports an exhausted daily
+                # Neurons pool with wording such as:
+                # "You have used up your daily free allocation of 10,000 neurons".
+                # Detect this provider-specific message before the RPM/TPM retry
+                # classifier. The allocation is shared across Workers AI models,
+                # so disable the entire provider immediately for every later stage.
+                # Breaking here deliberately suppresses any retry/backoff attempt.
+                if [[ "$provider" == "cloudflare-workers-ai" ]] && is_cloudflare_daily_neurons_exhausted "$log_file"; then
+                  MODEL_BLOCKED["$model"]="Cloudflare Workers AI daily free Neurons allocation exhausted"
+                  PROVIDER_BLOCKED["cloudflare-workers-ai"]="shared daily Workers AI Neurons allocation exhausted"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "Cloudflare daily free Neurons allocation exhausted; retry suppressed"
+                  echo "::warning::Cloudflare Workers AI daily Neurons allocation is exhausted; disabling the entire provider for all remaining stages and continuing to the next provider without retry."
+                  break
+                fi
+
+                # General daily/monthly quota detection. This remains ahead of
+                # RPM/TPM handling so quota exhaustion never enters retry/backoff.
+                if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|daily free allocation|used up.{0,100}daily.{0,100}allocation|quota.*day|day.*quota|RPD|TPD|requests per month|monthly quota|monthly limit|quota.*month|month.*quota|monthly.*calls|AI credits.*(exhausted|limit)|premium request.*(exhausted|limit)|neurons.*(exhausted|limit)|workers ai.*(quota|limit)' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="daily/monthly/provider quota exhausted"
+                  # Cloudflare, Cohere, OpenRouter free and Copilot each have
+                  # a shared account pool across the configured models.
+                  if [[ "$provider" == "openrouter" || "$provider" == "cohere" || "$provider" == "cloudflare-workers-ai" || "$provider" == "github-copilot" ]]; then
+                    PROVIDER_BLOCKED["$provider"]="shared daily/monthly quota exhausted"
+                  fi
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "daily/monthly/shared quota exhausted; retry suppressed"
+                  echo "::warning::$provider/$model reached a daily/monthly quota; its shared provider pool will not be called again this run and no retry will be attempted."
+                  break
+                fi
+
+                if grep -Eiq 'requests per minute|tokens per minute|input tokens per minute|output tokens per minute|per-minute limit|requests-per-minute|tokens-per-minute' "$log_file"; then
+                  retry_count=$((retry_count + 1))
+                  if [[ "$retry_count" -gt 1 ]]; then
+                    MODEL_BLOCKED["$model"]="repeated RPM/TPM limit"
+                    if [[ "$provider" == "openrouter" ]]; then
+                      PROVIDER_BLOCKED["$provider"]="shared free-tier RPM limit"
+                    fi
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "SKIPPED" "still rate-limited after one retry"
+                    echo "::warning::$model is still rate-limited after one retry; moving on."
+                    break
+                  fi
+
+                  retry_hint="$(grep -Eio 'retry in [0-9]+([.][0-9]+)?s' "$log_file" | tail -n 1 | sed -E 's/.*retry in ([0-9]+([.][0-9]+)?)s/\1/i')"
+                  if [[ -n "$retry_hint" ]]; then
+                    delay="$(awk -v s="$retry_hint" 'BEGIN { d = int(s + 0.999) + 5; if (d < 15) d = 15; print d }')"
+                  else
+                    delay=60
+                  fi
+
+                  if [[ "$delay" -gt 120 ]]; then
+                    MODEL_BLOCKED["$model"]="retry delay exceeds 120 seconds"
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "SKIPPED" "retry hint exceeds 120 seconds"
+                    echo "::warning::$model requested a $delay-second wait; skipping it to preserve the run."
+                    break
+                  fi
+
+                  record_attempt "$stage" "$provider" "$model" "$retry_count" "RETRYING" "RPM/TPM backoff ${delay}s"
+                  echo "RPM/TPM limit on $model; one retry after ${delay}s."
+                  sleep "$delay"
+                  continue
+                fi
+
+                if grep -Eiq 'unauthorized|invalid.*api.?key|API key.*invalid|invalid_api_key|authentication failed|HTTP 401|HTTP 403|forbidden.*api|provider.*not configured' "$log_file"; then
+                  PROVIDER_BLOCKED["$provider"]="authentication or provider configuration failure"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "authentication/configuration failure"
+                  echo "::warning::$provider credentials or configuration were rejected; skipping the provider for this run."
+                  break
+                fi
+
+                if grep -Eiq 'model.*not found|no model is available|model unavailable|no longer available|not available to new users|retired model|deprecated model|context length|context window|input too long|maximum context|insufficient credits|not enough credits|payment required' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="model unavailable or request unsupported"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SKIPPED" "model unavailable or request unsupported"
+                  echo "::warning::$model is unavailable for this request; moving on."
+                  break
+                fi
+
+                if grep -Eiq '429|RESOURCE_EXHAUSTED|rate.?limit|quota exceeded|temporarily unavailable|overloaded|service unavailable|HTTP 5[0-9][0-9]|high demand|spikes in demand|try again later|too many requests' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="temporary provider capacity failure"
+                  if [[ "$provider" == "openrouter" ]]; then
+                    PROVIDER_BLOCKED["$provider"]="shared free-tier capacity failure"
+                  fi
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SKIPPED" "temporary capacity failure; no repeated retry"
+                  echo "::warning::$model is temporarily unavailable; moving on without repeated requests."
+                  break
+                fi
+
+                MODEL_BLOCKED["$model"]="unclassified failure"
+                STAGE_STATUS["$stage"]="ERROR"
+                record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "ERROR" "unclassified exit code $status"
+                echo "::error::Unclassified OpenCode failure in $stage using $model (exit code $status)."
+                return 2
+              done
+            done
+
+            echo "::warning::No unattempted, available model completed stage $stage."
+            return 1
+          }
+
+          refresh_diff() {
+            # Intent-to-add makes new project files visible to git diff without
+            # staging their content. Third-party DevPackages are excluded.
+            git add -N -- . 2>/dev/null || true
+            git diff --no-ext-diff --binary HEAD -- . ':(exclude)DevPackages/**' > "$DIFF_FILE"
+          }
+
+          run_validation() {
+            local result=0
+            : > "$VALIDATION_LOG"
+
+            if rojo build default.project.json -o build/pocket-habitat.rbxl >> "$VALIDATION_LOG" 2>&1; then
+              echo "PASS: Rojo build -> build/pocket-habitat.rbxl" >> "$VALIDATION_LOG"
+            else
+              echo "FAIL: Rojo build" >> "$VALIDATION_LOG"
+              result=1
+            fi
+
+            if stylua --check src >> "$VALIDATION_LOG" 2>&1; then
+              echo "PASS: StyLua check src" >> "$VALIDATION_LOG"
+            else
+              echo "FAIL: StyLua check src" >> "$VALIDATION_LOG"
+              result=1
+            fi
+
+            if selene src >> "$VALIDATION_LOG" 2>&1; then
+              echo "PASS: Selene src" >> "$VALIDATION_LOG"
+            else
+              echo "FAIL: Selene src" >> "$VALIDATION_LOG"
+              result=1
+            fi
+
+            VALIDATION_STATUS="$result"
+            cat "$VALIDATION_LOG"
+            return "$result"
+          }
+
+          IMPLEMENT_PROMPT="You are the Pocket Habitat implementation agent. Read AGENTS.md and the relevant project documentation before changing code. Complete the user's task below with working, integrated Luau gameplay rather than disconnected scaffolding. Inspect the current repository state first and preserve correct existing work. Keep gameplay server-authoritative; validate all remote requests, ownership, distance, rewards, inventory, purchases, quests, and persistence. Do not publish to Roblox, access publishing credentials, create/switch branches, commit, or push. Never modify or reformat DevPackages or other vendored dependencies. Format/lint only src/. Run the checks you can actually run and report exact results; never claim Roblox Studio, engine, multiplayer, or TestEZ execution unless it truly happened. Update docs/PROJECT_STATE.md and docs/TESTING.md accurately. User task: ${TASK}"
+
+          echo "Configured models: ${#MODEL_CHAIN[@]}"
+          echo "Pipeline stages: implementation -> independent review (with strict-format fallback) -> repair -> deterministic validation -> QA"
+
+          # Stage 1: implementation.
+          COPILOT_STAGE_ALLOWED=true
+          prioritize_models IMPLEMENT_MODELS
+          STAGE_FILES=()
+          run_stage "implementation" "build" "$IMPLEMENT_PROMPT" "${IMPLEMENT_MODELS[@]}"
+          IMPLEMENT_RESULT=$?
+          IMPLEMENT_PROVIDER="${STAGE_PROVIDER[implementation]:-}"
+
+          if [[ "$IMPLEMENT_RESULT" -ne 0 ]]; then
+            PIPELINE_EXIT=1
+            echo "::error::Implementation did not complete; skipping dependent AI stages."
+          else
+            # Stage 2: independent, read-only review using a different provider
+            # first. Attach a concrete diff so the reviewer does not need shell.
+            refresh_diff
+            COPILOT_STAGE_ALLOWED=false
+            REVIEW_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Review the attached implementation diff against the repository's actual code and architecture. Do not edit files, run shell commands, or ask another agent to make changes. Verify every suspected issue against the source before reporting it. Prioritize exploitable remote/event flows, player-data loss or cross-player leakage, economy/inventory duplication, broken gameplay interactions, persistence failure handling, runtime errors, and regressions. Ignore style-only opinions unless they cause a real problem. Start with exactly one line: REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Use YES only if at least one actionable defect is confirmed in source. Return a concise Markdown report with severity (CRITICAL/HIGH/MEDIUM/LOW), file and line, evidence, impact, and a specific suggested correction. If no actionable findings exist, use REVIEW_FINDINGS: NO and explain any remaining runtime checks. Do not claim a test was run unless the attached evidence shows it."
+            prioritize_models REVIEW_MODELS "$IMPLEMENT_PROVIDER"
+            STAGE_FILES=("$DIFF_FILE")
+            run_stage "review" "reviewer" "$REVIEW_PROMPT" "${REVIEW_MODELS[@]}"
+            REVIEW_RESULT=$?
+            REVIEW_PROVIDER="${STAGE_PROVIDER[review]:-}"
+
+            # Stage 3: repair verified findings only. If a reviewer exits
+            # successfully but omits the required header, try one additional
+            # independent model before treating the review as incomplete.
+            REVIEW_LOG_PATH="${STAGE_LOG[review]:-}"
+            REVIEW_DECISION="INVALID"
+            if [[ "$REVIEW_RESULT" -eq 0 ]]; then
+              REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
+              if [[ "$REVIEW_DECISION" == "INVALID" ]]; then
+                STAGE_STATUS["review"]="SUCCESS (invalid response format)"
+                echo "::warning::Reviewer output was missing REVIEW_FINDINGS: YES/NO; requesting one independent fallback review."
+                REVIEW_FALLBACK_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Inspect the attached implementation diff and relevant source evidence. Do not edit files or run shell commands. Verify findings against the supplied code. Your FIRST output line MUST be exactly REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Do not put a preamble, Markdown fence, or explanation before it. Use YES only for at least one confirmed actionable defect; otherwise use NO. Then provide concise evidence, severity, file/line, impact, and a specific correction for each confirmed finding. Never claim tests ran unless the evidence proves it."
+                prioritize_models REVIEW_FALLBACK_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
+                STAGE_FILES=("$DIFF_FILE")
+                run_stage "review-fallback" "reviewer" "$REVIEW_FALLBACK_PROMPT" "${REVIEW_FALLBACK_MODELS[@]}"
+                REVIEW_FALLBACK_RESULT=$?
+                if [[ "$REVIEW_FALLBACK_RESULT" -eq 0 ]]; then
+                  REVIEW_LOG_PATH="${STAGE_LOG[review-fallback]:-}"
+                  REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
+                  if [[ "$REVIEW_DECISION" == "INVALID" ]]; then
+                    STAGE_STATUS["review-fallback"]="SUCCESS (invalid response format)"
+                    echo "::warning::Fallback reviewer also omitted the required header; the review remains incomplete."
+                  else
+                    REVIEW_PROVIDER="${STAGE_PROVIDER[review-fallback]:-}"
+                    echo "Independent fallback reviewer returned REVIEW_FINDINGS: $REVIEW_DECISION."
+                  fi
+                else
+                  echo "::warning::No independent fallback reviewer completed the strict-format review."
+                fi
+              fi
+            fi
+
+            if [[ "$REVIEW_RESULT" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              STAGE_STATUS["repair"]="SKIPPED (review unavailable)"
+              echo "::warning::No independent model completed the review stage; repair stage skipped."
+            elif [[ "$REVIEW_DECISION" == "YES" ]]; then
+              COPILOT_STAGE_ALLOWED=true
+              REPAIR_PROMPT="You are the Pocket Habitat repair engineer. Read the attached independent review output and verify each finding in the current source before changing anything. Fix confirmed CRITICAL and HIGH findings, plus MEDIUM findings that directly break the requested task or core progression. Do not blindly apply speculative comments. Preserve working behavior, keep all server-side validation and data safety, never modify DevPackages, do not publish, and do not commit or push. Run appropriate local checks and accurately update project-state/testing docs. The attached text is the selected independent review report."
+              prioritize_models REPAIR_MODELS "$REVIEW_PROVIDER"
+              STAGE_FILES=("$REVIEW_LOG_PATH")
+              run_stage "repair" "build" "$REPAIR_PROMPT" "${REPAIR_MODELS[@]}"
+              REPAIR_RESULT=$?
+              REPAIR_PROVIDER="${STAGE_PROVIDER[repair]:-}"
+              if [[ "$REPAIR_RESULT" -ne 0 ]]; then
+                PIPELINE_EXIT=1
+                echo "::warning::The review repair stage could not complete."
+              fi
+            elif [[ "$REVIEW_DECISION" == "NO" ]]; then
+              STAGE_STATUS["repair"]="SKIPPED (no confirmed findings)"
+              echo "Independent reviewer found no confirmed actionable defects; repair call not needed."
+            else
+              PIPELINE_EXIT=1
+              STAGE_STATUS["repair"]="SKIPPED (review invalid after fallback)"
+              echo "::error::Review could not produce a valid YES/NO decision after the controlled fallback; repair is not safe to run."
+            fi
+
+            # Stage 4: deterministic CI validation, independent of model claims.
+            run_validation
+            if [[ "$VALIDATION_STATUS" -ne 0 ]]; then
+              echo "::warning::Initial deterministic validation failed; requesting one focused repair."
+              COPILOT_STAGE_ALLOWED=true
+              VALIDATION_REPAIR_PROMPT="The complete deterministic validation output is embedded directly in this prompt. Use that output as your evidence; do not try to open a runner-temporary file or request interactive approval to read it. Fix only confirmed failures in project-owned files. Do not modify DevPackages, weaken checks, publish, commit, or push. Then report the exact changes made."
+              prioritize_models VALIDATION_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
+              STAGE_FILES=("$VALIDATION_LOG")
+              run_stage "validation-repair" "build" "$VALIDATION_REPAIR_PROMPT" "${VALIDATION_REPAIR_MODELS[@]}"
+              VALIDATION_REPAIR_RESULT=$?
+              if [[ "$VALIDATION_REPAIR_RESULT" -eq 0 ]]; then
+                run_validation
+              fi
+            fi
+
+            # Stage 5: read-only QA gets both the current diff and actual CI log.
+            refresh_diff
+            COPILOT_STAGE_ALLOWED=false
+            QA_PROMPT="You are the read-only Pocket Habitat QA agent. Inspect the attached current diff and deterministic validation log, then inspect relevant source and tests. Start your response with exactly one line: QA_BLOCKER: YES or QA_BLOCKER: NO. Say YES only when you have verified a concrete critical/high correctness, security, progression, or player-data issue that should block this checkpoint. Otherwise say NO. Report what CI actually passed or failed from the attached log. Identify missing test coverage and Roblox Studio-only checks separately. Do not edit files, run shell commands, or claim unexecuted TestEZ, Roblox engine, multiplayer, or manual playtests passed."
+            prioritize_models QA_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER"
+            STAGE_FILES=("$DIFF_FILE" "$VALIDATION_LOG")
+            run_stage "qa" "qa" "$QA_PROMPT" "${QA_MODELS[@]}"
+            QA_RESULT=$?
+            if [[ "$QA_RESULT" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              echo "::warning::The independent QA stage did not complete; this run will be reported as incomplete."
+            fi
+
+            # If QA finds a confirmed blocker, allow one extra repair pass and
+            # re-run deterministic checks before the checkpoint is persisted.
+            QA_LOG="${STAGE_LOG[qa]:-}"
+            if [[ "$QA_RESULT" -eq 0 && -f "$QA_LOG" ]]; then
+              if grep -Eiq '^QA_BLOCKER:[[:space:]]*YES' "$QA_LOG"; then
+                echo "::warning::QA identified a blocker; starting one focused final repair."
+                COPILOT_STAGE_ALLOWED=true
+                FINAL_REPAIR_PROMPT="The attached QA report identifies a possible blocking issue. Verify it against the current code and fix it only if confirmed. Preserve unrelated work, never modify DevPackages, do not publish, and do not commit or push. Update documentation and report exact checks."
+                prioritize_models FINAL_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER" "${STAGE_PROVIDER[qa]:-}"
+                STAGE_FILES=("$QA_LOG" "$VALIDATION_LOG")
+                run_stage "qa-repair" "build" "$FINAL_REPAIR_PROMPT" "${FINAL_REPAIR_MODELS[@]}"
+                QA_REPAIR_RESULT=$?
+                if [[ "$QA_REPAIR_RESULT" -eq 0 ]]; then
+                  run_validation
+                else
+                  PIPELINE_EXIT=1
+                  echo "::error::QA reported a blocker but no repair model completed the fix stage."
+                fi
+              elif ! grep -Eiq '^QA_BLOCKER:[[:space:]]*NO' "$QA_LOG"; then
+                PIPELINE_EXIT=1
+                echo "::warning::QA output did not contain the required QA_BLOCKER header; treating QA as incomplete."
+              fi
+            fi
+
+            if [[ "$VALIDATION_STATUS" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              echo "::error::Final deterministic validation did not pass."
+            fi
+          fi
+
+          # Machine-readable per-run usage log plus a compact human report are
+          # uploaded even if a required model stage is exhausted.
+          {
+            echo "# Pocket Habitat AI pipeline report"
+            echo
+            echo "- Run: ${GITHUB_RUN_NUMBER}"
+            echo "- Task: ${TASK}"
+            echo "- Execution mode: LIVE"
+            echo "- Models configured: ${#MODEL_CHAIN[@]}"
+            echo
+            echo "| Stage | Result | Model | Provider |"
+            echo "|---|---|---|---|"
+            for stage in implementation review review-fallback repair validation-repair qa qa-repair; do
+              printf '| %s | %s | %s | %s |\n' "$stage" "${STAGE_STATUS[$stage]:-NOT RUN}" "${STAGE_MODEL[$stage]:-—}" "${STAGE_PROVIDER[$stage]:-—}"
+            done
+            printf '| deterministic-validation | %s | — | CI tools |\n' "${VALIDATION_STATUS:-NOT RUN}"
+            echo
+            echo "## Provider/model attempt log"
+            echo
+            echo 'See the accompanying TSV artifact for every attempted model, retry, and skip reason.'
+            echo
+            echo "## Testing boundaries"
+            echo
+            echo "- Automated checks executed: Rojo build, StyLua check on src/, Selene on src/."
+            echo "- TestEZ, Roblox engine, multiplayer, and manual Studio testing are not claimed unless explicitly run by a separately supported test runner or human playtest."
+            echo "- The .rbxl file is a build artifact only; a successful Rojo build does not prove the experience is playable in Roblox Studio."
+          } > "$RUN_REPORT"
+
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            cat "$RUN_REPORT" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "===== PER-RUN MODEL USAGE ====="
+          cat "$USAGE_LOG"
+          echo "===== PIPELINE REPORT ====="
+          cat "$RUN_REPORT"
+
+          exit "$PIPELINE_EXIT"
+
+      - name: Persist work to GitHub
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Vendored TestEZ/Wally source is not project-owned code. Restore it
+          # if an agent or dependency command unexpectedly touched it.
+          if [[ -n "$(git status --porcelain -- DevPackages)" ]]; then
+            echo "::warning::Restoring unexpected changes and untracked files under vendored DevPackages."
+            git restore --source=HEAD --staged --worktree -- DevPackages
+            git clean -fd -- DevPackages
+          fi
+
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "AI staged development checkpoint ${GITHUB_RUN_NUMBER}"
+            git push origin HEAD:ai/game-build
+          else
+            echo "No repository changes to persist."
+          fi
+
+      - name: Save generated build and pipeline artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pocket-habitat-pipeline-${{ github.run_number }}
+          path: |
+            build/pocket-habitat.rbxl
+            ${{ runner.temp }}/pocket-habitat-agent-report.md
+            ${{ runner.temp }}/pocket-habitat-model-usage.tsv
+            ${{ runner.temp }}/pocket-habitat-validation.log
+            ${{ runner.temp }}/opencode-*.log
+          if-no-files-found: warn
+          retention-days: 14
+\n\nBEGIN COMPLETE DETERMINISTIC VALIDATION OUTPUT\n'
+                        copilot_prompt+="$(cat "$attachment")"
+                        copilot_prompt+=$'\\nEND DETERMINISTIC VALIDATION OUTPUT\\n'
+                      else
+                        copilot_prompt+=" Supporting pipeline file to read before acting: $attachment."
+                      fi
+                    fi
+                  done
+                  command_args+=(
+                    copilot -p "$copilot_prompt" --allow-all-tools
+                    --deny-tool='shell(git commit)'
+                    --deny-tool='shell(git push)'
+                    --deny-tool='shell(gh workflow run)'
+                    --deny-tool='shell(gh release create)'
+                    --deny-tool='shell(rojo upload)'
+                  )
+                else
+                  command_args+=(
+                    opencode run --standalone --auto
+                    --model "$model" --agent "$agent"
+                    --title "Pocket Habitat ${stage} run ${GITHUB_RUN_NUMBER}"
+                  )
+                  for attachment in "${STAGE_FILES[@]}"; do
+                    if [[ -f "$attachment" ]]; then
+                      command_args+=(--file "$attachment")
+                    fi
+                  done
+                  command_args+=("$prompt")
+                fi
+
+                if "${command_args[@]}" 2>&1 | tee "$log_file"; then
+                  status=0
+                else
+                  status=$?
+                fi
+                echo "::endgroup::"
+                STAGE_LOG["$stage"]="$log_file"
+
+                if [[ "$status" -eq 0 ]]; then
+                  STAGE_STATUS["$stage"]="SUCCESS"
+                  STAGE_MODEL["$stage"]="$model"
+                  STAGE_PROVIDER["$stage"]="$provider"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SUCCESS" ""
+                  echo "Stage $stage completed using $model."
+                  return 0
+                fi
+
+                # Cloudflare Workers AI Free reports an exhausted daily
+                # Neurons pool with wording such as:
+                # "You have used up your daily free allocation of 10,000 neurons".
+                # Detect this provider-specific message before the RPM/TPM retry
+                # classifier. The allocation is shared across Workers AI models,
+                # so disable the entire provider immediately for every later stage.
+                # Breaking here deliberately suppresses any retry/backoff attempt.
+                if [[ "$provider" == "cloudflare-workers-ai" ]] && is_cloudflare_daily_neurons_exhausted "$log_file"; then
+                  MODEL_BLOCKED["$model"]="Cloudflare Workers AI daily free Neurons allocation exhausted"
+                  PROVIDER_BLOCKED["cloudflare-workers-ai"]="shared daily Workers AI Neurons allocation exhausted"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "Cloudflare daily free Neurons allocation exhausted; retry suppressed"
+                  echo "::warning::Cloudflare Workers AI daily Neurons allocation is exhausted; disabling the entire provider for all remaining stages and continuing to the next provider without retry."
+                  break
+                fi
+
+                # General daily/monthly quota detection. This remains ahead of
+                # RPM/TPM handling so quota exhaustion never enters retry/backoff.
+                if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|daily free allocation|used up.{0,100}daily.{0,100}allocation|quota.*day|day.*quota|RPD|TPD|requests per month|monthly quota|monthly limit|quota.*month|month.*quota|monthly.*calls|AI credits.*(exhausted|limit)|premium request.*(exhausted|limit)|neurons.*(exhausted|limit)|workers ai.*(quota|limit)' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="daily/monthly/provider quota exhausted"
+                  # Cloudflare, Cohere, OpenRouter free and Copilot each have
+                  # a shared account pool across the configured models.
+                  if [[ "$provider" == "openrouter" || "$provider" == "cohere" || "$provider" == "cloudflare-workers-ai" || "$provider" == "github-copilot" ]]; then
+                    PROVIDER_BLOCKED["$provider"]="shared daily/monthly quota exhausted"
+                  fi
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "daily/monthly/shared quota exhausted; retry suppressed"
+                  echo "::warning::$provider/$model reached a daily/monthly quota; its shared provider pool will not be called again this run and no retry will be attempted."
+                  break
+                fi
+
+                if grep -Eiq 'requests per minute|tokens per minute|input tokens per minute|output tokens per minute|per-minute limit|requests-per-minute|tokens-per-minute' "$log_file"; then
+                  retry_count=$((retry_count + 1))
+                  if [[ "$retry_count" -gt 1 ]]; then
+                    MODEL_BLOCKED["$model"]="repeated RPM/TPM limit"
+                    if [[ "$provider" == "openrouter" ]]; then
+                      PROVIDER_BLOCKED["$provider"]="shared free-tier RPM limit"
+                    fi
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "SKIPPED" "still rate-limited after one retry"
+                    echo "::warning::$model is still rate-limited after one retry; moving on."
+                    break
+                  fi
+
+                  retry_hint="$(grep -Eio 'retry in [0-9]+([.][0-9]+)?s' "$log_file" | tail -n 1 | sed -E 's/.*retry in ([0-9]+([.][0-9]+)?)s/\1/i')"
+                  if [[ -n "$retry_hint" ]]; then
+                    delay="$(awk -v s="$retry_hint" 'BEGIN { d = int(s + 0.999) + 5; if (d < 15) d = 15; print d }')"
+                  else
+                    delay=60
+                  fi
+
+                  if [[ "$delay" -gt 120 ]]; then
+                    MODEL_BLOCKED["$model"]="retry delay exceeds 120 seconds"
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "SKIPPED" "retry hint exceeds 120 seconds"
+                    echo "::warning::$model requested a $delay-second wait; skipping it to preserve the run."
+                    break
+                  fi
+
+                  record_attempt "$stage" "$provider" "$model" "$retry_count" "RETRYING" "RPM/TPM backoff ${delay}s"
+                  echo "RPM/TPM limit on $model; one retry after ${delay}s."
+                  sleep "$delay"
+                  continue
+                fi
+
+                if grep -Eiq 'unauthorized|invalid.*api.?key|API key.*invalid|invalid_api_key|authentication failed|HTTP 401|HTTP 403|forbidden.*api|provider.*not configured' "$log_file"; then
+                  PROVIDER_BLOCKED["$provider"]="authentication or provider configuration failure"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "authentication/configuration failure"
+                  echo "::warning::$provider credentials or configuration were rejected; skipping the provider for this run."
+                  break
+                fi
+
+                if grep -Eiq 'model.*not found|no model is available|model unavailable|no longer available|not available to new users|retired model|deprecated model|context length|context window|input too long|maximum context|insufficient credits|not enough credits|payment required' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="model unavailable or request unsupported"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SKIPPED" "model unavailable or request unsupported"
+                  echo "::warning::$model is unavailable for this request; moving on."
+                  break
+                fi
+
+                if grep -Eiq '429|RESOURCE_EXHAUSTED|rate.?limit|quota exceeded|temporarily unavailable|overloaded|service unavailable|HTTP 5[0-9][0-9]|high demand|spikes in demand|try again later|too many requests' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="temporary provider capacity failure"
+                  if [[ "$provider" == "openrouter" ]]; then
+                    PROVIDER_BLOCKED["$provider"]="shared free-tier capacity failure"
+                  fi
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SKIPPED" "temporary capacity failure; no repeated retry"
+                  echo "::warning::$model is temporarily unavailable; moving on without repeated requests."
+                  break
+                fi
+
+                MODEL_BLOCKED["$model"]="unclassified failure"
+                STAGE_STATUS["$stage"]="ERROR"
+                record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "ERROR" "unclassified exit code $status"
+                echo "::error::Unclassified OpenCode failure in $stage using $model (exit code $status)."
+                return 2
+              done
+            done
+
+            echo "::warning::No unattempted, available model completed stage $stage."
+            return 1
+          }
+
+          refresh_diff() {
+            # Intent-to-add makes new project files visible to git diff without
+            # staging their content. Third-party DevPackages are excluded.
+            git add -N -- . 2>/dev/null || true
+            git diff --no-ext-diff --binary HEAD -- . ':(exclude)DevPackages/**' > "$DIFF_FILE"
+          }
+
+          run_validation() {
+            local result=0
+            : > "$VALIDATION_LOG"
+
+            if rojo build default.project.json -o build/pocket-habitat.rbxl >> "$VALIDATION_LOG" 2>&1; then
+              echo "PASS: Rojo build -> build/pocket-habitat.rbxl" >> "$VALIDATION_LOG"
+            else
+              echo "FAIL: Rojo build" >> "$VALIDATION_LOG"
+              result=1
+            fi
+
+            if stylua --check src >> "$VALIDATION_LOG" 2>&1; then
+              echo "PASS: StyLua check src" >> "$VALIDATION_LOG"
+            else
+              echo "FAIL: StyLua check src" >> "$VALIDATION_LOG"
+              result=1
+            fi
+
+            if selene src >> "$VALIDATION_LOG" 2>&1; then
+              echo "PASS: Selene src" >> "$VALIDATION_LOG"
+            else
+              echo "FAIL: Selene src" >> "$VALIDATION_LOG"
+              result=1
+            fi
+
+            VALIDATION_STATUS="$result"
+            cat "$VALIDATION_LOG"
+            return "$result"
+          }
+
+          IMPLEMENT_PROMPT="You are the Pocket Habitat implementation agent. Read AGENTS.md and the relevant project documentation before changing code. Complete the user's task below with working, integrated Luau gameplay rather than disconnected scaffolding. Inspect the current repository state first and preserve correct existing work. Keep gameplay server-authoritative; validate all remote requests, ownership, distance, rewards, inventory, purchases, quests, and persistence. Do not publish to Roblox, access publishing credentials, create/switch branches, commit, or push. Never modify or reformat DevPackages or other vendored dependencies. Format/lint only src/. Run the checks you can actually run and report exact results; never claim Roblox Studio, engine, multiplayer, or TestEZ execution unless it truly happened. Update docs/PROJECT_STATE.md and docs/TESTING.md accurately. User task: ${TASK}"
+
+          echo "Configured models: ${#MODEL_CHAIN[@]}"
+          echo "Pipeline stages: implementation -> independent review (with strict-format fallback) -> repair -> deterministic validation -> QA"
+
+          # Stage 1: implementation.
+          COPILOT_STAGE_ALLOWED=true
+          prioritize_models IMPLEMENT_MODELS
+          STAGE_FILES=()
+          run_stage "implementation" "build" "$IMPLEMENT_PROMPT" "${IMPLEMENT_MODELS[@]}"
+          IMPLEMENT_RESULT=$?
+          IMPLEMENT_PROVIDER="${STAGE_PROVIDER[implementation]:-}"
+
+          if [[ "$IMPLEMENT_RESULT" -ne 0 ]]; then
+            PIPELINE_EXIT=1
+            echo "::error::Implementation did not complete; skipping dependent AI stages."
+          else
+            # Stage 2: independent, read-only review using a different provider
+            # first. Attach a concrete diff so the reviewer does not need shell.
+            refresh_diff
+            COPILOT_STAGE_ALLOWED=false
+            REVIEW_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Review the attached implementation diff against the repository's actual code and architecture. Do not edit files, run shell commands, or ask another agent to make changes. Verify every suspected issue against the source before reporting it. Prioritize exploitable remote/event flows, player-data loss or cross-player leakage, economy/inventory duplication, broken gameplay interactions, persistence failure handling, runtime errors, and regressions. Ignore style-only opinions unless they cause a real problem. Start with exactly one line: REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Use YES only if at least one actionable defect is confirmed in source. Return a concise Markdown report with severity (CRITICAL/HIGH/MEDIUM/LOW), file and line, evidence, impact, and a specific suggested correction. If no actionable findings exist, use REVIEW_FINDINGS: NO and explain any remaining runtime checks. Do not claim a test was run unless the attached evidence shows it."
+            prioritize_models REVIEW_MODELS "$IMPLEMENT_PROVIDER"
+            STAGE_FILES=("$DIFF_FILE")
+            run_stage "review" "reviewer" "$REVIEW_PROMPT" "${REVIEW_MODELS[@]}"
+            REVIEW_RESULT=$?
+            REVIEW_PROVIDER="${STAGE_PROVIDER[review]:-}"
+
+            # Stage 3: repair verified findings only. If a reviewer exits
+            # successfully but omits the required header, try one additional
+            # independent model before treating the review as incomplete.
+            REVIEW_LOG_PATH="${STAGE_LOG[review]:-}"
+            REVIEW_DECISION="INVALID"
+            if [[ "$REVIEW_RESULT" -eq 0 ]]; then
+              REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
+              if [[ "$REVIEW_DECISION" == "INVALID" ]]; then
+                STAGE_STATUS["review"]="SUCCESS (invalid response format)"
+                echo "::warning::Reviewer output was missing REVIEW_FINDINGS: YES/NO; requesting one independent fallback review."
+                REVIEW_FALLBACK_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Inspect the attached implementation diff and relevant source evidence. Do not edit files or run shell commands. Verify findings against the supplied code. Your FIRST output line MUST be exactly REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Do not put a preamble, Markdown fence, or explanation before it. Use YES only for at least one confirmed actionable defect; otherwise use NO. Then provide concise evidence, severity, file/line, impact, and a specific correction for each confirmed finding. Never claim tests ran unless the evidence proves it."
+                prioritize_models REVIEW_FALLBACK_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
+                STAGE_FILES=("$DIFF_FILE")
+                run_stage "review-fallback" "reviewer" "$REVIEW_FALLBACK_PROMPT" "${REVIEW_FALLBACK_MODELS[@]}"
+                REVIEW_FALLBACK_RESULT=$?
+                if [[ "$REVIEW_FALLBACK_RESULT" -eq 0 ]]; then
+                  REVIEW_LOG_PATH="${STAGE_LOG[review-fallback]:-}"
+                  REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
+                  if [[ "$REVIEW_DECISION" == "INVALID" ]]; then
+                    STAGE_STATUS["review-fallback"]="SUCCESS (invalid response format)"
+                    echo "::warning::Fallback reviewer also omitted the required header; the review remains incomplete."
+                  else
+                    REVIEW_PROVIDER="${STAGE_PROVIDER[review-fallback]:-}"
+                    echo "Independent fallback reviewer returned REVIEW_FINDINGS: $REVIEW_DECISION."
+                  fi
+                else
+                  echo "::warning::No independent fallback reviewer completed the strict-format review."
+                fi
+              fi
+            fi
+
+            if [[ "$REVIEW_RESULT" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              STAGE_STATUS["repair"]="SKIPPED (review unavailable)"
+              echo "::warning::No independent model completed the review stage; repair stage skipped."
+            elif [[ "$REVIEW_DECISION" == "YES" ]]; then
+              COPILOT_STAGE_ALLOWED=true
+              REPAIR_PROMPT="You are the Pocket Habitat repair engineer. Read the attached independent review output and verify each finding in the current source before changing anything. Fix confirmed CRITICAL and HIGH findings, plus MEDIUM findings that directly break the requested task or core progression. Do not blindly apply speculative comments. Preserve working behavior, keep all server-side validation and data safety, never modify DevPackages, do not publish, and do not commit or push. Run appropriate local checks and accurately update project-state/testing docs. The attached text is the selected independent review report."
+              prioritize_models REPAIR_MODELS "$REVIEW_PROVIDER"
+              STAGE_FILES=("$REVIEW_LOG_PATH")
+              run_stage "repair" "build" "$REPAIR_PROMPT" "${REPAIR_MODELS[@]}"
+              REPAIR_RESULT=$?
+              REPAIR_PROVIDER="${STAGE_PROVIDER[repair]:-}"
+              if [[ "$REPAIR_RESULT" -ne 0 ]]; then
+                PIPELINE_EXIT=1
+                echo "::warning::The review repair stage could not complete."
+              fi
+            elif [[ "$REVIEW_DECISION" == "NO" ]]; then
+              STAGE_STATUS["repair"]="SKIPPED (no confirmed findings)"
+              echo "Independent reviewer found no confirmed actionable defects; repair call not needed."
+            else
+              PIPELINE_EXIT=1
+              STAGE_STATUS["repair"]="SKIPPED (review invalid after fallback)"
+              echo "::error::Review could not produce a valid YES/NO decision after the controlled fallback; repair is not safe to run."
+            fi
+
+            # Stage 4: deterministic CI validation, independent of model claims.
+            run_validation
+            if [[ "$VALIDATION_STATUS" -ne 0 ]]; then
+              echo "::warning::Initial deterministic validation failed; requesting one focused repair."
+              COPILOT_STAGE_ALLOWED=true
+              VALIDATION_REPAIR_PROMPT="The complete deterministic validation output is embedded directly in this prompt. Use that output as your evidence; do not try to open a runner-temporary file or request interactive approval to read it. Fix only confirmed failures in project-owned files. Do not modify DevPackages, weaken checks, publish, commit, or push. Then report the exact changes made."
+              prioritize_models VALIDATION_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
+              STAGE_FILES=("$VALIDATION_LOG")
+              run_stage "validation-repair" "build" "$VALIDATION_REPAIR_PROMPT" "${VALIDATION_REPAIR_MODELS[@]}"
+              VALIDATION_REPAIR_RESULT=$?
+              if [[ "$VALIDATION_REPAIR_RESULT" -eq 0 ]]; then
+                run_validation
+              fi
+            fi
+
+            # Stage 5: read-only QA gets both the current diff and actual CI log.
+            refresh_diff
+            COPILOT_STAGE_ALLOWED=false
+            QA_PROMPT="You are the read-only Pocket Habitat QA agent. Inspect the attached current diff and deterministic validation log, then inspect relevant source and tests. Start your response with exactly one line: QA_BLOCKER: YES or QA_BLOCKER: NO. Say YES only when you have verified a concrete critical/high correctness, security, progression, or player-data issue that should block this checkpoint. Otherwise say NO. Report what CI actually passed or failed from the attached log. Identify missing test coverage and Roblox Studio-only checks separately. Do not edit files, run shell commands, or claim unexecuted TestEZ, Roblox engine, multiplayer, or manual playtests passed."
+            prioritize_models QA_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER"
+            STAGE_FILES=("$DIFF_FILE" "$VALIDATION_LOG")
+            run_stage "qa" "qa" "$QA_PROMPT" "${QA_MODELS[@]}"
+            QA_RESULT=$?
+            if [[ "$QA_RESULT" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              echo "::warning::The independent QA stage did not complete; this run will be reported as incomplete."
+            fi
+
+            # If QA finds a confirmed blocker, allow one extra repair pass and
+            # re-run deterministic checks before the checkpoint is persisted.
+            QA_LOG="${STAGE_LOG[qa]:-}"
+            if [[ "$QA_RESULT" -eq 0 && -f "$QA_LOG" ]]; then
+              if grep -Eiq '^QA_BLOCKER:[[:space:]]*YES' "$QA_LOG"; then
+                echo "::warning::QA identified a blocker; starting one focused final repair."
+                COPILOT_STAGE_ALLOWED=true
+                FINAL_REPAIR_PROMPT="The attached QA report identifies a possible blocking issue. Verify it against the current code and fix it only if confirmed. Preserve unrelated work, never modify DevPackages, do not publish, and do not commit or push. Update documentation and report exact checks."
+                prioritize_models FINAL_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER" "${STAGE_PROVIDER[qa]:-}"
+                STAGE_FILES=("$QA_LOG" "$VALIDATION_LOG")
+                run_stage "qa-repair" "build" "$FINAL_REPAIR_PROMPT" "${FINAL_REPAIR_MODELS[@]}"
+                QA_REPAIR_RESULT=$?
+                if [[ "$QA_REPAIR_RESULT" -eq 0 ]]; then
+                  run_validation
+                else
+                  PIPELINE_EXIT=1
+                  echo "::error::QA reported a blocker but no repair model completed the fix stage."
+                fi
+              elif ! grep -Eiq '^QA_BLOCKER:[[:space:]]*NO' "$QA_LOG"; then
+                PIPELINE_EXIT=1
+                echo "::warning::QA output did not contain the required QA_BLOCKER header; treating QA as incomplete."
+              fi
+            fi
+
+            if [[ "$VALIDATION_STATUS" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              echo "::error::Final deterministic validation did not pass."
+            fi
+          fi
+
+          # Machine-readable per-run usage log plus a compact human report are
+          # uploaded even if a required model stage is exhausted.
+          {
+            echo "# Pocket Habitat AI pipeline report"
+            echo
+            echo "- Run: ${GITHUB_RUN_NUMBER}"
+            echo "- Task: ${TASK}"
+            echo "- Execution mode: LIVE"
+            echo "- Models configured: ${#MODEL_CHAIN[@]}"
+            echo
+            echo "| Stage | Result | Model | Provider |"
+            echo "|---|---|---|---|"
+            for stage in implementation review review-fallback repair validation-repair qa qa-repair; do
+              printf '| %s | %s | %s | %s |\n' "$stage" "${STAGE_STATUS[$stage]:-NOT RUN}" "${STAGE_MODEL[$stage]:-—}" "${STAGE_PROVIDER[$stage]:-—}"
+            done
+            printf '| deterministic-validation | %s | — | CI tools |\n' "${VALIDATION_STATUS:-NOT RUN}"
+            echo
+            echo "## Provider/model attempt log"
+            echo
+            echo 'See the accompanying TSV artifact for every attempted model, retry, and skip reason.'
+            echo
+            echo "## Testing boundaries"
+            echo
+            echo "- Automated checks executed: Rojo build, StyLua check on src/, Selene on src/."
+            echo "- TestEZ, Roblox engine, multiplayer, and manual Studio testing are not claimed unless explicitly run by a separately supported test runner or human playtest."
+            echo "- The .rbxl file is a build artifact only; a successful Rojo build does not prove the experience is playable in Roblox Studio."
+          } > "$RUN_REPORT"
+
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            cat "$RUN_REPORT" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "===== PER-RUN MODEL USAGE ====="
+          cat "$USAGE_LOG"
+          echo "===== PIPELINE REPORT ====="
+          cat "$RUN_REPORT"
+
+          exit "$PIPELINE_EXIT"
+
+      - name: Persist work to GitHub
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Vendored TestEZ/Wally source is not project-owned code. Restore it
+          # if an agent or dependency command unexpectedly touched it.
+          if [[ -n "$(git status --porcelain -- DevPackages)" ]]; then
+            echo "::warning::Restoring unexpected changes and untracked files under vendored DevPackages."
+            git restore --source=HEAD --staged --worktree -- DevPackages
+            git clean -fd -- DevPackages
+          fi
+
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "AI staged development checkpoint ${GITHUB_RUN_NUMBER}"
+            git push origin HEAD:ai/game-build
+          else
+            echo "No repository changes to persist."
+          fi
+
+      - name: Save generated build and pipeline artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pocket-habitat-pipeline-${{ github.run_number }}
+          path: |
+            build/pocket-habitat.rbxl
+            ${{ runner.temp }}/pocket-habitat-agent-report.md
+            ${{ runner.temp }}/pocket-habitat-model-usage.tsv
+            ${{ runner.temp }}/pocket-habitat-validation.log
+            ${{ runner.temp }}/opencode-*.log
+          if-no-files-found: warn
+          retention-days: 14
+\nEND DETERMINISTIC VALIDATION OUTPUT\n'
+                      else
+                        copilot_prompt+=" Supporting pipeline file to read before acting: $attachment."
+                      fi
+                    fi
+                  done
+                  command_args+=(
+                    copilot -p "$copilot_prompt" --allow-all-tools
+                    --deny-tool='shell(git commit)'
+                    --deny-tool='shell(git push)'
+                    --deny-tool='shell(gh workflow run)'
+                    --deny-tool='shell(gh release create)'
+                    --deny-tool='shell(rojo upload)'
+                  )
+                else
+                  command_args+=(
+                    opencode run --standalone --auto
+                    --model "$model" --agent "$agent"
+                    --title "Pocket Habitat ${stage} run ${GITHUB_RUN_NUMBER}"
+                  )
+                  for attachment in "${STAGE_FILES[@]}"; do
+                    if [[ -f "$attachment" ]]; then
+                      command_args+=(--file "$attachment")
+                    fi
+                  done
+                  command_args+=("$prompt")
+                fi
+
+                if "${command_args[@]}" 2>&1 | tee "$log_file"; then
+                  status=0
+                else
+                  status=$?
+                fi
+                echo "::endgroup::"
+                STAGE_LOG["$stage"]="$log_file"
+
+                if [[ "$status" -eq 0 ]]; then
+                  STAGE_STATUS["$stage"]="SUCCESS"
+                  STAGE_MODEL["$stage"]="$model"
+                  STAGE_PROVIDER["$stage"]="$provider"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SUCCESS" ""
+                  echo "Stage $stage completed using $model."
+                  return 0
+                fi
+
+                # Cloudflare Workers AI Free reports an exhausted daily
+                # Neurons pool with wording such as:
+                # "You have used up your daily free allocation of 10,000 neurons".
+                # Detect this provider-specific message before the RPM/TPM retry
+                # classifier. The allocation is shared across Workers AI models,
+                # so disable the entire provider immediately for every later stage.
+                # Breaking here deliberately suppresses any retry/backoff attempt.
+                if [[ "$provider" == "cloudflare-workers-ai" ]] && is_cloudflare_daily_neurons_exhausted "$log_file"; then
+                  MODEL_BLOCKED["$model"]="Cloudflare Workers AI daily free Neurons allocation exhausted"
+                  PROVIDER_BLOCKED["cloudflare-workers-ai"]="shared daily Workers AI Neurons allocation exhausted"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "Cloudflare daily free Neurons allocation exhausted; retry suppressed"
+                  echo "::warning::Cloudflare Workers AI daily Neurons allocation is exhausted; disabling the entire provider for all remaining stages and continuing to the next provider without retry."
+                  break
+                fi
+
+                # General daily/monthly quota detection. This remains ahead of
+                # RPM/TPM handling so quota exhaustion never enters retry/backoff.
+                if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|daily free allocation|used up.{0,100}daily.{0,100}allocation|quota.*day|day.*quota|RPD|TPD|requests per month|monthly quota|monthly limit|quota.*month|month.*quota|monthly.*calls|AI credits.*(exhausted|limit)|premium request.*(exhausted|limit)|neurons.*(exhausted|limit)|workers ai.*(quota|limit)' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="daily/monthly/provider quota exhausted"
+                  # Cloudflare, Cohere, OpenRouter free and Copilot each have
+                  # a shared account pool across the configured models.
+                  if [[ "$provider" == "openrouter" || "$provider" == "cohere" || "$provider" == "cloudflare-workers-ai" || "$provider" == "github-copilot" ]]; then
+                    PROVIDER_BLOCKED["$provider"]="shared daily/monthly quota exhausted"
+                  fi
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "daily/monthly/shared quota exhausted; retry suppressed"
+                  echo "::warning::$provider/$model reached a daily/monthly quota; its shared provider pool will not be called again this run and no retry will be attempted."
+                  break
+                fi
+
+                if grep -Eiq 'requests per minute|tokens per minute|input tokens per minute|output tokens per minute|per-minute limit|requests-per-minute|tokens-per-minute' "$log_file"; then
+                  retry_count=$((retry_count + 1))
+                  if [[ "$retry_count" -gt 1 ]]; then
+                    MODEL_BLOCKED["$model"]="repeated RPM/TPM limit"
+                    if [[ "$provider" == "openrouter" ]]; then
+                      PROVIDER_BLOCKED["$provider"]="shared free-tier RPM limit"
+                    fi
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "SKIPPED" "still rate-limited after one retry"
+                    echo "::warning::$model is still rate-limited after one retry; moving on."
+                    break
+                  fi
+
+                  retry_hint="$(grep -Eio 'retry in [0-9]+([.][0-9]+)?s' "$log_file" | tail -n 1 | sed -E 's/.*retry in ([0-9]+([.][0-9]+)?)s/\1/i')"
+                  if [[ -n "$retry_hint" ]]; then
+                    delay="$(awk -v s="$retry_hint" 'BEGIN { d = int(s + 0.999) + 5; if (d < 15) d = 15; print d }')"
+                  else
+                    delay=60
+                  fi
+
+                  if [[ "$delay" -gt 120 ]]; then
+                    MODEL_BLOCKED["$model"]="retry delay exceeds 120 seconds"
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "SKIPPED" "retry hint exceeds 120 seconds"
+                    echo "::warning::$model requested a $delay-second wait; skipping it to preserve the run."
+                    break
+                  fi
+
+                  record_attempt "$stage" "$provider" "$model" "$retry_count" "RETRYING" "RPM/TPM backoff ${delay}s"
+                  echo "RPM/TPM limit on $model; one retry after ${delay}s."
+                  sleep "$delay"
+                  continue
+                fi
+
+                if grep -Eiq 'unauthorized|invalid.*api.?key|API key.*invalid|invalid_api_key|authentication failed|HTTP 401|HTTP 403|forbidden.*api|provider.*not configured' "$log_file"; then
+                  PROVIDER_BLOCKED["$provider"]="authentication or provider configuration failure"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "authentication/configuration failure"
+                  echo "::warning::$provider credentials or configuration were rejected; skipping the provider for this run."
+                  break
+                fi
+
+                if grep -Eiq 'model.*not found|no model is available|model unavailable|no longer available|not available to new users|retired model|deprecated model|context length|context window|input too long|maximum context|insufficient credits|not enough credits|payment required' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="model unavailable or request unsupported"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SKIPPED" "model unavailable or request unsupported"
+                  echo "::warning::$model is unavailable for this request; moving on."
+                  break
+                fi
+
+                if grep -Eiq '429|RESOURCE_EXHAUSTED|rate.?limit|quota exceeded|temporarily unavailable|overloaded|service unavailable|HTTP 5[0-9][0-9]|high demand|spikes in demand|try again later|too many requests' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="temporary provider capacity failure"
+                  if [[ "$provider" == "openrouter" ]]; then
+                    PROVIDER_BLOCKED["$provider"]="shared free-tier capacity failure"
+                  fi
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SKIPPED" "temporary capacity failure; no repeated retry"
+                  echo "::warning::$model is temporarily unavailable; moving on without repeated requests."
+                  break
+                fi
+
+                MODEL_BLOCKED["$model"]="unclassified failure"
+                STAGE_STATUS["$stage"]="ERROR"
+                record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "ERROR" "unclassified exit code $status"
+                echo "::error::Unclassified OpenCode failure in $stage using $model (exit code $status)."
+                return 2
+              done
+            done
+
+            echo "::warning::No unattempted, available model completed stage $stage."
+            return 1
+          }
+
+          refresh_diff() {
+            # Intent-to-add makes new project files visible to git diff without
+            # staging their content. Third-party DevPackages are excluded.
+            git add -N -- . 2>/dev/null || true
+            git diff --no-ext-diff --binary HEAD -- . ':(exclude)DevPackages/**' > "$DIFF_FILE"
+          }
+
+          run_validation() {
+            local result=0
+            : > "$VALIDATION_LOG"
+
+            if rojo build default.project.json -o build/pocket-habitat.rbxl >> "$VALIDATION_LOG" 2>&1; then
+              echo "PASS: Rojo build -> build/pocket-habitat.rbxl" >> "$VALIDATION_LOG"
+            else
+              echo "FAIL: Rojo build" >> "$VALIDATION_LOG"
+              result=1
+            fi
+
+            if stylua --check src >> "$VALIDATION_LOG" 2>&1; then
+              echo "PASS: StyLua check src" >> "$VALIDATION_LOG"
+            else
+              echo "FAIL: StyLua check src" >> "$VALIDATION_LOG"
+              result=1
+            fi
+
+            if selene src >> "$VALIDATION_LOG" 2>&1; then
+              echo "PASS: Selene src" >> "$VALIDATION_LOG"
+            else
+              echo "FAIL: Selene src" >> "$VALIDATION_LOG"
+              result=1
+            fi
+
+            VALIDATION_STATUS="$result"
+            cat "$VALIDATION_LOG"
+            return "$result"
+          }
+
+          IMPLEMENT_PROMPT="You are the Pocket Habitat implementation agent. Read AGENTS.md and the relevant project documentation before changing code. Complete the user's task below with working, integrated Luau gameplay rather than disconnected scaffolding. Inspect the current repository state first and preserve correct existing work. Keep gameplay server-authoritative; validate all remote requests, ownership, distance, rewards, inventory, purchases, quests, and persistence. Do not publish to Roblox, access publishing credentials, create/switch branches, commit, or push. Never modify or reformat DevPackages or other vendored dependencies. Format/lint only src/. Run the checks you can actually run and report exact results; never claim Roblox Studio, engine, multiplayer, or TestEZ execution unless it truly happened. Update docs/PROJECT_STATE.md and docs/TESTING.md accurately. User task: ${TASK}"
+
+          echo "Configured models: ${#MODEL_CHAIN[@]}"
+          echo "Pipeline stages: implementation -> independent review (with strict-format fallback) -> repair -> deterministic validation -> QA"
+
+          # Stage 1: implementation.
+          COPILOT_STAGE_ALLOWED=true
+          prioritize_models IMPLEMENT_MODELS
+          STAGE_FILES=()
+          run_stage "implementation" "build" "$IMPLEMENT_PROMPT" "${IMPLEMENT_MODELS[@]}"
+          IMPLEMENT_RESULT=$?
+          IMPLEMENT_PROVIDER="${STAGE_PROVIDER[implementation]:-}"
+
+          if [[ "$IMPLEMENT_RESULT" -ne 0 ]]; then
+            PIPELINE_EXIT=1
+            echo "::error::Implementation did not complete; skipping dependent AI stages."
+          else
+            # Stage 2: independent, read-only review using a different provider
+            # first. Attach a concrete diff so the reviewer does not need shell.
+            refresh_diff
+            COPILOT_STAGE_ALLOWED=false
+            REVIEW_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Review the attached implementation diff against the repository's actual code and architecture. Do not edit files, run shell commands, or ask another agent to make changes. Verify every suspected issue against the source before reporting it. Prioritize exploitable remote/event flows, player-data loss or cross-player leakage, economy/inventory duplication, broken gameplay interactions, persistence failure handling, runtime errors, and regressions. Ignore style-only opinions unless they cause a real problem. Start with exactly one line: REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Use YES only if at least one actionable defect is confirmed in source. Return a concise Markdown report with severity (CRITICAL/HIGH/MEDIUM/LOW), file and line, evidence, impact, and a specific suggested correction. If no actionable findings exist, use REVIEW_FINDINGS: NO and explain any remaining runtime checks. Do not claim a test was run unless the attached evidence shows it."
+            prioritize_models REVIEW_MODELS "$IMPLEMENT_PROVIDER"
+            STAGE_FILES=("$DIFF_FILE")
+            run_stage "review" "reviewer" "$REVIEW_PROMPT" "${REVIEW_MODELS[@]}"
+            REVIEW_RESULT=$?
+            REVIEW_PROVIDER="${STAGE_PROVIDER[review]:-}"
+
+            # Stage 3: repair verified findings only. If a reviewer exits
+            # successfully but omits the required header, try one additional
+            # independent model before treating the review as incomplete.
+            REVIEW_LOG_PATH="${STAGE_LOG[review]:-}"
+            REVIEW_DECISION="INVALID"
+            if [[ "$REVIEW_RESULT" -eq 0 ]]; then
+              REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
+              if [[ "$REVIEW_DECISION" == "INVALID" ]]; then
+                STAGE_STATUS["review"]="SUCCESS (invalid response format)"
+                echo "::warning::Reviewer output was missing REVIEW_FINDINGS: YES/NO; requesting one independent fallback review."
+                REVIEW_FALLBACK_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Inspect the attached implementation diff and relevant source evidence. Do not edit files or run shell commands. Verify findings against the supplied code. Your FIRST output line MUST be exactly REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Do not put a preamble, Markdown fence, or explanation before it. Use YES only for at least one confirmed actionable defect; otherwise use NO. Then provide concise evidence, severity, file/line, impact, and a specific correction for each confirmed finding. Never claim tests ran unless the evidence proves it."
+                prioritize_models REVIEW_FALLBACK_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
+                STAGE_FILES=("$DIFF_FILE")
+                run_stage "review-fallback" "reviewer" "$REVIEW_FALLBACK_PROMPT" "${REVIEW_FALLBACK_MODELS[@]}"
+                REVIEW_FALLBACK_RESULT=$?
+                if [[ "$REVIEW_FALLBACK_RESULT" -eq 0 ]]; then
+                  REVIEW_LOG_PATH="${STAGE_LOG[review-fallback]:-}"
+                  REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
+                  if [[ "$REVIEW_DECISION" == "INVALID" ]]; then
+                    STAGE_STATUS["review-fallback"]="SUCCESS (invalid response format)"
+                    echo "::warning::Fallback reviewer also omitted the required header; the review remains incomplete."
+                  else
+                    REVIEW_PROVIDER="${STAGE_PROVIDER[review-fallback]:-}"
+                    echo "Independent fallback reviewer returned REVIEW_FINDINGS: $REVIEW_DECISION."
+                  fi
+                else
+                  echo "::warning::No independent fallback reviewer completed the strict-format review."
+                fi
+              fi
+            fi
+
+            if [[ "$REVIEW_RESULT" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              STAGE_STATUS["repair"]="SKIPPED (review unavailable)"
+              echo "::warning::No independent model completed the review stage; repair stage skipped."
+            elif [[ "$REVIEW_DECISION" == "YES" ]]; then
+              COPILOT_STAGE_ALLOWED=true
+              REPAIR_PROMPT="You are the Pocket Habitat repair engineer. Read the attached independent review output and verify each finding in the current source before changing anything. Fix confirmed CRITICAL and HIGH findings, plus MEDIUM findings that directly break the requested task or core progression. Do not blindly apply speculative comments. Preserve working behavior, keep all server-side validation and data safety, never modify DevPackages, do not publish, and do not commit or push. Run appropriate local checks and accurately update project-state/testing docs. The attached text is the selected independent review report."
+              prioritize_models REPAIR_MODELS "$REVIEW_PROVIDER"
+              STAGE_FILES=("$REVIEW_LOG_PATH")
+              run_stage "repair" "build" "$REPAIR_PROMPT" "${REPAIR_MODELS[@]}"
+              REPAIR_RESULT=$?
+              REPAIR_PROVIDER="${STAGE_PROVIDER[repair]:-}"
+              if [[ "$REPAIR_RESULT" -ne 0 ]]; then
+                PIPELINE_EXIT=1
+                echo "::warning::The review repair stage could not complete."
+              fi
+            elif [[ "$REVIEW_DECISION" == "NO" ]]; then
+              STAGE_STATUS["repair"]="SKIPPED (no confirmed findings)"
+              echo "Independent reviewer found no confirmed actionable defects; repair call not needed."
+            else
+              PIPELINE_EXIT=1
+              STAGE_STATUS["repair"]="SKIPPED (review invalid after fallback)"
+              echo "::error::Review could not produce a valid YES/NO decision after the controlled fallback; repair is not safe to run."
+            fi
+
+            # Stage 4: deterministic CI validation, independent of model claims.
+            run_validation
+            if [[ "$VALIDATION_STATUS" -ne 0 ]]; then
+              echo "::warning::Initial deterministic validation failed; requesting one focused repair."
+              COPILOT_STAGE_ALLOWED=true
+              VALIDATION_REPAIR_PROMPT="The complete deterministic validation output is embedded directly in this prompt. Use that output as your evidence; do not try to open a runner-temporary file or request interactive approval to read it. Fix only confirmed failures in project-owned files. Do not modify DevPackages, weaken checks, publish, commit, or push. Then report the exact changes made."
+              prioritize_models VALIDATION_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
+              STAGE_FILES=("$VALIDATION_LOG")
+              run_stage "validation-repair" "build" "$VALIDATION_REPAIR_PROMPT" "${VALIDATION_REPAIR_MODELS[@]}"
+              VALIDATION_REPAIR_RESULT=$?
+              if [[ "$VALIDATION_REPAIR_RESULT" -eq 0 ]]; then
+                run_validation
+              fi
+            fi
+
+            # Stage 5: read-only QA gets both the current diff and actual CI log.
+            refresh_diff
+            COPILOT_STAGE_ALLOWED=false
+            QA_PROMPT="You are the read-only Pocket Habitat QA agent. Inspect the attached current diff and deterministic validation log, then inspect relevant source and tests. Start your response with exactly one line: QA_BLOCKER: YES or QA_BLOCKER: NO. Say YES only when you have verified a concrete critical/high correctness, security, progression, or player-data issue that should block this checkpoint. Otherwise say NO. Report what CI actually passed or failed from the attached log. Identify missing test coverage and Roblox Studio-only checks separately. Do not edit files, run shell commands, or claim unexecuted TestEZ, Roblox engine, multiplayer, or manual playtests passed."
+            prioritize_models QA_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER"
+            STAGE_FILES=("$DIFF_FILE" "$VALIDATION_LOG")
+            run_stage "qa" "qa" "$QA_PROMPT" "${QA_MODELS[@]}"
+            QA_RESULT=$?
+            if [[ "$QA_RESULT" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              echo "::warning::The independent QA stage did not complete; this run will be reported as incomplete."
+            fi
+
+            # If QA finds a confirmed blocker, allow one extra repair pass and
+            # re-run deterministic checks before the checkpoint is persisted.
+            QA_LOG="${STAGE_LOG[qa]:-}"
+            if [[ "$QA_RESULT" -eq 0 && -f "$QA_LOG" ]]; then
+              if grep -Eiq '^QA_BLOCKER:[[:space:]]*YES' "$QA_LOG"; then
+                echo "::warning::QA identified a blocker; starting one focused final repair."
+                COPILOT_STAGE_ALLOWED=true
+                FINAL_REPAIR_PROMPT="The attached QA report identifies a possible blocking issue. Verify it against the current code and fix it only if confirmed. Preserve unrelated work, never modify DevPackages, do not publish, and do not commit or push. Update documentation and report exact checks."
+                prioritize_models FINAL_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER" "${STAGE_PROVIDER[qa]:-}"
+                STAGE_FILES=("$QA_LOG" "$VALIDATION_LOG")
+                run_stage "qa-repair" "build" "$FINAL_REPAIR_PROMPT" "${FINAL_REPAIR_MODELS[@]}"
+                QA_REPAIR_RESULT=$?
+                if [[ "$QA_REPAIR_RESULT" -eq 0 ]]; then
+                  run_validation
+                else
+                  PIPELINE_EXIT=1
+                  echo "::error::QA reported a blocker but no repair model completed the fix stage."
+                fi
+              elif ! grep -Eiq '^QA_BLOCKER:[[:space:]]*NO' "$QA_LOG"; then
+                PIPELINE_EXIT=1
+                echo "::warning::QA output did not contain the required QA_BLOCKER header; treating QA as incomplete."
+              fi
+            fi
+
+            if [[ "$VALIDATION_STATUS" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              echo "::error::Final deterministic validation did not pass."
+            fi
+          fi
+
+          # Machine-readable per-run usage log plus a compact human report are
+          # uploaded even if a required model stage is exhausted.
+          {
+            echo "# Pocket Habitat AI pipeline report"
+            echo
+            echo "- Run: ${GITHUB_RUN_NUMBER}"
+            echo "- Task: ${TASK}"
+            echo "- Execution mode: LIVE"
+            echo "- Models configured: ${#MODEL_CHAIN[@]}"
+            echo
+            echo "| Stage | Result | Model | Provider |"
+            echo "|---|---|---|---|"
+            for stage in implementation review review-fallback repair validation-repair qa qa-repair; do
+              printf '| %s | %s | %s | %s |\n' "$stage" "${STAGE_STATUS[$stage]:-NOT RUN}" "${STAGE_MODEL[$stage]:-—}" "${STAGE_PROVIDER[$stage]:-—}"
+            done
+            printf '| deterministic-validation | %s | — | CI tools |\n' "${VALIDATION_STATUS:-NOT RUN}"
+            echo
+            echo "## Provider/model attempt log"
+            echo
+            echo 'See the accompanying TSV artifact for every attempted model, retry, and skip reason.'
+            echo
+            echo "## Testing boundaries"
+            echo
+            echo "- Automated checks executed: Rojo build, StyLua check on src/, Selene on src/."
+            echo "- TestEZ, Roblox engine, multiplayer, and manual Studio testing are not claimed unless explicitly run by a separately supported test runner or human playtest."
+            echo "- The .rbxl file is a build artifact only; a successful Rojo build does not prove the experience is playable in Roblox Studio."
+          } > "$RUN_REPORT"
+
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            cat "$RUN_REPORT" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "===== PER-RUN MODEL USAGE ====="
+          cat "$USAGE_LOG"
+          echo "===== PIPELINE REPORT ====="
+          cat "$RUN_REPORT"
+
+          exit "$PIPELINE_EXIT"
+
+      - name: Persist work to GitHub
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Vendored TestEZ/Wally source is not project-owned code. Restore it
+          # if an agent or dependency command unexpectedly touched it.
+          if [[ -n "$(git status --porcelain -- DevPackages)" ]]; then
+            echo "::warning::Restoring unexpected changes and untracked files under vendored DevPackages."
+            git restore --source=HEAD --staged --worktree -- DevPackages
+            git clean -fd -- DevPackages
+          fi
+
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "AI staged development checkpoint ${GITHUB_RUN_NUMBER}"
+            git push origin HEAD:ai/game-build
+          else
+            echo "No repository changes to persist."
+          fi
+
+      - name: Save generated build and pipeline artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pocket-habitat-pipeline-${{ github.run_number }}
+          path: |
+            build/pocket-habitat.rbxl
+            ${{ runner.temp }}/pocket-habitat-agent-report.md
+            ${{ runner.temp }}/pocket-habitat-model-usage.tsv
+            ${{ runner.temp }}/pocket-habitat-validation.log
+            ${{ runner.temp }}/opencode-*.log
+          if-no-files-found: warn
+          retention-days: 14
+\n\nBEGIN COMPLETE DETERMINISTIC VALIDATION OUTPUT\n'
                         copilot_prompt+="$(cat "$attachment")"
                         copilot_prompt+=$'\\nEND DETERMINISTIC VALIDATION OUTPUT\\n'
                       else
