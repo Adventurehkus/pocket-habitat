@@ -100,9 +100,16 @@ jobs:
           DIFF_FILE="$RUNNER_TEMP/pocket-habitat-implementation.diff"
           printf 'stage\tprovider\tmodel\tattempt\tresult\tdetail\n' > "$USAGE_LOG"
 
+          # MODEL_ATTEMPTED means a model already completed a stage successfully.
+          # Temporary failures are tracked separately so cooled-down routes can
+          # be retried without asking the user to dispatch the workflow again.
           declare -A MODEL_ATTEMPTED=()
           declare -A MODEL_BLOCKED=()
           declare -A PROVIDER_BLOCKED=()
+          declare -A MODEL_STAGE_RETRIES=()
+          declare -A MODEL_STAGE_EXHAUSTED=()
+          declare -A MODEL_COOLDOWN_UNTIL=()
+          declare -A PROVIDER_COOLDOWN_UNTIL=()
           declare -A STAGE_STATUS=()
           declare -A STAGE_MODEL=()
           declare -A STAGE_PROVIDER=()
@@ -111,6 +118,16 @@ jobs:
           STAGE_FILES=()
           RUN_COUNTER=0
           PIPELINE_EXIT=0
+          # Each stage may automatically wait for transient limits for up to
+          # 45 minutes; total workflow sleep is capped at 3 hours, below the
+          # 350-minute job timeout. Explicit daily/shared quotas are skipped.
+          MAX_MODEL_TEMP_ATTEMPTS=3
+          MAX_STAGE_MODEL_CALLS=40
+          STAGE_TEMP_WAIT_BUDGET_SECONDS=2700
+          TOTAL_TEMP_WAIT_BUDGET_SECONDS=10800
+          TOTAL_TEMP_WAIT_SECONDS=0
+          TEMP_LIMIT_EVENTS=0
+          DAILY_QUOTA_EVENTS=0
           IMPLEMENT_PROVIDER=""
           REVIEW_PROVIDER=""
           REPAIR_PROVIDER=""
@@ -187,6 +204,129 @@ jobs:
             grep -Eiq 'used up.{0,100}daily free allocation|daily free allocation|daily.{0,80}allocation.{0,80}neurons|neurons.{0,80}daily.{0,80}(allocation|quota|limit)' "$1"
           }
 
+          # Classify failures before deciding whether to retry, cool down, or
+          # disable a route. Daily exhaustion and oversized requests are never
+          # mistaken for ordinary transient 429s.
+          classify_failure() {
+            local provider="$1"
+            local log_file="$2"
+
+            if [[ "$provider" == "cloudflare-workers-ai" ]] && is_cloudflare_daily_neurons_exhausted "$log_file"; then
+              echo "SHARED_DAILY_QUOTA"
+              return 0
+            fi
+
+            if grep -Eiq 'request too large for model|expected output tokens exceed|reduce max_tokens|prompt.{0,30}(too large|exceeds).{0,30}(limit|maximum)|maximum request size exceeded' "$log_file"; then
+              echo "REQUEST_TOO_LARGE"
+              return 0
+            fi
+
+            if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|daily free allocation|used up.{0,100}daily.{0,100}allocation|quota.{0,30}(per day|per-day|daily)|RPD|TPD|requests per month|monthly quota|monthly limit|quota.{0,30}(per month|monthly)|monthly.{0,30}calls|AI credits.{0,30}(exhausted|limit)|premium request.{0,30}(exhausted|limit)|neurons.{0,30}(exhausted|limit)|workers ai.{0,30}(quota|limit)' "$log_file"; then
+              case "$provider" in
+                openrouter|cohere|cloudflare-workers-ai|github-copilot)
+                  echo "SHARED_DAILY_QUOTA"
+                  ;;
+                *)
+                  # Google Gemini free-tier request/day limits are model-specific.
+                  echo "MODEL_DAILY_QUOTA"
+                  ;;
+              esac
+              return 0
+            fi
+
+            if grep -Eiq 'unauthorized|invalid.{0,20}api.?key|API key.{0,20}invalid|invalid_api_key|authentication failed|HTTP 401|HTTP 403|forbidden.{0,20}api|provider.{0,20}not configured|permission denied' "$log_file"; then
+              echo "AUTH_FAILURE"
+              return 0
+            fi
+
+            if grep -Eiq 'model.{0,20}(not found|unavailable)|no model is available|no longer available|not available to new users|retired model|deprecated model|context length.{0,20}(exceeded|limit)|context window.{0,20}(exceeded|limit)|input too long|maximum context|insufficient credits|not enough credits|payment required' "$log_file"; then
+              echo "MODEL_UNAVAILABLE"
+              return 0
+            fi
+
+            if grep -Eiq 'requests per minute|tokens per minute|input tokens per minute|output tokens per minute|per-minute limit|requests-per-minute|tokens-per-minute|429|RESOURCE_EXHAUSTED|rate.?limit|too many requests|quota exceeded|trial key.{0,80}limited to.{0,40}(minute|second)|retry-after' "$log_file"; then
+              if { [[ "$provider" == "cohere" ]] && grep -Eiq 'trial key.{0,80}limited to.{0,40}(minute|second)' "$log_file"; } ||
+                 [[ "$provider" == "openrouter" || "$provider" == "cloudflare-workers-ai" || "$provider" == "github-copilot" ]]; then
+                echo "PROVIDER_RATE_LIMIT"
+              else
+                echo "MODEL_RATE_LIMIT"
+              fi
+              return 0
+            fi
+
+            if grep -Eiq 'temporarily unavailable|temporarily overloaded|overloaded|service unavailable|HTTP 5[0-9][0-9]|high demand|spikes in demand|try again later|timed out|timeout|connection reset|gateway error|internal error encountered|upstream error|server is busy' "$log_file"; then
+              echo "TEMP_CAPACITY"
+              return 0
+            fi
+
+            echo "UNKNOWN"
+          }
+
+          # Honor provider-supplied Retry-After / "Please retry in 43.4s" hints.
+          # If no hint exists, use exponential backoff with a conservative cap.
+          retry_delay_seconds() {
+            local log_file="$1"
+            local attempt_number="$2"
+            local failure_class="$3"
+            python3 - "$log_file" "$attempt_number" "$failure_class" <<'PY'
+          import datetime
+          import email.utils
+          import math
+          import re
+          import sys
+
+          path, attempt_text, failure_class = sys.argv[1:4]
+          try:
+              text = open(path, "r", encoding="utf-8", errors="replace").read()
+          except OSError:
+              text = ""
+
+          delay = None
+          duration = r"((?:[0-9]+(?:\.[0-9]+)?h)?(?:[0-9]+(?:\.[0-9]+)?m)?(?:[0-9]+(?:\.[0-9]+)?s))"
+          matches = list(re.finditer(r"(?:retry|try again)\s+(?:in|after)\s+" + duration, text, re.I))
+          if matches:
+              raw = matches[-1].group(1).lower()
+              hours = re.search(r"([0-9]+(?:\.[0-9]+)?)h", raw)
+              minutes = re.search(r"([0-9]+(?:\.[0-9]+)?)m", raw)
+              seconds = re.search(r"([0-9]+(?:\.[0-9]+)?)s", raw)
+              delay = (
+                  (float(hours.group(1)) * 3600 if hours else 0)
+                  + (float(minutes.group(1)) * 60 if minutes else 0)
+                  + (float(seconds.group(1)) if seconds else 0)
+              )
+          else:
+              seconds_matches = list(re.finditer(
+                  r"(?:retry|try again)\s+(?:in|after)\s+([0-9]+(?:\.[0-9]+)?)\s+seconds?",
+                  text, re.I
+              ))
+              header_matches = list(re.finditer(r"retry-after\s*:\s*([^\r\n]+)", text, re.I))
+              if seconds_matches:
+                  delay = float(seconds_matches[-1].group(1))
+              elif header_matches:
+                  header = header_matches[-1].group(1).strip()
+                  if re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", header):
+                      delay = float(header)
+                  else:
+                      try:
+                          retry_at = email.utils.parsedate_to_datetime(header)
+                          if retry_at.tzinfo is None:
+                              retry_at = retry_at.replace(tzinfo=datetime.timezone.utc)
+                          delay = max(0, (retry_at - datetime.datetime.now(datetime.timezone.utc)).total_seconds())
+                      except (TypeError, ValueError, OverflowError):
+                          delay = None
+
+          if delay is None:
+              try:
+                  attempt = max(1, int(attempt_text))
+              except ValueError:
+                  attempt = 1
+              base = 45 if failure_class == "TEMP_CAPACITY" else 30
+              delay = min(base * (2 ** (attempt - 1)), 300)
+
+          print(max(15, math.ceil(delay) + 5))
+          PY
+          }
+
           # Return YES, NO, or INVALID from a reviewer transcript. Strip terminal
           # color codes first because some CLI renderers decorate the first line.
           review_decision() {
@@ -221,6 +361,46 @@ jobs:
           fi
           rm -f "$quota_classifier_test_file"
           echo "Cloudflare daily Neurons quota classifier regression tests passed."
+
+          # Regression coverage for model/provider failure classification.
+          classifier_test_file="$RUNNER_TEMP/model-failure-classifier-test.log"
+          assert_failure_class() {
+            local provider="$1"
+            local fixture="$2"
+            local expected="$3"
+            printf '%s\n' "$fixture" > "$classifier_test_file"
+            local actual
+            actual="$(classify_failure "$provider" "$classifier_test_file")"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "::error::Failure classifier mismatch for $provider: expected $expected, got $actual"
+              exit 1
+            fi
+          }
+          assert_failure_class "google" 'Quota exceeded for metric generate_content_free_tier_requests; limit 20 per day.' "MODEL_DAILY_QUOTA"
+          assert_failure_class "google" 'Generate content free tier input token count per minute limit exceeded. Please retry in 43.4s.' "MODEL_RATE_LIMIT"
+          assert_failure_class "groq" 'Request too large for model; input tokens per minute Limit 7000, Requested 12283.' "REQUEST_TOO_LARGE"
+          assert_failure_class "cohere" 'Trial key is limited to 20 API calls / minute.' "PROVIDER_RATE_LIMIT"
+          assert_failure_class "openrouter" 'HTTP 429 rate limit exceeded.' "PROVIDER_RATE_LIMIT"
+          assert_failure_class "google" 'This model is currently experiencing high demand. Try again later.' "TEMP_CAPACITY"
+          assert_failure_class "google" 'Invalid API key: authentication failed.' "AUTH_FAILURE"
+          rm -f "$classifier_test_file"
+          echo "Model failure classifier regression tests passed."
+
+          retry_delay_test_file="$RUNNER_TEMP/model-retry-delay-test.log"
+          printf '%s\n' 'Please retry in 43.440153729s.' > "$retry_delay_test_file"
+          parsed_retry_delay="$(retry_delay_seconds "$retry_delay_test_file" 1 MODEL_RATE_LIMIT)"
+          if [[ "$parsed_retry_delay" -lt 48 || "$parsed_retry_delay" -gt 50 ]]; then
+            echo "::error::Retry delay parser failed the seconds-hint regression test: $parsed_retry_delay"
+            exit 1
+          fi
+          printf '%s\n' 'Retry-After: 120' > "$retry_delay_test_file"
+          parsed_retry_delay="$(retry_delay_seconds "$retry_delay_test_file" 1 MODEL_RATE_LIMIT)"
+          if [[ "$parsed_retry_delay" -lt 125 || "$parsed_retry_delay" -gt 126 ]]; then
+            echo "::error::Retry-After parser failed the header regression test: $parsed_retry_delay"
+            exit 1
+          fi
+          rm -f "$retry_delay_test_file"
+          echo "Retry delay parser regression tests passed."
 
           review_classifier_test_file="$RUNNER_TEMP/review-classifier-test.log"
           printf '%s\n' 'REVIEW_FINDINGS: YES' > "$review_classifier_test_file"
@@ -278,15 +458,19 @@ jobs:
           }
 
           # run_stage <stage> <agent> <prompt> <candidate-model...>
-          # Attachments are passed through STAGE_FILES and are read-only inputs
-          # to the model. Model fallback is local to this stage.
+          # Temporary limits cool down the affected model/provider, allow other
+          # routes to run, and then automatically revisit the original prompt.
+          # Daily/shared quota exhaustion and permanent errors are not retried.
           run_stage() {
             local stage="$1"
             local agent="$2"
             local prompt="$3"
             shift 3
             local -a candidates=("$@")
-            local model provider status retry_count delay retry_hint log_file
+            local model provider status retry_count delay log_file
+            local attempt_key cooldown_until provider_cooldown earliest_cooldown now wait_seconds
+            local remaining_stage remaining_total failure_class stage_deadline
+            local stage_calls stage_temp_events
             local -a command_args=()
 
             STAGE_STATUS["$stage"]="EXHAUSTED"
@@ -294,28 +478,53 @@ jobs:
             STAGE_PROVIDER["$stage"]=""
             STAGE_LOG["$stage"]=""
 
-            for model in "${candidates[@]}"; do
-              provider="$(provider_for_model "$model")"
+            stage_deadline=$(( $(date +%s) + STAGE_TEMP_WAIT_BUDGET_SECONDS ))
+            stage_calls=0
+            stage_temp_events=0
 
-              if [[ -n "${MODEL_ATTEMPTED[$model]:-}" ]]; then
-                continue
-              fi
-              if [[ -n "${MODEL_BLOCKED[$model]:-}" ]]; then
-                continue
-              fi
-              if [[ -n "${PROVIDER_BLOCKED[$provider]:-}" ]]; then
-                continue
-              fi
+            while true; do
+              earliest_cooldown=0
 
-              MODEL_ATTEMPTED["$model"]="1"
-              retry_count=0
+              for model in "${candidates[@]}"; do
+                provider="$(provider_for_model "$model")"
+                attempt_key="$stage|$model"
 
-              while true; do
+                if [[ -n "${MODEL_ATTEMPTED[$model]:-}" ]]; then
+                  continue
+                fi
+                if [[ -n "${MODEL_BLOCKED[$model]:-}" || -n "${PROVIDER_BLOCKED[$provider]:-}" ]]; then
+                  continue
+                fi
+                if [[ -n "${MODEL_STAGE_EXHAUSTED[$attempt_key]:-}" ]]; then
+                  continue
+                fi
+
+                retry_count="${MODEL_STAGE_RETRIES[$attempt_key]:-0}"
+                now="$(date +%s)"
+                cooldown_until="${MODEL_COOLDOWN_UNTIL[$model]:-0}"
+                provider_cooldown="${PROVIDER_COOLDOWN_UNTIL[$provider]:-0}"
+                if [[ "$provider_cooldown" -gt "$cooldown_until" ]]; then
+                  cooldown_until="$provider_cooldown"
+                fi
+                if [[ "$cooldown_until" -gt "$now" ]]; then
+                  if [[ "$earliest_cooldown" -eq 0 || "$cooldown_until" -lt "$earliest_cooldown" ]]; then
+                    earliest_cooldown="$cooldown_until"
+                  fi
+                  continue
+                fi
+
+                if [[ "$stage_calls" -ge "$MAX_STAGE_MODEL_CALLS" ]]; then
+                  MODEL_STAGE_EXHAUSTED["$attempt_key"]="per-stage model-call budget reached"
+                  continue
+                fi
+
+                retry_count=$((retry_count + 1))
+                MODEL_STAGE_RETRIES["$attempt_key"]="$retry_count"
+                stage_calls=$((stage_calls + 1))
                 RUN_COUNTER=$((RUN_COUNTER + 1))
-                log_file="$RUNNER_TEMP/opencode-${stage}-${RUN_COUNTER}.log"
-                echo "::group::${stage}: $model (attempt $((retry_count + 1)))"
-                # Give each agent only the credentials for the provider it is
-                # currently using.
+                log_file="$RUNNER_TEMP/opencode-${stage}-$RUN_COUNTER.log"
+                echo "::group::${stage}: $model (attempt $retry_count)"
+
                 command_args=(env -i "PATH=$PATH" "HOME=$HOME" "NO_COLOR=1" "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" "RUNNER_TEMP=$RUNNER_TEMP")
                 case "$provider" in
                   google) command_args+=("GOOGLE_GENERATIVE_AI_API_KEY=$GOOGLE_GENERATIVE_AI_API_KEY") ;;
@@ -333,12 +542,9 @@ jobs:
                   for attachment in "${STAGE_FILES[@]}"; do
                     if [[ -f "$attachment" ]]; then
                       if [[ "$stage" == "validation-repair" ]]; then
-                        # Copilot may not be allowed to read files outside the
-                        # workspace (notably RUNNER_TEMP). Inline this small,
-                        # non-secret report to avoid an interactive approval gate.
                         copilot_prompt+=$'\n\nBEGIN COMPLETE DETERMINISTIC VALIDATION OUTPUT\n'
                         copilot_prompt+="$(cat "$attachment")"
-                        copilot_prompt+=$'\nEND DETERMINISTIC VALIDATION OUTPUT\n'
+                        copilot_prompt+=$'\nEND COMPLETE DETERMINISTIC VALIDATION OUTPUT\n'
                       else
                         copilot_prompt+=" Supporting pipeline file to read before acting: $attachment."
                       fi
@@ -356,7 +562,7 @@ jobs:
                   command_args+=(
                     opencode run --standalone --auto
                     --model "$model" --agent "$agent"
-                    --title "Pocket Habitat ${stage} run ${GITHUB_RUN_NUMBER}"
+                    --title "Pocket Habitat $stage run $GITHUB_RUN_NUMBER"
                   )
                   for attachment in "${STAGE_FILES[@]}"; do
                     if [[ -f "$attachment" ]]; then
@@ -375,108 +581,106 @@ jobs:
                 STAGE_LOG["$stage"]="$log_file"
 
                 if [[ "$status" -eq 0 ]]; then
+                  MODEL_ATTEMPTED["$model"]="1"
                   STAGE_STATUS["$stage"]="SUCCESS"
                   STAGE_MODEL["$stage"]="$model"
                   STAGE_PROVIDER["$stage"]="$provider"
-                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SUCCESS" ""
+                  record_attempt "$stage" "$provider" "$model" "$retry_count" "SUCCESS" ""
                   echo "Stage $stage completed using $model."
                   return 0
                 fi
 
-                # Cloudflare Workers AI Free reports an exhausted daily
-                # Neurons pool with wording such as:
-                # "You have used up your daily free allocation of 10,000 neurons".
-                # Detect this provider-specific message before the RPM/TPM retry
-                # classifier. The allocation is shared across Workers AI models,
-                # so disable the entire provider immediately for every later stage.
-                # Breaking here deliberately suppresses any retry/backoff attempt.
-                if [[ "$provider" == "cloudflare-workers-ai" ]] && is_cloudflare_daily_neurons_exhausted "$log_file"; then
-                  MODEL_BLOCKED["$model"]="Cloudflare Workers AI daily free Neurons allocation exhausted"
-                  PROVIDER_BLOCKED["cloudflare-workers-ai"]="shared daily Workers AI Neurons allocation exhausted"
-                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "Cloudflare daily free Neurons allocation exhausted; retry suppressed"
-                  echo "::warning::Cloudflare Workers AI daily Neurons allocation is exhausted; disabling the entire provider for all remaining stages and continuing to the next provider without retry."
-                  break
-                fi
+                failure_class="$(classify_failure "$provider" "$log_file")"
+                now="$(date +%s)"
 
-                # General daily/monthly quota detection. This remains ahead of
-                # RPM/TPM handling so quota exhaustion never enters retry/backoff.
-                if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|daily free allocation|used up.{0,100}daily.{0,100}allocation|quota.*day|day.*quota|RPD|TPD|requests per month|monthly quota|monthly limit|quota.*month|month.*quota|monthly.*calls|AI credits.*(exhausted|limit)|premium request.*(exhausted|limit)|neurons.*(exhausted|limit)|workers ai.*(quota|limit)' "$log_file"; then
-                  MODEL_BLOCKED["$model"]="daily/monthly/provider quota exhausted"
-                  # Cloudflare, Cohere, OpenRouter free and Copilot each have
-                  # a shared account pool across the configured models.
-                  if [[ "$provider" == "openrouter" || "$provider" == "cohere" || "$provider" == "cloudflare-workers-ai" || "$provider" == "github-copilot" ]]; then
+                case "$failure_class" in
+                  SHARED_DAILY_QUOTA)
+                    MODEL_BLOCKED["$model"]="shared daily/monthly quota exhausted"
                     PROVIDER_BLOCKED["$provider"]="shared daily/monthly quota exhausted"
-                  fi
-                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "daily/monthly/shared quota exhausted; retry suppressed"
-                  echo "::warning::$provider/$model reached a daily/monthly quota; its shared provider pool will not be called again this run and no retry will be attempted."
-                  break
-                fi
-
-                if grep -Eiq 'requests per minute|tokens per minute|input tokens per minute|output tokens per minute|per-minute limit|requests-per-minute|tokens-per-minute' "$log_file"; then
-                  retry_count=$((retry_count + 1))
-                  if [[ "$retry_count" -gt 1 ]]; then
-                    MODEL_BLOCKED["$model"]="repeated RPM/TPM limit"
-                    if [[ "$provider" == "openrouter" ]]; then
-                      PROVIDER_BLOCKED["$provider"]="shared free-tier RPM limit"
+                    DAILY_QUOTA_EVENTS=$((DAILY_QUOTA_EVENTS + 1))
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "PROVIDER_DISABLED" "shared daily/monthly quota exhausted; no retry"
+                    echo "::warning::$provider shared quota is exhausted; disabling that provider for the remainder of this run."
+                    ;;
+                  MODEL_DAILY_QUOTA)
+                    MODEL_BLOCKED["$model"]="model-specific daily/monthly quota exhausted"
+                    DAILY_QUOTA_EVENTS=$((DAILY_QUOTA_EVENTS + 1))
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_DISABLED" "model-specific daily/monthly quota exhausted; other provider models remain eligible"
+                    echo "::warning::$model has exhausted its model-specific daily quota; other models from $provider remain eligible."
+                    ;;
+                  REQUEST_TOO_LARGE)
+                    MODEL_BLOCKED["$model"]="request exceeds model token/rate limit"
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_SKIPPED" "request too large for this model; no pointless retry"
+                    echo "::warning::$model cannot accept this request size; moving to another model without waiting."
+                    ;;
+                  AUTH_FAILURE)
+                    PROVIDER_BLOCKED["$provider"]="authentication or provider configuration failure"
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "PROVIDER_DISABLED" "authentication/configuration failure"
+                    echo "::warning::$provider credentials or permissions were rejected; skipping this provider for the run."
+                    ;;
+                  MODEL_UNAVAILABLE)
+                    MODEL_BLOCKED["$model"]="model unavailable or request unsupported"
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_SKIPPED" "model unavailable or request unsupported"
+                    echo "::warning::$model is unavailable for this request; moving on."
+                    ;;
+                  MODEL_RATE_LIMIT|PROVIDER_RATE_LIMIT|TEMP_CAPACITY)
+                    stage_temp_events=$((stage_temp_events + 1))
+                    TEMP_LIMIT_EVENTS=$((TEMP_LIMIT_EVENTS + 1))
+                    if [[ "$retry_count" -ge "$MAX_MODEL_TEMP_ATTEMPTS" ]]; then
+                      MODEL_STAGE_EXHAUSTED["$attempt_key"]="temporary retry count reached"
+                      record_attempt "$stage" "$provider" "$model" "$retry_count" "TEMP_RETRIES_EXHAUSTED" "$failure_class; per-model retry cap reached"
+                      echo "::warning::$model remains temporarily unavailable after $retry_count attempts; it is deferred for this stage."
+                    else
+                      delay="$(retry_delay_seconds "$log_file" "$retry_count" "$failure_class")"
+                      MODEL_COOLDOWN_UNTIL["$model"]=$((now + delay))
+                      if [[ "$failure_class" == "PROVIDER_RATE_LIMIT" ]]; then
+                        PROVIDER_COOLDOWN_UNTIL["$provider"]=$((now + delay))
+                      fi
+                      cooldown_until=$((now + delay))
+                      if [[ "$earliest_cooldown" -eq 0 || "$cooldown_until" -lt "$earliest_cooldown" ]]; then
+                        earliest_cooldown="$cooldown_until"
+                      fi
+                      record_attempt "$stage" "$provider" "$model" "$retry_count" "COOLDOWN" "$failure_class; retry scheduled in ${delay}s"
+                      echo "::notice::$provider/$model is temporarily limited ($failure_class). Cooling down for ${delay}s; the stage will continue automatically."
                     fi
-                    record_attempt "$stage" "$provider" "$model" "$retry_count" "SKIPPED" "still rate-limited after one retry"
-                    echo "::warning::$model is still rate-limited after one retry; moving on."
-                    break
-                  fi
+                    ;;
+                  *)
+                    MODEL_BLOCKED["$model"]="unclassified failure"
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_ERROR" "unclassified exit code $status; continuing fallback"
+                    echo "::warning::Unclassified failure from $model (exit code $status); quarantining this model and continuing fallback."
+                    ;;
+                esac
+              done
 
-                  retry_hint="$(grep -Eio 'retry in [0-9]+([.][0-9]+)?s' "$log_file" | tail -n 1 | sed -E 's/.*retry in ([0-9]+([.][0-9]+)?)s/\1/i')"
-                  if [[ -n "$retry_hint" ]]; then
-                    delay="$(awk -v s="$retry_hint" 'BEGIN { d = int(s + 0.999) + 5; if (d < 15) d = 15; print d }')"
-                  else
-                    delay=60
-                  fi
-
-                  if [[ "$delay" -gt 120 ]]; then
-                    MODEL_BLOCKED["$model"]="retry delay exceeds 120 seconds"
-                    record_attempt "$stage" "$provider" "$model" "$retry_count" "SKIPPED" "retry hint exceeds 120 seconds"
-                    echo "::warning::$model requested a $delay-second wait; skipping it to preserve the run."
-                    break
-                  fi
-
-                  record_attempt "$stage" "$provider" "$model" "$retry_count" "RETRYING" "RPM/TPM backoff ${delay}s"
-                  echo "RPM/TPM limit on $model; one retry after ${delay}s."
-                  sleep "$delay"
+              # Wait only after all currently available alternatives were tried.
+              now="$(date +%s)"
+              if [[ "$earliest_cooldown" -gt "$now" ]]; then
+                remaining_stage=$((stage_deadline - now))
+                remaining_total=$((TOTAL_TEMP_WAIT_BUDGET_SECONDS - TOTAL_TEMP_WAIT_SECONDS))
+                wait_seconds=$((earliest_cooldown - now))
+                if [[ "$wait_seconds" -gt "$remaining_stage" ]]; then
+                  wait_seconds="$remaining_stage"
+                fi
+                if [[ "$wait_seconds" -gt "$remaining_total" ]]; then
+                  wait_seconds="$remaining_total"
+                fi
+                if [[ "$wait_seconds" -gt 0 ]]; then
+                  echo "::notice::All currently available candidates are cooling down. Waiting ${wait_seconds}s, then automatically retrying the original stage prompt."
+                  record_attempt "$stage" "scheduler" "automatic-cooldown" "$stage_calls" "WAITING" "waiting ${wait_seconds}s for earliest model/provider cooldown"
+                  sleep "$wait_seconds"
+                  TOTAL_TEMP_WAIT_SECONDS=$((TOTAL_TEMP_WAIT_SECONDS + wait_seconds))
                   continue
                 fi
+              fi
 
-                if grep -Eiq 'unauthorized|invalid.*api.?key|API key.*invalid|invalid_api_key|authentication failed|HTTP 401|HTTP 403|forbidden.*api|provider.*not configured' "$log_file"; then
-                  PROVIDER_BLOCKED["$provider"]="authentication or provider configuration failure"
-                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "authentication/configuration failure"
-                  echo "::warning::$provider credentials or configuration were rejected; skipping the provider for this run."
-                  break
-                fi
-
-                if grep -Eiq 'model.*not found|no model is available|model unavailable|no longer available|not available to new users|retired model|deprecated model|context length|context window|input too long|maximum context|insufficient credits|not enough credits|payment required' "$log_file"; then
-                  MODEL_BLOCKED["$model"]="model unavailable or request unsupported"
-                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SKIPPED" "model unavailable or request unsupported"
-                  echo "::warning::$model is unavailable for this request; moving on."
-                  break
-                fi
-
-                if grep -Eiq '429|RESOURCE_EXHAUSTED|rate.?limit|quota exceeded|temporarily unavailable|overloaded|service unavailable|HTTP 5[0-9][0-9]|high demand|spikes in demand|try again later|too many requests' "$log_file"; then
-                  MODEL_BLOCKED["$model"]="temporary provider capacity failure"
-                  if [[ "$provider" == "openrouter" ]]; then
-                    PROVIDER_BLOCKED["$provider"]="shared free-tier capacity failure"
-                  fi
-                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SKIPPED" "temporary capacity failure; no repeated retry"
-                  echo "::warning::$model is temporarily unavailable; moving on without repeated requests."
-                  break
-                fi
-
-                MODEL_BLOCKED["$model"]="unclassified failure"
-                STAGE_STATUS["$stage"]="ERROR"
-                record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "ERROR" "unclassified exit code $status"
-                echo "::error::Unclassified OpenCode failure in $stage using $model (exit code $status)."
-                return 2
-              done
+              break
             done
 
-            echo "::warning::No unattempted, available model completed stage $stage."
+            if [[ "$stage_temp_events" -gt 0 ]]; then
+              STAGE_STATUS["$stage"]="TEMPORARY_LIMIT_BUDGET_EXHAUSTED"
+              echo "::warning::Stage $stage could not complete within its automatic temporary-limit retry budget."
+            else
+              echo "::warning::No unattempted, available model completed stage $stage."
+            fi
             return 1
           }
 
@@ -668,6 +872,9 @@ jobs:
             echo "- Task: ${TASK}"
             echo "- Execution mode: LIVE"
             echo "- Models configured: ${#MODEL_CHAIN[@]}"
+            echo "- Automatic temporary-limit wait: ${TOTAL_TEMP_WAIT_SECONDS}s across ${TEMP_LIMIT_EVENTS} classified events"
+            echo "- Daily/shared quota exhaustion events: ${DAILY_QUOTA_EVENTS}"
+            echo "- Per-stage wait budget: ${STAGE_TEMP_WAIT_BUDGET_SECONDS}s; workflow-wide wait budget: ${TOTAL_TEMP_WAIT_BUDGET_SECONDS}s"
             echo
             echo "| Stage | Result | Model | Provider |"
             echo "|---|---|---|---|"
