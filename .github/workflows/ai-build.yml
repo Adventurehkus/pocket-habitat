@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       task:
-        description: Task for the autonomous development agent
+        description: Task for the autonomous development pipeline
         required: true
         type: string
         default: "Read AGENTS.md and continue the next incomplete milestone."
@@ -51,8 +51,10 @@ jobs:
           export PATH="$HOME/.opencode/bin:$PATH"
           echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
           opencode --version
+          opencode run --help
 
-      - name: Run autonomous development agent with model fallback
+      - name: Run staged multi-agent development pipeline
+        id: pipeline
         env:
           GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
@@ -60,15 +62,42 @@ jobs:
           TASK: ${{ inputs.task }}
         shell: bash
         run: |
-          # GitHub Actions starts Bash with errexit enabled. Disable errexit in
-          # this step so a provider's non-zero response can be classified and
-          # routed to the next model instead of terminating the whole step.
+          # Do not let one model's non-zero exit terminate the router before
+          # its output can be classified. Every stage has its own fresh session.
           set +e
           set -uo pipefail
 
-          # Ordered from preferred models to independent-provider fallbacks.
-          # Models are added only when their provider credential is available.
+          mkdir -p build
+          RUN_REPORT="$RUNNER_TEMP/pocket-habitat-agent-report.md"
+          USAGE_LOG="$RUNNER_TEMP/pocket-habitat-model-usage.tsv"
+          VALIDATION_LOG="$RUNNER_TEMP/pocket-habitat-validation.log"
+          DIFF_FILE="$RUNNER_TEMP/pocket-habitat-implementation.diff"
+          printf 'stage\tprovider\tmodel\tattempt\tresult\tdetail\n' > "$USAGE_LOG"
+
+          declare -A MODEL_ATTEMPTED=()
+          declare -A MODEL_BLOCKED=()
+          declare -A PROVIDER_BLOCKED=()
+          declare -A STAGE_STATUS=()
+          declare -A STAGE_MODEL=()
+          declare -A STAGE_PROVIDER=()
+          declare -A STAGE_LOG=()
           MODEL_CHAIN=()
+          STAGE_FILES=()
+          RUN_COUNTER=0
+          PIPELINE_EXIT=0
+          IMPLEMENT_PROVIDER=""
+          REVIEW_PROVIDER=""
+          REPAIR_PROVIDER=""
+
+          provider_for_model() {
+            case "$1" in
+              google/*) echo "google" ;;
+              groq/*) echo "groq" ;;
+              openrouter/*) echo "openrouter" ;;
+              *) echo "unknown" ;;
+            esac
+          }
+
           if [[ -n "${GOOGLE_GENERATIVE_AI_API_KEY:-}" ]]; then
             MODEL_CHAIN+=(
               "google/gemini-3.5-flash-lite"
@@ -78,14 +107,12 @@ jobs:
               "google/gemma-4-26b-a4b-it"
             )
           fi
-
           if [[ -n "${GROQ_API_KEY:-}" ]]; then
             MODEL_CHAIN+=(
               "groq/qwen/qwen3.8-27b"
               "groq/openai/gpt-oss-120b"
             )
           fi
-
           if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
             MODEL_CHAIN+=(
               "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
@@ -95,128 +122,373 @@ jobs:
 
           if [[ "${#MODEL_CHAIN[@]}" -eq 0 ]]; then
             echo "::error::No model provider credentials are configured."
-            echo "Add GEMINI_API_KEY, and optionally GROQ_API_KEY and OPENROUTER_API_KEY, under repository Actions secrets."
+            echo "Configure the existing GEMINI_API_KEY, GROQ_API_KEY, and/or OPENROUTER_API_KEY repository secrets."
             exit 1
           fi
 
-          SESSION_ACTIVE=false
-          RUN_COUNTER=0
-          MAX_MINUTE_RETRIES=4
+          record_attempt() {
+            printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "${6:-}" >> "$USAGE_LOG"
+          }
 
-          for MODEL in "${MODEL_CHAIN[@]}"; do
-            echo "::group::Model fallback: ${MODEL}"
-            MODEL_RETRIES=0
+          # Keep models from already-used providers later in the list. They
+          # remain eligible as a last resort if independent providers are out.
+          prioritize_models() {
+            local -n output_ref="$1"
+            shift
+            local -a avoid_providers=("$@")
+            local -a preferred=()
+            local -a deferred=()
+            local model provider avoid
 
-            while true; do
-              RUN_COUNTER=$((RUN_COUNTER + 1))
-              LOG_FILE="$RUNNER_TEMP/opencode-${RUN_COUNTER}.log"
-              echo "Running ${MODEL} (attempt $((MODEL_RETRIES + 1)) for this model)."
-
-              if [[ "$SESSION_ACTIVE" == "false" ]]; then
-                if opencode run \
-                  --standalone \
-                  --auto \
-                  --model "$MODEL" \
-                  --agent build \
-                  "$TASK" 2>&1 | tee "$LOG_FILE"; then
-                  STATUS=0
-                else
-                  STATUS=$?
+            for model in "${MODEL_CHAIN[@]}"; do
+              provider="$(provider_for_model "$model")"
+              avoid="false"
+              for blocked_provider in "${avoid_providers[@]}"; do
+                if [[ -n "$blocked_provider" && "$provider" == "$blocked_provider" ]]; then
+                  avoid="true"
+                  break
                 fi
+              done
+              if [[ "$avoid" == "true" ]]; then
+                deferred+=("$model")
               else
-                if opencode run \
-                  --standalone \
-                  --auto \
-                  --continue \
-                  --model "$MODEL" \
-                  --agent build \
-                  "Continue the original task in this existing session. The previous model/provider reached a quota or temporary availability limit. Preserve all completed work, inspect the current repository state, do not restart or repeat completed work, and continue the original task to completion. You are now using fallback model $MODEL." \
-                  2>&1 | tee "$LOG_FILE"; then
-                  STATUS=0
-                else
-                  STATUS=$?
-                fi
+                preferred+=("$model")
               fi
-              SESSION_ACTIVE=true
+            done
+            output_ref=("${preferred[@]}" "${deferred[@]}")
+          }
 
-              if [[ "$STATUS" -eq 0 ]]; then
-                echo "OpenCode completed successfully using $MODEL."
-                exit 0
+          # run_stage <stage> <agent> <prompt> <candidate-model...>
+          # Attachments are passed through STAGE_FILES and are read-only inputs
+          # to the model. Model fallback is local to this stage.
+          run_stage() {
+            local stage="$1"
+            local agent="$2"
+            local prompt="$3"
+            shift 3
+            local -a candidates=("$@")
+            local model provider status retry_count delay retry_hint log_file
+            local -a command_args=()
+
+            STAGE_STATUS["$stage"]="EXHAUSTED"
+            STAGE_MODEL["$stage"]=""
+            STAGE_PROVIDER["$stage"]=""
+            STAGE_LOG["$stage"]=""
+
+            for model in "${candidates[@]}"; do
+              provider="$(provider_for_model "$model")"
+
+              if [[ -n "${MODEL_ATTEMPTED[$model]:-}" ]]; then
+                continue
               fi
-
-              # A daily request/token cap cannot be fixed by waiting one minute.
-              # Move directly to the next model, retaining this OpenCode session.
-              if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|quota.*day|day.*quota|RPD|TPD' "$LOG_FILE"; then
-                echo "::warning::Daily quota reached for $MODEL; switching to the next model."
-                break
+              if [[ -n "${MODEL_BLOCKED[$model]:-}" ]]; then
+                continue
               fi
-
-              # RPM/TPM limits are temporary. Wait for the provider's retry
-              # hint, then resume the same session on the same model.
-              if grep -Eiq 'requests per minute|tokens per minute|input tokens per minute|output tokens per minute|per-minute limit|requests-per-minute|tokens-per-minute' "$LOG_FILE"; then
-                MODEL_RETRIES=$((MODEL_RETRIES + 1))
-
-                if [[ "$MODEL_RETRIES" -gt "$MAX_MINUTE_RETRIES" ]]; then
-                  echo "::warning::$MODEL remained rate-limited after $MAX_MINUTE_RETRIES retries; switching to the next model."
-                  break
-                fi
-
-                RETRY_HINT=$(grep -Eio 'retry in [0-9]+([.][0-9]+)?s' "$LOG_FILE" | tail -n 1 | sed -E 's/.*retry in ([0-9]+([.][0-9]+)?)s/\1/i')
-                if [[ -n "$RETRY_HINT" ]]; then
-                  DELAY=$(awk -v s="$RETRY_HINT" 'BEGIN { d = int(s + 0.999) + 10; if (d < 20) d = 20; print d }')
-                else
-                  DELAY=65
-                fi
-
-                if [[ "$DELAY" -gt 600 ]]; then
-                  echo "::warning::Provider retry delay is $DELAY seconds; switching to the next model instead of holding this slot."
-                  break
-                fi
-
-                echo "Temporary RPM/TPM limit on $MODEL. Waiting ${DELAY}s, then continuing the same session."
-                sleep "$DELAY"
+              if [[ -n "${PROVIDER_BLOCKED[$provider]:-}" ]]; then
                 continue
               fi
 
-              # Provider outages, auth errors, and unavailable model IDs should
-              # not kill the entire chain when another configured provider exists.
-              if grep -Eiq '429|RESOURCE_EXHAUSTED|rate.?limit|quota exceeded|temporarily unavailable|overloaded|service unavailable|HTTP 5[0-9][0-9]|unauthorized|invalid.*api.?key|API key.*invalid|HTTP 40[123]|model.*not found|no model is available|model unavailable|no longer available|not available to new users|retired model|deprecated model|high demand|spikes in demand|try again later|insufficient credits|not enough credits|payment required|context length|context window|input too long|maximum context' "$LOG_FILE"; then
-                echo "::warning::$MODEL is unavailable or rejected the request; switching to the next model."
-                break
-              fi
+              MODEL_ATTEMPTED["$model"]="1"
+              retry_count=0
 
-              echo "::error::OpenCode failed for an error not recognized as a quota/provider availability issue (exit code $STATUS)."
-              echo "Not switching models because this may be an actual task or tool failure."
-              exit "$STATUS"
+              while true; do
+                RUN_COUNTER=$((RUN_COUNTER + 1))
+                log_file="$RUNNER_TEMP/opencode-${stage}-${RUN_COUNTER}.log"
+                command_args=(
+                  opencode run
+                  --standalone
+                  --auto
+                  --model "$model"
+                  --agent "$agent"
+                  --title "Pocket Habitat ${stage} run ${GITHUB_RUN_NUMBER}"
+                )
+
+                for attachment in "${STAGE_FILES[@]}"; do
+                  if [[ -f "$attachment" ]]; then
+                    command_args+=(--file "$attachment")
+                  fi
+                done
+                command_args+=("$prompt")
+
+                echo "::group::${stage}: $model (attempt $((retry_count + 1)))"
+                if "${command_args[@]}" 2>&1 | tee "$log_file"; then
+                  status=0
+                else
+                  status=$?
+                fi
+                echo "::endgroup::"
+                STAGE_LOG["$stage"]="$log_file"
+
+                if [[ "$status" -eq 0 ]]; then
+                  STAGE_STATUS["$stage"]="SUCCESS"
+                  STAGE_MODEL["$stage"]="$model"
+                  STAGE_PROVIDER["$stage"]="$provider"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SUCCESS" ""
+                  echo "Stage $stage completed using $model."
+                  return 0
+                fi
+
+                if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|quota.*day|day.*quota|RPD|TPD' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="daily quota exhausted"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SKIPPED" "daily quota exhausted"
+                  echo "::warning::$model reached a daily quota; it will not be called again this run."
+                  break
+                fi
+
+                if grep -Eiq 'requests per minute|tokens per minute|input tokens per minute|output tokens per minute|per-minute limit|requests-per-minute|tokens-per-minute' "$log_file"; then
+                  retry_count=$((retry_count + 1))
+                  if [[ "$retry_count" -gt 1 ]]; then
+                    MODEL_BLOCKED["$model"]="repeated RPM/TPM limit"
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "SKIPPED" "still rate-limited after one retry"
+                    echo "::warning::$model is still rate-limited after one retry; moving on."
+                    break
+                  fi
+
+                  retry_hint="$(grep -Eio 'retry in [0-9]+([.][0-9]+)?s' "$log_file" | tail -n 1 | sed -E 's/.*retry in ([0-9]+([.][0-9]+)?)s/\1/i')"
+                  if [[ -n "$retry_hint" ]]; then
+                    delay="$(awk -v s="$retry_hint" 'BEGIN { d = int(s + 0.999) + 5; if (d < 15) d = 15; print d }')"
+                  else
+                    delay=60
+                  fi
+
+                  if [[ "$delay" -gt 120 ]]; then
+                    MODEL_BLOCKED["$model"]="retry delay exceeds 120 seconds"
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "SKIPPED" "retry hint exceeds 120 seconds"
+                    echo "::warning::$model requested a $delay-second wait; skipping it to preserve the run."
+                    break
+                  fi
+
+                  echo "RPM/TPM limit on $model; one retry after ${delay}s."
+                  sleep "$delay"
+                  continue
+                fi
+
+                if grep -Eiq 'unauthorized|invalid.*api.?key|API key.*invalid|invalid_api_key|authentication failed|HTTP 401|forbidden.*api|provider.*not configured' "$log_file"; then
+                  PROVIDER_BLOCKED["$provider"]="authentication or provider configuration failure"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "authentication/configuration failure"
+                  echo "::warning::$provider credentials or configuration were rejected; skipping the provider for this run."
+                  break
+                fi
+
+                if grep -Eiq 'model.*not found|no model is available|model unavailable|no longer available|not available to new users|retired model|deprecated model|context length|context window|input too long|maximum context|insufficient credits|not enough credits|payment required' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="model unavailable or request unsupported"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SKIPPED" "model unavailable or request unsupported"
+                  echo "::warning::$model is unavailable for this request; moving on."
+                  break
+                fi
+
+                if grep -Eiq '429|RESOURCE_EXHAUSTED|rate.?limit|quota exceeded|temporarily unavailable|overloaded|service unavailable|HTTP 5[0-9][0-9]|high demand|spikes in demand|try again later|too many requests' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="temporary provider capacity failure"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "SKIPPED" "temporary capacity failure; no repeated retry"
+                  echo "::warning::$model is temporarily unavailable; moving on without repeated requests."
+                  break
+                fi
+
+                MODEL_BLOCKED["$model"]="unclassified failure"
+                STAGE_STATUS["$stage"]="ERROR"
+                record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "ERROR" "unclassified exit code $status"
+                echo "::error::Unclassified OpenCode failure in $stage using $model (exit code $status)."
+                return 2
+              done
             done
 
-            echo "::endgroup::"
-          done
+            echo "::warning::No unattempted, available model completed stage $stage."
+            return 1
+          }
 
-          echo "::error::Every configured fallback model was exhausted or unavailable."
-          echo "Any changes already made will still be saved by the following persistence step."
-          exit 1
+          refresh_diff() {
+            # Intent-to-add makes new project files visible to git diff without
+            # staging their content. Third-party DevPackages are excluded.
+            git add -N -- . 2>/dev/null || true
+            git diff --no-ext-diff --binary HEAD -- . ':(exclude)DevPackages/**' > "$DIFF_FILE"
+          }
+
+          run_validation() {
+            local result=0
+            : > "$VALIDATION_LOG"
+
+            if rojo build default.project.json -o build/pocket-habitat.rbxl >> "$VALIDATION_LOG" 2>&1; then
+              echo "PASS: Rojo build -> build/pocket-habitat.rbxl" >> "$VALIDATION_LOG"
+            else
+              echo "FAIL: Rojo build" >> "$VALIDATION_LOG"
+              result=1
+            fi
+
+            if stylua --check src >> "$VALIDATION_LOG" 2>&1; then
+              echo "PASS: StyLua check src" >> "$VALIDATION_LOG"
+            else
+              echo "FAIL: StyLua check src" >> "$VALIDATION_LOG"
+              result=1
+            fi
+
+            if selene src >> "$VALIDATION_LOG" 2>&1; then
+              echo "PASS: Selene src" >> "$VALIDATION_LOG"
+            else
+              echo "FAIL: Selene src" >> "$VALIDATION_LOG"
+              result=1
+            fi
+
+            VALIDATION_STATUS="$result"
+            cat "$VALIDATION_LOG"
+            return "$result"
+          }
+
+          IMPLEMENT_PROMPT="You are the Pocket Habitat implementation agent. Read AGENTS.md and the relevant project documentation before changing code. Complete the user's task below with working, integrated Luau gameplay rather than disconnected scaffolding. Inspect the current repository state first and preserve correct existing work. Keep gameplay server-authoritative; validate all remote requests, ownership, distance, rewards, inventory, purchases, quests, and persistence. Do not publish to Roblox, access publishing credentials, create/switch branches, commit, or push. Never modify or reformat DevPackages or other vendored dependencies. Format/lint only src/. Run the checks you can actually run and report exact results; never claim Roblox Studio, engine, multiplayer, or TestEZ execution unless it truly happened. Update docs/PROJECT_STATE.md and docs/TESTING.md accurately. User task: ${TASK}"
+
+          echo "Configured models: ${#MODEL_CHAIN[@]}"
+          echo "Pipeline stages: implementation -> independent review -> repair -> deterministic validation -> QA"
+
+          # Stage 1: implementation.
+          prioritize_models IMPLEMENT_MODELS
+          STAGE_FILES=()
+          run_stage "implementation" "build" "$IMPLEMENT_PROMPT" "${IMPLEMENT_MODELS[@]}"
+          IMPLEMENT_RESULT=$?
+          IMPLEMENT_PROVIDER="${STAGE_PROVIDER[implementation]:-}"
+
+          if [[ "$IMPLEMENT_RESULT" -ne 0 ]]; then
+            PIPELINE_EXIT=1
+            echo "::error::Implementation did not complete; skipping dependent AI stages."
+          else
+            # Stage 2: independent, read-only review using a different provider
+            # first. Attach a concrete diff so the reviewer does not need shell.
+            refresh_diff
+            REVIEW_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Review the attached implementation diff against the repository's actual code and architecture. Do not edit files, run shell commands, or ask another agent to make changes. Verify every suspected issue against the source before reporting it. Prioritize exploitable remote/event flows, player-data loss or cross-player leakage, economy/inventory duplication, broken gameplay interactions, persistence failure handling, runtime errors, and regressions. Ignore style-only opinions unless they cause a real problem. Return a concise Markdown report with severity (CRITICAL/HIGH/MEDIUM/LOW), file and line, evidence, impact, and a specific suggested correction. If no actionable findings exist, explicitly say so. Do not claim a test was run unless the attached evidence shows it."
+            prioritize_models REVIEW_MODELS "$IMPLEMENT_PROVIDER"
+            STAGE_FILES=("$DIFF_FILE")
+            run_stage "review" "reviewer" "$REVIEW_PROMPT" "${REVIEW_MODELS[@]}"
+            REVIEW_RESULT=$?
+            REVIEW_PROVIDER="${STAGE_PROVIDER[review]:-}"
+
+            # Stage 3: repair only verified findings; do not blindly apply
+            # speculative review comments or rewrite unrelated systems.
+            if [[ "$REVIEW_RESULT" -eq 0 ]]; then
+              REPAIR_PROMPT="You are the Pocket Habitat repair engineer. Read the attached independent review output and verify each finding in the current source before changing anything. Fix confirmed CRITICAL and HIGH findings, plus MEDIUM findings that directly break the requested task or core progression. Do not blindly apply speculative comments. Preserve working behavior, keep all server-side validation and data safety, never modify DevPackages, do not publish, and do not commit or push. Run appropriate local checks and accurately update project-state/testing docs. Attached file is the review stage output."
+              prioritize_models REPAIR_MODELS "$REVIEW_PROVIDER"
+              STAGE_FILES=("${STAGE_LOG[review]}")
+              run_stage "repair" "build" "$REPAIR_PROMPT" "${REPAIR_MODELS[@]}"
+              REPAIR_RESULT=$?
+              REPAIR_PROVIDER="${STAGE_PROVIDER[repair]:-}"
+              if [[ "$REPAIR_RESULT" -ne 0 ]]; then
+                echo "::warning::The review repair stage could not complete; proceeding to independent validation."
+              fi
+            else
+              STAGE_STATUS["repair"]="SKIPPED (review unavailable)"
+              echo "::warning::No independent model completed the review stage; repair stage skipped."
+            fi
+
+            # Stage 4: deterministic CI validation, independent of model claims.
+            run_validation
+            if [[ "$VALIDATION_STATUS" -ne 0 ]]; then
+              echo "::warning::Initial deterministic validation failed; requesting one focused repair."
+              VALIDATION_REPAIR_PROMPT="The attached CI validation log contains real failures from Rojo, StyLua, and/or Selene. Fix only the confirmed failures in project-owned files. Do not modify DevPackages, do not weaken checks or rules to hide failures, do not publish, and do not commit or push. Then report what you changed."
+              prioritize_models VALIDATION_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
+              STAGE_FILES=("$VALIDATION_LOG")
+              run_stage "validation-repair" "build" "$VALIDATION_REPAIR_PROMPT" "${VALIDATION_REPAIR_MODELS[@]}"
+              VALIDATION_REPAIR_RESULT=$?
+              if [[ "$VALIDATION_REPAIR_RESULT" -eq 0 ]]; then
+                run_validation
+              fi
+            fi
+
+            # Stage 5: read-only QA gets both the current diff and actual CI log.
+            refresh_diff
+            QA_PROMPT="You are the read-only Pocket Habitat QA agent. Inspect the attached current diff and deterministic validation log, then inspect relevant source and tests. Start your response with exactly one line: QA_BLOCKER: YES or QA_BLOCKER: NO. Say YES only when you have verified a concrete critical/high correctness, security, progression, or player-data issue that should block this checkpoint. Otherwise say NO. Report what CI actually passed or failed from the attached log. Identify missing test coverage and Roblox Studio-only checks separately. Do not edit files, run shell commands, or claim unexecuted TestEZ, Roblox engine, multiplayer, or manual playtests passed."
+            prioritize_models QA_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER"
+            STAGE_FILES=("$DIFF_FILE" "$VALIDATION_LOG")
+            run_stage "qa" "qa" "$QA_PROMPT" "${QA_MODELS[@]}"
+            QA_RESULT=$?
+
+            # If QA finds a confirmed blocker, allow one extra repair pass and
+            # re-run deterministic checks before the checkpoint is persisted.
+            QA_LOG="${STAGE_LOG[qa]:-}"
+            if [[ "$QA_RESULT" -eq 0 && -f "$QA_LOG" ]] && grep -Eiq 'QA_BLOCKER:[[:space:]]*YES' "$QA_LOG"; then
+              echo "::warning::QA identified a blocker; starting one focused final repair."
+              FINAL_REPAIR_PROMPT="The attached QA report identifies a possible blocking issue. Verify it against the current code and fix it only if confirmed. Preserve unrelated work, never modify DevPackages, do not publish, and do not commit or push. Update documentation and report exact checks."
+              prioritize_models FINAL_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER" "${STAGE_PROVIDER[qa]:-}"
+              STAGE_FILES=("$QA_LOG" "$VALIDATION_LOG")
+              run_stage "qa-repair" "build" "$FINAL_REPAIR_PROMPT" "${FINAL_REPAIR_MODELS[@]}"
+              QA_REPAIR_RESULT=$?
+              if [[ "$QA_REPAIR_RESULT" -eq 0 ]]; then
+                run_validation
+              fi
+            fi
+
+            if [[ "$VALIDATION_STATUS" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              echo "::error::Final deterministic validation did not pass."
+            fi
+          fi
+
+          # Machine-readable-per-run usage log plus a compact human report are
+          # uploaded even if one or more optional stages were exhausted.
+          {
+            echo "# Pocket Habitat AI pipeline report"
+            echo
+            echo "- Run: ${GITHUB_RUN_NUMBER}"
+            echo "- Task: ${TASK}"
+            echo "- Models configured: ${#MODEL_CHAIN[@]}"
+            echo
+            echo "| Stage | Result | Model | Provider |"
+            echo "|---|---|---|---|"
+            for stage in implementation review repair validation-repair qa qa-repair; do
+              printf '| %s | %s | %s | %s |\n' "$stage" "${STAGE_STATUS[$stage]:-NOT RUN}" "${STAGE_MODEL[$stage]:-—}" "${STAGE_PROVIDER[$stage]:-—}"
+            done
+            printf '| deterministic-validation | %s | — | CI tools |\n' "${VALIDATION_STATUS:-NOT RUN}"
+            echo
+            echo "## Provider/model attempt log"
+            echo
+            echo 'See the accompanying TSV artifact for every attempted model, retry, and skip reason.'
+            echo
+            echo "## Testing boundaries"
+            echo
+            echo "- Automated checks executed: Rojo build, StyLua check on src/, Selene on src/."
+            echo "- TestEZ, Roblox engine, multiplayer, and manual Studio testing are not claimed unless explicitly run by a separately supported test runner or human playtest."
+            echo "- The .rbxl file is a build artifact only; a successful Rojo build does not prove the experience is playable in Roblox Studio."
+          } > "$RUN_REPORT"
+
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            cat "$RUN_REPORT" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "===== PER-RUN MODEL USAGE ====="
+          cat "$USAGE_LOG"
+          echo "===== PIPELINE REPORT ====="
+          cat "$RUN_REPORT"
+
+          exit "$PIPELINE_EXIT"
 
       - name: Persist work to GitHub
         if: always()
         shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
-          git config user.email \
-            "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add -A
-
-          if ! git diff --cached --quiet; then
-            git commit -m "AI development checkpoint ${GITHUB_RUN_NUMBER}"
-            git push origin HEAD:ai/game-build
+          # Vendored TestEZ/Wally source is not project-owned code. Restore it
+          # if an agent or dependency command unexpectedly touched it.
+          if ! git diff --quiet HEAD -- DevPackages; then
+            echo "::warning::Restoring unexpected changes under vendored DevPackages."
+            git restore --source=HEAD --staged --worktree -- DevPackages
           fi
 
-      - name: Save generated build artifacts
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "AI staged development checkpoint ${GITHUB_RUN_NUMBER}"
+            git push origin HEAD:ai/game-build
+          else
+            echo "No repository changes to persist."
+          fi
+
+      - name: Save generated build and pipeline artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: pocket-habitat-build-${{ github.run_number }}
-          path: build/
-          if-no-files-found: ignore
+          name: pocket-habitat-pipeline-${{ github.run_number }}
+          path: |
+            build/pocket-habitat.rbxl
+            ${{ runner.temp }}/pocket-habitat-agent-report.md
+            ${{ runner.temp }}/pocket-habitat-model-usage.tsv
+            ${{ runner.temp }}/pocket-habitat-validation.log
+            ${{ runner.temp }}/opencode-*.log
+          if-no-files-found: warn
           retention-days: 14
