@@ -10,7 +10,7 @@ local _Constants = require(Shared:WaitForChild("Constants"))
 local _player = Players.LocalPlayer
 
 -- Functions to handle proximity prompt triggers
-local function OnResourceGathered(prompt: ProximityPrompt, _player: Player)
+local function OnResourceGathered(_player: Player, prompt: ProximityPrompt)
     local nodeId = prompt:GetAttribute("NodeId")
     if nodeId then
         local success, res = RemoteEvents.GatherResource:InvokeServer(nodeId)
@@ -18,19 +18,22 @@ local function OnResourceGathered(prompt: ProximityPrompt, _player: Player)
     end
 end
 
-local function OnPlotHarvested(prompt: ProximityPrompt, _player: Player)
+local function OnPlotAction(_player: Player, prompt: ProximityPrompt)
     local plotIndex = prompt:GetAttribute("PlotIndex")
-    if plotIndex then
-        local success, res = RemoteEvents.HarvestPlot:InvokeServer(plotIndex)
-        print("[ProximityHandler] Harvest result:", success, res, "from plot", plotIndex)
-    end
-end
+    local plotAction = prompt:GetAttribute("PlotAction") or "harvest"
 
-local function OnPlotWatered(prompt: ProximityPrompt, _player: Player)
-    local plotIndex = prompt:GetAttribute("PlotIndex")
     if plotIndex then
-        local success, res = RemoteEvents.WaterPlot:InvokeServer(plotIndex)
-        print("[ProximityHandler] Water result:", success, res, "from plot", plotIndex)
+        if plotAction == "water" then
+            local success, res = RemoteEvents.WaterPlot:InvokeServer(plotIndex)
+            print("[ProximityHandler] Water result:", success, res, "from plot", plotIndex)
+        elseif plotAction == "harvest" then
+            local success, res = RemoteEvents.HarvestPlot:InvokeServer(plotIndex)
+            print("[ProximityHandler] Harvest result:", success, res, "from plot", plotIndex)
+        elseif plotAction == "harvest_or_plant" then
+            local success, res =
+                RemoteEvents.InteractWithPlot:InvokeServer(_player, plotIndex, "harvest_or_plant")
+            print("[ProximityHandler] Harvest/Plant result:", success, res, "from plot", plotIndex)
+        end
     end
 end
 
@@ -42,9 +45,17 @@ local function ConnectToFolder(folder: Instance?)
 
     for _, descendant in ipairs(folder:GetDescendants()) do
         if descendant:IsA("ProximityPrompt") then
-            descendant.Triggered:Connect(OnResourceGathered)
-            descendant.Triggered:Connect(OnPlotHarvested)
-            descendant.Triggered:Connect(OnPlotWatered)
+            -- Check prompt type based on attributes
+            local nodeId = descendant:GetAttribute("NodeId")
+            local plotIndex = descendant:GetAttribute("PlotIndex")
+
+            if nodeId then
+                descendant.Triggered:Connect(OnResourceGathered)
+            end
+
+            if plotIndex then
+                descendant.Triggered:Connect(OnPlotAction)
+            end
         end
     end
 end
@@ -58,9 +69,16 @@ if habitatWorld then
     -- Watch for new prompts added dynamically during gameplay
     habitatWorld.DescendantAdded:Connect(function(descendant)
         if descendant:IsA("ProximityPrompt") then
-            descendant.Triggered:Connect(OnResourceGathered)
-            descendant.Triggered:Connect(OnPlotHarvested)
-            descendant.Triggered:Connect(OnPlotWatered)
+            local nodeId = descendant:GetAttribute("NodeId")
+            local plotIndex = descendant:GetAttribute("PlotIndex")
+
+            if nodeId then
+                descendant.Triggered:Connect(OnResourceGathered)
+            end
+
+            if plotIndex then
+                descendant.Triggered:Connect(OnPlotAction)
+            end
         end
     end)
 end

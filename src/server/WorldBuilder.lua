@@ -123,9 +123,9 @@ local function createGardenPlot(folder: Folder, index: number, position: Vector3
     -- Add proximity prompt for planting/interacting
     -- Players can use this to harvest, or plant seeds directly (alternative flower seeds in future)
     local prompt =
-        addProximityPrompt(plotPart, "Harvest", "Garden Plot " .. index, 1, Enum.KeyCode.E)
+        addProximityPrompt(plotPart, "Harvest/Plant", "Garden Plot " .. index, 1, Enum.KeyCode.E)
     prompt:SetAttribute("PlotIndex", index)
-    prompt:SetAttribute("PlotAction", "harvest")
+    prompt:SetAttribute("PlotAction", "harvest_or_plant")
 
     return plotPart
 end

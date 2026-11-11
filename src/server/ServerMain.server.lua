@@ -15,8 +15,8 @@ print("[ServerMain] Starting Pocket Habitat Server...")
 
 WorldBuilder.init()
 ResourceManager.init()
-PlantManager.init()
 QuestManager.init()
+PlantManager.init()
 
 RemoteEvents.PurchaseUpgrade.OnServerInvoke = function(player: Player, upgradeId: any)
     return EconomyManager.purchaseUpgrade(player, upgradeId)

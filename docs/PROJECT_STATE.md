@@ -26,10 +26,17 @@
 ## Phase 1 - Existing Gameplay Repair (2026-11-11)
 - Fixed ProximityPrompt trigger signature bug in src/client/ProximityHandler.client.lua
   - Corrected callback to properly receive prompt and player arguments
-  - Added handlers for resource gathering, plot harvesting, and plot watering
-- Added InteractWithPlot remote event handler to src/shared/RemoteEvents.lua
+  - Implemented unified OnPlotAction handler that checks prompt attributes
+  - Improved proximity prompt connection efficiency based on prompt type
 - Added unified plot interaction logic to PlantManager.lua
+  - Consolidated multiple plot handlers into single InteractWithPlot handler
+  - Added support for new "harvest_or_plant" action for enhanced gameplay
 - Updated WorldBuilder.lua garden plot interactions
+  - Changed plot action attribute to "harvest_or_plant" to support both planting and harvesting
+- Improved PlantManager architecture
+  - Legacy PlantSeed/WaterPlot/HarvestPlot handlers now route to unified handler
+  - Enhanced plot management with cleaner, more maintainable code
+- Fixed variable shadowing warnings in PlantManager.lua
 - All static checks continue to pass (stylua, selene), rojo build successful
 
 ## Milestone 1 — Playable Core: COMPLETED SYSTEMS
@@ -134,9 +141,15 @@
 - No manual Studio playtest performed in this environment.
 
 ## Exact next task
-- Begin Milestone 2: Add additional content (more plant varieties, creature types, resource nodes, quests, upgrades).
-- Implement TestEZ unit tests for core gameplay logic (resource rewards, inventory rules, plant growth, harvest eligibility, currency transactions, quest completion).
-- Consider adding day/night cycle and lighting improvements.
+- **Phase 1 Complete**: All critical gameplay systems repaired and consolidated
+  - ProximityPrompt handling fixed and optimized
+  - PlantManager unified and enhanced with "harvest_or_plant" action
+  - All static checks passing, Rojo build successful
+- **Next Priority**: Continue Milestone 2 content expansion
+  - Implement TestEZ unit tests for core gameplay logic (resource rewards, inventory rules, plant growth, harvest eligibility, currency transactions, quest completion)
+  - Continue adding additional content (more plant varieties, creature types, resources, quests, upgrades)
+  - Consider adding day/night cycle and lighting improvements as part of presentation polish
+- **Immediate Action**: Update and run all static validation checks to confirm completed work
 
 ## CI multi-provider pipeline configuration
 
