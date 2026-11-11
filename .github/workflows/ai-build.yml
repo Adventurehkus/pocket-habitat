@@ -119,12 +119,12 @@ jobs:
           RUN_COUNTER=0
           PIPELINE_EXIT=0
           # Each stage may automatically wait for transient limits for up to
-          # 45 minutes; total workflow sleep is capped at 3 hours, below the
+          # 2 hours; total workflow sleep is capped at 4 hours, below the
           # 350-minute job timeout. Explicit daily/shared quotas are skipped.
-          MAX_MODEL_TEMP_ATTEMPTS=3
-          MAX_STAGE_MODEL_CALLS=40
-          STAGE_TEMP_WAIT_BUDGET_SECONDS=2700
-          TOTAL_TEMP_WAIT_BUDGET_SECONDS=10800
+          MAX_MODEL_TEMP_ATTEMPTS=4
+          MAX_STAGE_MODEL_CALLS=50
+          STAGE_TEMP_WAIT_BUDGET_SECONDS=7200
+          TOTAL_TEMP_WAIT_BUDGET_SECONDS=14400
           TOTAL_TEMP_WAIT_SECONDS=0
           TEMP_LIMIT_EVENTS=0
           DAILY_QUOTA_EVENTS=0
@@ -244,7 +244,7 @@ jobs:
               return 0
             fi
 
-            if grep -Eiq 'requests per minute|tokens per minute|input tokens per minute|output tokens per minute|per-minute limit|requests-per-minute|tokens-per-minute|429|RESOURCE_EXHAUSTED|rate.?limit|too many requests|quota exceeded|trial key.{0,80}limited to.{0,40}(minute|second)|retry-after' "$log_file"; then
+            if grep -Eiq 'requests per minute|tokens per minute|input tokens per minute|output tokens per minute|per-minute limit|requests-per-minute|tokens-per-minute|429|RESOURCE_EXHAUSTED|rate.?limit|too many requests|quota exceeded|trial key.{0,80}limited to.{0,40}(minute|second)|retry-after|please retry.{0,40}(in|after)|retry.{0,20}(in|after).{0,20}[0-9]' "$log_file"; then
               if { [[ "$provider" == "cohere" ]] && grep -Eiq 'trial key.{0,80}limited to.{0,40}(minute|second)' "$log_file"; } ||
                  [[ "$provider" == "openrouter" || "$provider" == "cloudflare-workers-ai" || "$provider" == "github-copilot" ]]; then
                 echo "PROVIDER_RATE_LIMIT"
@@ -254,7 +254,7 @@ jobs:
               return 0
             fi
 
-            if grep -Eiq 'temporarily unavailable|temporarily overloaded|overloaded|service unavailable|HTTP 5[0-9][0-9]|high demand|spikes in demand|try again later|timed out|timeout|connection reset|gateway error|internal error encountered|upstream error|server is busy' "$log_file"; then
+            if grep -Eiq 'temporarily unavailable|temporarily overloaded|overloaded|over capacity|service unavailable|HTTP 5[0-9][0-9]|high demand|spikes in demand|try again later|timed out|timeout|connection reset|ECONNRESET|ETIMEDOUT|socket hang up|gateway error|internal error encountered|internal server error|upstream error|server is busy|fetch failed' "$log_file"; then
               echo "TEMP_CAPACITY"
               return 0
             fi
@@ -282,7 +282,7 @@ jobs:
               text = ""
 
           delay = None
-          duration = r"((?:[0-9]+(?:\.[0-9]+)?h)?(?:[0-9]+(?:\.[0-9]+)?m)?(?:[0-9]+(?:\.[0-9]+)?s))"
+          duration = r"((?:[0-9]+(?:\.[0-9]+)?h(?:[0-9]+(?:\.[0-9]+)?m)?(?:[0-9]+(?:\.[0-9]+)?s)?|[0-9]+(?:\.[0-9]+)?m(?:[0-9]+(?:\.[0-9]+)?s)?|[0-9]+(?:\.[0-9]+)?s))"
           matches = list(re.finditer(r"(?:retry|try again)\s+(?:in|after)\s+" + duration, text, re.I))
           if matches:
               raw = matches[-1].group(1).lower()
@@ -378,6 +378,7 @@ jobs:
           }
           assert_failure_class "google" 'Quota exceeded for metric generate_content_free_tier_requests; limit 20 per day.' "MODEL_DAILY_QUOTA"
           assert_failure_class "google" 'Generate content free tier input token count per minute limit exceeded. Please retry in 43.4s.' "MODEL_RATE_LIMIT"
+          assert_failure_class "google" 'Please retry in 43.4s.' "MODEL_RATE_LIMIT"
           assert_failure_class "groq" 'Request too large for model; input tokens per minute Limit 7000, Requested 12283.' "REQUEST_TOO_LARGE"
           assert_failure_class "cohere" 'Trial key is limited to 20 API calls / minute.' "PROVIDER_RATE_LIMIT"
           assert_failure_class "openrouter" 'HTTP 429 rate limit exceeded.' "PROVIDER_RATE_LIMIT"
