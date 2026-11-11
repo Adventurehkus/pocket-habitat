@@ -36,6 +36,8 @@ RemoteEvents.GatherResource =
 RemoteEvents.PlantSeed = getOrCreateRemote("RemoteFunction", "PlantSeed") :: RemoteFunction
 RemoteEvents.WaterPlot = getOrCreateRemote("RemoteFunction", "WaterPlot") :: RemoteFunction
 RemoteEvents.HarvestPlot = getOrCreateRemote("RemoteFunction", "HarvestPlot") :: RemoteFunction
+RemoteEvents.InteractWithPlot =
+    getOrCreateRemote("RemoteFunction", "InteractWithPlot") :: RemoteFunction
 RemoteEvents.PurchaseUpgrade =
     getOrCreateRemote("RemoteFunction", "PurchaseUpgrade") :: RemoteFunction
 RemoteEvents.ClaimQuest = getOrCreateRemote("RemoteFunction", "ClaimQuest") :: RemoteFunction

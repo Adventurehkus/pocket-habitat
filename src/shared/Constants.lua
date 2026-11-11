@@ -10,6 +10,9 @@ Constants.RESOURCES = {
     SEED_FLOWER = "seed_flower",
     CROP_BERRY = "crop_berry",
     CROP_FLOWER = "crop_flower",
+    CROP_SUNPETAL = "crop_sunpetal",
+    CROP_MOONFLOWER = "crop_moonflower",
+    CROP_GLOWCAP = "crop_glowcap",
     BELLS = "bells",
 }
 
@@ -21,6 +24,7 @@ Constants.PLANTS = {
         waterNeeded = 2,
         harvestReward = { itemId = "crop_berry", min = 2, max = 4 },
         bellReward = 15,
+        color = Color3.fromRGB(139, 90, 43),
     },
     flower = {
         id = "flower",
@@ -29,6 +33,34 @@ Constants.PLANTS = {
         waterNeeded = 3,
         harvestReward = { itemId = "crop_flower", min = 1, max = 3 },
         bellReward = 25,
+        color = Color3.fromRGB(255, 200, 100),
+    },
+    sunpetal = {
+        id = "sunpetal",
+        name = "Sun Petal",
+        growthTime = 60,
+        waterNeeded = 1,
+        harvestReward = { itemId = "crop_sunpetal", min = 1, max = 2 },
+        bellReward = 35,
+        color = Color3.fromRGB(255, 220, 100),
+    },
+    moonflower = {
+        id = "moonflower",
+        name = "Moonflower",
+        growthTime = 90,
+        waterNeeded = 4,
+        harvestReward = { itemId = "crop_moonflower", min = 1, max = 2 },
+        bellReward = 60,
+        color = Color3.fromRGB(180, 150, 255),
+    },
+    glowcap = {
+        id = "glowcap",
+        name = "Glowcap Mushroom",
+        growthTime = 70,
+        waterNeeded = 2,
+        harvestReward = { itemId = "crop_glowcap", min = 2, max = 4 },
+        bellReward = 50,
+        color = Color3.fromRGB(200, 255, 150),
     },
 }
 
@@ -49,6 +81,30 @@ Constants.CREATURES = {
         requiredWater = 5,
         bellReward = 100,
     },
+    leafling = {
+        id = "leafling",
+        name = "Leafling",
+        description = "A tiny woodland creature that adores healthy, leafy gardens.",
+        requiredFlora = 2,
+        requiredWater = 2,
+        bellReward = 75,
+    },
+    tortoise = {
+        id = "tortoise",
+        name = "Pebble Tortoise",
+        description = "A friendly, slow-moving creature that enjoys quiet rocks.",
+        requiredFlora = 0,
+        requiredWater = 1,
+        bellReward = 65,
+    },
+    finch = {
+        id = "finch",
+        name = "Cloud Finch",
+        description = "A small, cheerful bird that visits flowers and elevated areas.",
+        requiredFlora = 2,
+        requiredWater = 2,
+        bellReward = 85,
+    },
 }
 
 Constants.UPGRADES = {
@@ -66,6 +122,22 @@ Constants.UPGRADES = {
         description = "Increase maximum inventory holding capacity.",
         baseCost = 100,
         costMultiplier = 1.5,
+        maxLevel = 3,
+    },
+    decorative_tile = {
+        id = "decorative_tile",
+        name = "Decorative Garden Tile",
+        description = "Add a small decorative tile to beautify your garden.",
+        baseCost = 75,
+        costMultiplier = 1.8,
+        maxLevel = 5,
+    },
+    watering_can = {
+        id = "watering_can",
+        name = "Watering Can Bottle",
+        description = "Increase dewdrop efficiency by 50%.",
+        baseCost = 200,
+        costMultiplier = 1.3,
         maxLevel = 3,
     },
 }
@@ -121,6 +193,40 @@ Constants.QUESTS = {
         targetType = "discover",
         targetCount = 1,
         rewardBells = 100,
+    },
+    q7_sunpetal = {
+        id = "q7_sunpetal",
+        title = "Grow Sun Petals",
+        description = "Grow and harvest Sun Petal flowers to spread sunshine!",
+        targetType = "harvest",
+        targetItemId = "crop_sunpetal",
+        targetCount = 2,
+        rewardBells = 60,
+    },
+    q8_owned_plots = {
+        id = "q8_owned_plots",
+        title = "Expand Your Garden",
+        description = "Expand your garden plots up to level 3.",
+        targetType = "upgrade",
+        targetItemId = "plot_expansion",
+        targetCount = 3,
+        rewardBells = 120,
+    },
+    q9_leafling = {
+        id = "q9_leafling",
+        title = "Meet a Leafling",
+        description = "Grow enough flora to attract a friendly Leafling.",
+        targetType = "discover",
+        targetCount = 1,
+        rewardBells = 80,
+    },
+    q10_discovery = {
+        id = "q10_discovery",
+        title = "Discover Five Creatures",
+        description = "Find five unique creatures in your habitat.",
+        targetType = "discover",
+        targetCount = 5,
+        rewardBells = 150,
     },
 }
 

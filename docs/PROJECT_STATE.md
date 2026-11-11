@@ -18,10 +18,19 @@
 - Rokit installation using the official Linux installer: PASSED (Rokit 1.2.0).
 - Tool version checks: Rojo 7.6.1, StyLua 2.6.0, Selene 0.28.0, and Wally 0.3.2: PASSED.
 - `wally install`: PASSED; TestEZ 0.4.1 was installed under `DevPackages`.
-- `rojo build default.project.json`: PASSED (0 errors, 0 warnings).
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASSED, artifact size 41KB.
 - `stylua --check src`: PASSED (0 errors, 0 warnings).
 - `selene src`: PASSED (0 errors, 0 warnings).
 - TestEZ installed but test suite not yet run in Roblox engine.
+
+## Phase 1 - Existing Gameplay Repair (2026-11-11)
+- Fixed ProximityPrompt trigger signature bug in src/client/ProximityHandler.client.lua
+  - Corrected callback to properly receive prompt and player arguments
+  - Added handlers for resource gathering, plot harvesting, and plot watering
+- Added InteractWithPlot remote event handler to src/shared/RemoteEvents.lua
+- Added unified plot interaction logic to PlantManager.lua
+- Updated WorldBuilder.lua garden plot interactions
+- All static checks continue to pass (stylua, selene), rojo build successful
 
 ## Milestone 1 — Playable Core: COMPLETED SYSTEMS
 
@@ -90,6 +99,31 @@
 - Notification banner for server messages.
 - Cohesive low-poly aesthetic with distinct materials/colors.
 - Creature models with animations (idle wandering).
+
+## Milestone 2 — Progression: IN PROGRESS SYSTEMS
+
+### Additional Plants (2026-11-11 ADDITION)
+- Added Sun Petal (60s, 1 water, 1-2 harvest, 35 bells)
+- Added Moonflower (90s, 4 water, 1-2 harvest, 60 bells)
+- Added Glowcap Mushroom (70s, 2 water, 2-4 harvest, 50 bells)
+- All plants have unique colors and balances.
+
+### Additional Creatures (2026-11-11 ADDITION)
+- Added Leafling (2 flora, 2 water, 75 bells) — woodland creature with ears
+- Added Pebble Tortoise (0 flora, 1 water, 65 bells) — slow-moving stone creature
+- Added Cloud Finch (2 flora, 2 water, 85 bells) — fluffy bird with crest
+- Expanded discovery criteria and rewards.
+
+### Additional Upgrades (2026-11-11 ADDITION)
+- Added Decorative Garden Tile (50+ bells) — beautification with multiplier 1.8, max 5
+- Added Watering Can Bottle (200+ bells) — dewdrop efficiency, multiplier 1.3, max 3
+- Provides more meaningful progression choices.
+
+### Expanded Quests (2026-11-11 ADDITION)
+- Added quest to grow Sun Petal (harvest 2, 60 bells)
+- Added quest to expand plots to level 3 (120 bells)
+- Added quest to attract Leafling (80 bells)
+- Added quest to discover five creatures total (150 bells)
 
 ## Known gaps
 - Milestone 2 — Progression: Additional content (more plants, creatures, resources, quests, upgrades).

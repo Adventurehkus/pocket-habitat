@@ -29,11 +29,13 @@
 - [x] Currency economy (Bells transactions).
 - [x] Quest tracking and reward system.
 - [x] Habitat upgrades and zone unlocking.
-- [ ] Additional plant varieties (3+ more types with unique growth/rewards).
-- [ ] Additional creature types (3+ more with unique behaviors).
-- [ ] Additional resource nodes (rare/special resources).
-- [ ] Expanded quest chains with branching objectives.
-- [ ] More habitat upgrades (decoration slots, automation, visual themes).
+
+### Content Expansion (2026-11-11)
+- [x] 3 new plant varieties with unique attributes (Sun Petal, Moonflower, Glowcap)
+- [x] 3 new creature types with unique behaviors (Leafling, Tortoise, Cloud Finch)
+- [ ~~] Additional resource nodes (rare/special resources) — Pending
+- [x] Expanded quest chains with branching objectives (4 new quests)
+- [x] More habitat upgrades (2 new upgrades added: Decorative Tile, Watering Can)
 
 ## Milestone 3: Presentation 📋 PLANNED
 - Low-poly environment polishing and atmospheric lighting (day/night cycle).
