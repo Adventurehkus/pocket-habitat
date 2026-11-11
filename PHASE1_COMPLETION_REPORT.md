@@ -110,7 +110,7 @@ No evidence from that run proves live Roblox gameplay, DataStore behavior, clien
 **STATUS**: In progress; continue after core validation is green.
 - Additional content (plants, creatures, resources, quests, upgrades) already implemented per roadmap
 - Current work provides foundation for content expansion
-- TestEZ unit tests ready for implementation
+- TestEZ specs now exist in `src/shared/PocketHabitat.spec.lua`; they are written but have not been executed.
 
 ## Impact Assessment
 
