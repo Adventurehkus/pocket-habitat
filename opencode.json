@@ -82,8 +82,10 @@
       }
     }
   },
-  "agent": {
+  "agents": {
     "build": {
+      "description": "Primary Pocket Habitat implementation and repair agent. Builds integrated gameplay, fixes verified review/QA findings, and maintains project documentation.",
+      "mode": "primary",
       "tools": {
         "bash": true,
         "read": true,
