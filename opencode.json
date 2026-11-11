@@ -78,6 +78,92 @@
             "context": 262144,
             "output": 8192
           }
+        },
+        "recursive/flint-v1.0:free": {
+          "name": "Recursive Flint (Free)",
+          "limit": {
+            "context": 262144,
+            "output": 8192
+          }
+        },
+        "thinkingmachines/inkling-2-small:free": {
+          "name": "Inkling 2 Small (Free; logged research endpoint)",
+          "limit": {
+            "context": 1048576,
+            "output": 16384
+          }
+        },
+        "baidu/ernie-5.5-flash-preview:free": {
+          "name": "ERNIE 5.5 Flash Preview (Free)",
+          "limit": {
+            "context": 1024000,
+            "output": 8192
+          }
+        },
+        "nvidia/nemotron-3.5-lightning:free": {
+          "name": "Nemotron 3.5 Lightning (Free; provider data use)",
+          "limit": {
+            "context": 262144,
+            "output": 8192
+          }
+        },
+        "nvidia/nemotron-3.5-super-vl:free": {
+          "name": "Nemotron 3.5 Super VL (Free; provider data use)",
+          "limit": {
+            "context": 1048576,
+            "output": 16384
+          }
+        }
+      }
+    },
+    "cohere": {
+      "env": [
+        "COHERE_API_KEY"
+      ],
+      "models": {
+        "north-mini-code": {
+          "name": "North Mini Code (Cohere Trial)",
+          "modelID": "north-mini-code-1.0",
+          "limit": {
+            "context": 262144,
+            "output": 64000
+          }
+        },
+        "command-a-plus": {
+          "name": "Command A+ (Cohere Trial)",
+          "modelID": "command-a-plus-05-2026",
+          "limit": {
+            "context": 128000,
+            "output": 64000
+          }
+        },
+        "command-a-reasoning": {
+          "name": "Command A Reasoning (Cohere Trial)",
+          "modelID": "command-a-reasoning-08-2025",
+          "limit": {
+            "context": 256000,
+            "output": 32000
+          }
+        }
+      }
+    },
+    "cloudflare-workers-ai": {
+      "name": "Cloudflare Workers AI",
+      "env": [
+        "CLOUDFLARE_API_TOKEN"
+      ],
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "https://api.cloudflare.com/client/v4/accounts/{env:CLOUDFLARE_ACCOUNT_ID}/ai/v1"
+      },
+      "models": {
+        "glm-4.7-flash": {
+          "name": "GLM-4.7 Flash (Workers Free)",
+          "modelID": "@cf/zai-org/glm-4.7-flash",
+          "limit": {
+            "context": 131072,
+            "output": 8192
+          }
         }
       }
     }
