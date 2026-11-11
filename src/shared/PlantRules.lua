@@ -76,7 +76,7 @@ local function resolveSeed(data: any, requestedSeedId: any, allowAutomatic: bool
         return nil, "Invalid seed type"
     end
 
-    local availableSeeds = {}
+    local availableSeeds: { string } = {}
     for availableSeedId, quantity in pairs(data.inventory) do
         if PlantRules.getPlantDef(availableSeedId) and isIntegerAtLeast(quantity, 1) then
             table.insert(availableSeeds, availableSeedId)
