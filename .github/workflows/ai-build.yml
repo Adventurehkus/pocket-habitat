@@ -60,6 +60,7 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TASK: ${{ inputs.task }}
+          NO_COLOR: "1"
         shell: bash
         run: |
           # Do not let one model's non-zero exit terminate the router before
