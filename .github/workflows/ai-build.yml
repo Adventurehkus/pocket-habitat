@@ -488,9 +488,10 @@ jobs:
 
           # Vendored TestEZ/Wally source is not project-owned code. Restore it
           # if an agent or dependency command unexpectedly touched it.
-          if ! git diff --quiet HEAD -- DevPackages; then
-            echo "::warning::Restoring unexpected changes under vendored DevPackages."
+          if [[ -n "$(git status --porcelain -- DevPackages)" ]]; then
+            echo "::warning::Restoring unexpected changes and untracked files under vendored DevPackages."
             git restore --source=HEAD --staged --worktree -- DevPackages
+            git clean -fd -- DevPackages
           fi
 
           git add -A
