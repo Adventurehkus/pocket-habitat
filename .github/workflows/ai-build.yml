@@ -180,6 +180,29 @@ jobs:
             printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "${6:-}" >> "$USAGE_LOG"
           }
 
+          # Cloudflare Workers AI Free uses account-wide daily Neurons
+          # allocations. Keep this detector separate so the provider-specific
+          # exhausted-pool response is handled before any RPM/TPM retry logic.
+          is_cloudflare_daily_neurons_exhausted() {
+            grep -Eiq 'used up.{0,100}daily free allocation|daily free allocation|daily.{0,80}allocation.{0,80}neurons|neurons.{0,80}daily.{0,80}(allocation|quota|limit)' "$1"
+          }
+
+          # Regression tests: recognize the documented exhausted-allocation
+          # wording, but do not misclassify an ordinary per-minute rate limit.
+          quota_classifier_test_file="$RUNNER_TEMP/cloudflare-quota-classifier-test.log"
+          printf '%s\n' 'Error: You have used up your daily free allocation of 10,000 neurons.' > "$quota_classifier_test_file"
+          if ! is_cloudflare_daily_neurons_exhausted "$quota_classifier_test_file"; then
+            echo "::error::Cloudflare daily Neurons quota classifier failed its positive regression test."
+            exit 1
+          fi
+          printf '%s\n' 'Error: input tokens per minute limit exceeded.' > "$quota_classifier_test_file"
+          if is_cloudflare_daily_neurons_exhausted "$quota_classifier_test_file"; then
+            echo "::error::Cloudflare daily Neurons quota classifier incorrectly matched an RPM/TPM error."
+            exit 1
+          fi
+          rm -f "$quota_classifier_test_file"
+          echo "Cloudflare daily Neurons quota classifier regression tests passed."
+
           # Keep models from already-used providers later in the list. They
           # remain eligible as a last resort if independent providers are out.
           prioritize_models() {
@@ -315,7 +338,7 @@ jobs:
                 # classifier. The allocation is shared across Workers AI models,
                 # so disable the entire provider immediately for every later stage.
                 # Breaking here deliberately suppresses any retry/backoff attempt.
-                if [[ "$provider" == "cloudflare-workers-ai" ]] && grep -Eiq 'used up.{0,100}daily free allocation|daily free allocation|daily.{0,80}allocation.{0,80}neurons|neurons.{0,80}daily.{0,80}(allocation|quota|limit)' "$log_file"; then
+                if [[ "$provider" == "cloudflare-workers-ai" ]] && is_cloudflare_daily_neurons_exhausted "$log_file"; then
                   MODEL_BLOCKED["$model"]="Cloudflare Workers AI daily free Neurons allocation exhausted"
                   PROVIDER_BLOCKED["cloudflare-workers-ai"]="shared daily Workers AI Neurons allocation exhausted"
                   record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "Cloudflare daily free Neurons allocation exhausted; retry suppressed"
