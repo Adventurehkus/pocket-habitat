@@ -110,6 +110,9 @@ function EconomyManager.purchaseUpgrade(player: Player, upgradeId: any): (boolea
         data.plots[newPlotIndex] = { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 }
     end
 
+    -- Fire visual effect
+    RemoteEvents.UpgradeEffect:FireClient(player, upgradeId, currentLevel + 1)
+
     RemoteEvents.SyncData:FireClient(player, data)
     RemoteEvents.Notification:FireClient(
         player,

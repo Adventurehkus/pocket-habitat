@@ -99,6 +99,15 @@ function ResourceManager.init()
 
         if EconomyManager.addItem(player, rewardItem, rewardAmount) then
             CreatureManager.checkDiscoveries(player)
+
+            -- Fire visual effect
+            RemoteEvents.GatherEffect:FireClient(
+                player,
+                targetNode.position,
+                rewardItem,
+                rewardAmount
+            )
+
             RemoteEvents.Notification:FireClient(
                 player,
                 "Gathered " .. tostring(rewardAmount) .. " " .. rewardItem .. "!"

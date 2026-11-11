@@ -1,6 +1,6 @@
 --!strict
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+-- selene: allow(unused_variable)
 local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Constants"))
 local RemoteEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RemoteEvents"))
 local DataStoreManager = require(script.Parent:WaitForChild("DataStoreManager"))
@@ -8,6 +8,14 @@ local EconomyManager = require(script.Parent:WaitForChild("EconomyManager"))
 local CreatureManager = require(script.Parent:WaitForChild("CreatureManager"))
 
 local PlantManager = {}
+
+-- Plot positions (must match WorldBuilder)
+local PLOT_POSITIONS = {
+    [1] = Vector3.new(4, 0.5, 4),
+    [2] = Vector3.new(-4, 0.5, 4),
+    [3] = Vector3.new(4, 0.5, -4),
+    [4] = Vector3.new(-4, 0.5, -4),
+}
 
 function PlantManager.init()
     RemoteEvents.PlantSeed.OnServerInvoke = function(
@@ -54,6 +62,11 @@ function PlantManager.init()
         plot.stage = 1
 
         CreatureManager.checkDiscoveries(player)
+
+        -- Fire visual effect
+        local pos = PLOT_POSITIONS[plotIndex] or Vector3.new(0, 0, 0)
+        RemoteEvents.PlantEffect:FireClient(player, pos, seedId)
+
         RemoteEvents.SyncData:FireClient(player, data)
         RemoteEvents.Notification:FireClient(player, "Planted seed!")
         return true, "Success"
@@ -105,6 +118,11 @@ function PlantManager.init()
         end
 
         CreatureManager.checkDiscoveries(player)
+
+        -- Fire visual effect
+        local pos = PLOT_POSITIONS[plotIndex] or Vector3.new(0, 0, 0)
+        RemoteEvents.WaterEffect:FireClient(player, pos, plot.waterCount, plantDef.waterNeeded)
+
         RemoteEvents.SyncData:FireClient(player, data)
         RemoteEvents.Notification:FireClient(player, "Watered plant!")
         return true, "Success"
@@ -145,6 +163,16 @@ function PlantManager.init()
         end
 
         EconomyManager.addBells(player, plantDef.bellReward)
+
+        -- Fire visual effect before resetting plot
+        local pos = PLOT_POSITIONS[plotIndex] or Vector3.new(0, 0, 0)
+        RemoteEvents.HarvestEffect:FireClient(
+            player,
+            pos,
+            plantDef.harvestReward.itemId,
+            rewardQty,
+            plantDef.bellReward
+        )
 
         -- Reset plot
         plot.seedId = nil

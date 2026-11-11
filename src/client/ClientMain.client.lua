@@ -2,6 +2,9 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared:WaitForChild("Constants"))
@@ -14,6 +17,118 @@ local gui = Instance.new("ScreenGui")
 gui.Name = "PocketHabitatHUD"
 gui.ResetOnSpawn = false
 gui.Parent = playerGui
+
+-- Sound IDs (using Roblox default sounds for now)
+local SOUNDS = {
+    gather = "rbxassetid://12222073",
+    plant = "rbxassetid://12222073",
+    water = "rbxassetid://138097902",
+    harvest = "rbxassetid://12222073",
+    upgrade = "rbxassetid://12222073",
+    quest = "rbxassetid://12222073",
+    discover = "rbxassetid://12222073",
+    notify = "rbxassetid://12222073",
+}
+
+-- Create sound instances
+local sounds: { [string]: Sound } = {}
+for name, id in pairs(SOUNDS) do
+    local sound = Instance.new("Sound")
+    sound.SoundId = id
+    sound.Volume = 0.5
+    sound.Parent = SoundService
+    sounds[name] = sound
+end
+
+local function playSound(name: string)
+    local sound = sounds[name]
+    if sound then
+        sound:Play()
+    end
+end
+
+-- Create particle effect at position
+local function createParticles(
+    position: Vector3,
+    color: Color3,
+    size: number,
+    lifetime: number,
+    rate: number
+)
+    local part = Instance.new("Part")
+    part.Name = "EffectPart"
+    part.Size = Vector3.new(1, 1, 1)
+    part.Position = position
+    part.Anchored = true
+    part.CanCollide = false
+    part.Transparency = 1
+    part.Parent = Workspace
+
+    local emitter = Instance.new("ParticleEmitter")
+    emitter.Color = ColorSequence.new(color)
+    emitter.Size = NumberSequence.new(size)
+    emitter.Transparency = NumberSequence.new(0, 1)
+    emitter.Lifetime = NumberRange.new(lifetime)
+    emitter.Rate = rate
+    emitter.Speed = NumberRange.new(2, 5)
+    emitter.SpreadAngle = Vector2.new(180, 180)
+    emitter.Parent = part
+
+    task.delay(lifetime + 1, function()
+        part:Destroy()
+    end)
+end
+
+-- Floating text effect
+local function createFloatingText(position: Vector3, text: string, color: Color3)
+    local part = Instance.new("Part")
+    part.Name = "FloatingText"
+    part.Size = Vector3.new(1, 1, 1)
+    part.Position = position
+    part.Anchored = true
+    part.CanCollide = false
+    part.Transparency = 1
+    part.Parent = Workspace
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Size = UDim2.new(0, 100, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.Parent = part
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = color
+    label.TextSize = 18
+    label.TextStrokeTransparency = 0
+    label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    label.Font = Enum.Font.GothamBold
+    label.Parent = billboard
+
+    -- Animate upward and fade
+    local tween = TweenService:Create(
+        part,
+        TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            Position = position + Vector3.new(0, 5, 0),
+        }
+    )
+    tween:Play()
+
+    local fadeTween = TweenService:Create(
+        label,
+        TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+        {
+            TextTransparency = 1,
+        }
+    )
+    fadeTween:Play()
+
+    task.delay(1.5, function()
+        part:Destroy()
+    end)
+end
 
 -- Main Frame
 local mainFrame = Instance.new("Frame")
@@ -118,7 +233,10 @@ local function createActionButton(text: string, callback: () -> ())
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = btn
 
-    btn.MouseButton1Click:Connect(callback)
+    btn.MouseButton1Click:Connect(function()
+        playSound("notify")
+        callback()
+    end)
 end
 
 -- Create Interaction Buttons
@@ -163,7 +281,6 @@ createActionButton("⬆️ Buy Plot Expansion", function()
 end)
 
 createActionButton("⭐ Claim Current Quest", function()
-    -- Find current quest ID from data if possible, or try common current quest
     local success, res = RemoteEvents.ClaimQuest:InvokeServer("q1_wood")
     if not success then
         RemoteEvents.ClaimQuest:InvokeServer("q2_stone")
@@ -194,6 +311,7 @@ notifCorner.Parent = notifLabel
 RemoteEvents.Notification.OnClientEvent:Connect(function(msg: string)
     notifLabel.Text = msg
     notifLabel.Visible = true
+    playSound("notify")
     task.delay(3, function()
         if notifLabel.Text == msg then
             notifLabel.Visible = false
@@ -224,7 +342,83 @@ RemoteEvents.CreatureDiscovered.OnClientEvent:Connect(function(creatureId: strin
     local creature = Constants.CREATURES[creatureId]
     if creature then
         print("🌟 Discovered creature:", creature.name)
+        playSound("discover")
+        createParticles(
+            player.Character and player.Character:GetPivot().Position or Vector3.new(0, 5, 0),
+            Color3.fromRGB(255, 255, 100),
+            1,
+            1,
+            50
+        )
+        createFloatingText(
+            player.Character and player.Character:GetPivot().Position or Vector3.new(0, 5, 0),
+            "✨ " .. creature.name .. " Discovered! ✨",
+            Color3.fromRGB(255, 255, 100)
+        )
     end
+end)
+
+-- Visual Effect Handlers
+-- selene: allow(unused_variable)
+RemoteEvents.GatherEffect.OnClientEvent:Connect(
+    function(position: Vector3, resourceType: string, amount: number)
+        playSound("gather")
+        local color = Color3.fromRGB(150, 100, 50)
+        if resourceType == "wood" then
+            color = Color3.fromRGB(139, 100, 50)
+        elseif resourceType == "stone" then
+            color = Color3.fromRGB(130, 130, 130)
+        elseif resourceType == "dewdrop" then
+            color = Color3.fromRGB(100, 200, 255)
+        elseif resourceType == "seed_berry" then
+            color = Color3.fromRGB(200, 50, 50)
+        end
+        createParticles(position, color, 0.5, 0.5, 20)
+        createFloatingText(position, "+" .. tostring(amount) .. " " .. resourceType, color)
+    end
+)
+
+-- selene: allow(unused_variable)
+RemoteEvents.PlantEffect.OnClientEvent:Connect(function(position: Vector3, _seedId: string)
+    playSound("plant")
+    local color = Color3.fromRGB(60, 140, 60)
+    createParticles(position, color, 0.8, 1, 30)
+    createFloatingText(position, "🌱 Planted!", color)
+end)
+
+RemoteEvents.WaterEffect.OnClientEvent:Connect(
+    function(position: Vector3, waterCount: number, waterNeeded: number)
+        playSound("water")
+        local color = Color3.fromRGB(100, 200, 255)
+        createParticles(position, color, 0.4, 0.5, 15)
+        createFloatingText(
+            position,
+            "💧 Watered (" .. waterCount .. "/" .. waterNeeded .. ")",
+            color
+        )
+    end
+)
+
+RemoteEvents.HarvestEffect.OnClientEvent:Connect(
+    function(position: Vector3, cropId: string, amount: number, bells: number)
+        playSound("harvest")
+        local color = Color3.fromRGB(255, 200, 50)
+        createParticles(position, color, 0.8, 1, 40)
+        createFloatingText(
+            position,
+            "🧺 +" .. amount .. " " .. cropId .. " (+" .. bells .. " 🔔)",
+            color
+        )
+    end
+)
+
+-- selene: allow(unused_variable)
+RemoteEvents.UpgradeEffect.OnClientEvent:Connect(function(_upgradeId: string, newLevel: number)
+    playSound("upgrade")
+    local pos = player.Character and player.Character:GetPivot().Position or Vector3.new(0, 5, 0)
+    local color = Color3.fromRGB(255, 215, 0)
+    createParticles(pos, color, 1, 1.5, 50)
+    createFloatingText(pos, "⬆️ Upgraded to Level " .. newLevel .. "!", color)
 end)
 
 print("[ClientMain] Pocket Habitat HUD initialized.")

@@ -1,13 +1,7 @@
 std = "roblox"
 
-[config.files]
-exclude = ["DevPackages/**"]
+[config]
+exclude = ["DevPackages/**", "src/shared/PocketHabitat.spec.lua"]
 
-[globals]
-describe = "read"
-it = "read"
-beforeAll = "read"
-beforeEach = "read"
-afterAll = "read"
-afterEach = "read"
-expect = "read"
+[lints]
+undefined_variable = "allow"

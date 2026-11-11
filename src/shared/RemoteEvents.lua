@@ -45,4 +45,11 @@ RemoteEvents.Notification = getOrCreateRemote("RemoteEvent", "Notification") :: 
 RemoteEvents.CreatureDiscovered =
     getOrCreateRemote("RemoteEvent", "CreatureDiscovered") :: RemoteEvent
 
+-- Visual feedback events (server -> client)
+RemoteEvents.GatherEffect = getOrCreateRemote("RemoteEvent", "GatherEffect") :: RemoteEvent
+RemoteEvents.PlantEffect = getOrCreateRemote("RemoteEvent", "PlantEffect") :: RemoteEvent
+RemoteEvents.WaterEffect = getOrCreateRemote("RemoteEvent", "WaterEffect") :: RemoteEvent
+RemoteEvents.HarvestEffect = getOrCreateRemote("RemoteEvent", "HarvestEffect") :: RemoteEvent
+RemoteEvents.UpgradeEffect = getOrCreateRemote("RemoteEvent", "UpgradeEffect") :: RemoteEvent
+
 return RemoteEvents
