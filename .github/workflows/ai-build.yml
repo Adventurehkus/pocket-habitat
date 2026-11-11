@@ -377,9 +377,13 @@ jobs:
                 PIPELINE_EXIT=1
                 echo "::warning::The review repair stage could not complete."
               fi
-            else
+            elif grep -Eiq '^REVIEW_FINDINGS:[[:space:]]*NO' "${STAGE_LOG[review]}"; then
               STAGE_STATUS["repair"]="SKIPPED (no confirmed findings)"
               echo "Independent reviewer found no confirmed actionable defects; repair call not needed."
+            else
+              PIPELINE_EXIT=1
+              STAGE_STATUS["repair"]="SKIPPED (review output format invalid)"
+              echo "::warning::Reviewer did not provide the required REVIEW_FINDINGS header; treating review as incomplete."
             fi
 
             # Stage 4: deterministic CI validation, independent of model claims.
@@ -411,18 +415,23 @@ jobs:
             # If QA finds a confirmed blocker, allow one extra repair pass and
             # re-run deterministic checks before the checkpoint is persisted.
             QA_LOG="${STAGE_LOG[qa]:-}"
-            if [[ "$QA_RESULT" -eq 0 && -f "$QA_LOG" ]] && grep -Eiq 'QA_BLOCKER:[[:space:]]*YES' "$QA_LOG"; then
-              echo "::warning::QA identified a blocker; starting one focused final repair."
-              FINAL_REPAIR_PROMPT="The attached QA report identifies a possible blocking issue. Verify it against the current code and fix it only if confirmed. Preserve unrelated work, never modify DevPackages, do not publish, and do not commit or push. Update documentation and report exact checks."
-              prioritize_models FINAL_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER" "${STAGE_PROVIDER[qa]:-}"
-              STAGE_FILES=("$QA_LOG" "$VALIDATION_LOG")
-              run_stage "qa-repair" "build" "$FINAL_REPAIR_PROMPT" "${FINAL_REPAIR_MODELS[@]}"
-              QA_REPAIR_RESULT=$?
-              if [[ "$QA_REPAIR_RESULT" -eq 0 ]]; then
-                run_validation
-              else
+            if [[ "$QA_RESULT" -eq 0 && -f "$QA_LOG" ]]; then
+              if grep -Eiq '^QA_BLOCKER:[[:space:]]*YES' "$QA_LOG"; then
+                echo "::warning::QA identified a blocker; starting one focused final repair."
+                FINAL_REPAIR_PROMPT="The attached QA report identifies a possible blocking issue. Verify it against the current code and fix it only if confirmed. Preserve unrelated work, never modify DevPackages, do not publish, and do not commit or push. Update documentation and report exact checks."
+                prioritize_models FINAL_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER" "${STAGE_PROVIDER[qa]:-}"
+                STAGE_FILES=("$QA_LOG" "$VALIDATION_LOG")
+                run_stage "qa-repair" "build" "$FINAL_REPAIR_PROMPT" "${FINAL_REPAIR_MODELS[@]}"
+                QA_REPAIR_RESULT=$?
+                if [[ "$QA_REPAIR_RESULT" -eq 0 ]]; then
+                  run_validation
+                else
+                  PIPELINE_EXIT=1
+                  echo "::error::QA reported a blocker but no repair model completed the fix stage."
+                fi
+              elif ! grep -Eiq '^QA_BLOCKER:[[:space:]]*NO' "$QA_LOG"; then
                 PIPELINE_EXIT=1
-                echo "::error::QA reported a blocker but no repair model completed the fix stage."
+                echo "::warning::QA output did not contain the required QA_BLOCKER header; treating QA as incomplete."
               fi
             fi
 
@@ -432,8 +441,8 @@ jobs:
             fi
           fi
 
-          # Machine-readable-per-run usage log plus a compact human report are
-          # uploaded even if one or more optional stages were exhausted.
+          # Machine-readable per-run usage log plus a compact human report are
+          # uploaded even if a required model stage is exhausted.
           {
             echo "# Pocket Habitat AI pipeline report"
             echo
