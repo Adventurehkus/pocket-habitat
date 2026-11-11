@@ -666,6 +666,14 @@ jobs:
             echo
             echo "- Run: ${GITHUB_RUN_NUMBER}"
             echo "- Task: ${TASK}"
+            if [[ "$PIPELINE_TEST_MODE" == "true" ]]; then
+              echo "- Execution mode: MOCK TEST"
+              echo "- Scenario: ${TEST_SCENARIO}"
+              echo "- Model provider API requests: NONE"
+              echo "- Repository persistence: SKIPPED"
+            else
+              echo "- Execution mode: LIVE"
+            fi
             echo "- Models configured: ${#MODEL_CHAIN[@]}"
             echo
             echo "| Stage | Result | Model | Provider |"
