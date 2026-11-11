@@ -104,7 +104,16 @@
 - Implement TestEZ unit tests for core gameplay logic (resource rewards, inventory rules, plant growth, harvest eligibility, currency transactions, quest completion).
 - Consider adding day/night cycle and lighting improvements.
 
-## CI model fallback configuration
-- The `main` workflow uses an ordered fallback chain: Gemini 3.5 Flash-Lite → Gemini 3.1 Flash-Lite → Gemini 3.8 Flash → Gemma 4 31B IT → Gemma 4 26B A4B IT → Groq Qwen 3.8 27B → Groq GPT-OSS 120B → OpenRouter NVIDIA Nemotron 3 Ultra (free, optional) → OpenRouter Cohere North Mini Code (free, optional).
-- Provider keys are read from GitHub Actions repository secrets.
-- This run successfully used the Gemini 3.8 Flash fallback after earlier models hit quotas.
+## CI multi-provider pipeline configuration
+
+- Workflow orchestration is maintained on `main` in `.github/workflows/ai-build.yml`.
+- OpenCode provider and model definitions are maintained on `ai/game-build` in `opencode.json`.
+- Pipeline order: implementation → independent read-only review → conditional repair → deterministic Rojo/StyLua/Selene validation → independent read-only QA → conditional final repair and revalidation.
+- Existing Google, Groq, and OpenRouter models remain configured.
+- Added optional provider routes: Cloudflare Workers AI GLM-4.7 Flash; Cohere North Mini Code, Command A+, and Command A Reasoning; Groq GPT-OSS 20B; OpenRouter Recursive Flint, Inkling 2 Small, ERNIE 5.5 Flash Preview, Nemotron 3.5 Lightning, and Nemotron 3.5 Super VL.
+- GitHub Copilot Free is an optional Copilot CLI Auto adapter for write-capable implementation/repair stages; it is not an OpenCode API model and is excluded from read-only review/QA.
+- Optional Actions secrets: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `COHERE_API_KEY`, and `COPILOT_GITHUB_TOKEN`. Existing `GEMINI_API_KEY`, `GROQ_API_KEY`, and `OPENROUTER_API_KEY` remain unchanged.
+- Shared quota pools are tracked at provider level where applicable: Cloudflare Workers AI Neurons, Cohere trial API calls, OpenRouter free requests, and Copilot Free AI Credits. Model retries are limited to one RPM/TPM retry.
+- Exact account quotas are not queried by the workflow; inspect provider dashboards. A model being configured does not mean it was invoked during a run.
+- Free OpenRouter Inkling/NVIDIA endpoints may log prompts and use session data for service/model improvement. Do not send secrets or confidential data to these endpoints.
+
