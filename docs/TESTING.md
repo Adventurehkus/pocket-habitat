@@ -24,22 +24,31 @@
 - Test two or more players for data isolation, remote validation, and shared-world behavior.
 - Test save, rejoin, load failure, and shutdown/departure behavior.
 
-## Current verified CI baseline
-- GitHub Actions checkout: passed.
-- OpenCode v2.2.7 installation and version check: passed.
-- Rokit 1.2.0 installation: passed.
-- Initial `rokit install` encountered Rokit's untrusted-tool guard for StyLua. The CI-appropriate `rokit install --no-trust-check` then installed the pinned tools successfully.
-- Tool versions: Rojo 7.6.1, StyLua 2.6.0, Selene 0.28.0, and Wally 0.3.2: all version checks passed.
-- `wally install`: passed; TestEZ 0.4.1 was installed under `DevPackages`.
-- `rojo build default.project.json`: passed after the project folders were restored/configured (0 errors, 0 warnings).
-- `stylua --check .`: passed (0 errors, 0 warnings).
-- `selene .`: passed (0 errors, 0 warnings).
-- The StyLua and Selene checks ran before gameplay Luau scripts existed, so they validate the empty/placeholder source baseline, not game logic.
-- The agent's final model request hit Gemini's free-tier 15-requests-per-minute limit after the validation and state-file update. The workflow job was marked failed, but the persistence step successfully committed the checkpoint to `ai/game-build`.
-- No TestEZ test suite was run. No Roblox engine execution or manual Studio playtest was performed.
+## Current verified CI baseline (historical)
+
+- GitHub Actions run #27 (run ID 43083640009) installed OpenCode v2.2.7 and the pinned Roblox toolchain successfully.
+- Rojo build passed and produced `build/pocket-habitat.rbxl`.
+- StyLua `stylua --check src` passed.
+- Selene `selene src` failed because `src/server/PlantManager.lua` declared `PLOT_POSITIONS` without using it. The run also had an earlier `seedId` shadowing warning that the implementation pass corrected.
+- Independent review executed, but its output omitted the required `REVIEW_FINDINGS: YES/NO` header. The repair stage was skipped because its output format was invalid.
+- The focused validation-repair stage executed with Copilot but could not read the runner-temporary validation log due to a non-interactive permission approval gate; it made no changes.
+- QA returned `QA_BLOCKER: NO`; it identified missing TestEZ coverage for plot interactions, harvest rewards, and persistence.
+- The workflow persisted checkpoint `c81cd87` to `ai/game-build` and successfully uploaded the build/pipeline artifact. This was a failed validation run, not a fully passing pipeline.
+- Follow-up source and workflow fixes were committed after run #27. They have not yet been validated by a new workflow run.
+
+## Current project-owned TestEZ coverage
+
+- `src/shared/PocketHabitat.spec.lua` now tests the production `PlantRules.validateInteraction` and `EconomyRules.canAddItem` functions used by the server managers.
+- Plant-rule cases cover invalid plot indexes, absent sessions/data, unknown actions, unsupported or unowned seeds, occupied plots, deterministic `harvest_or_plant` seed selection, empty inventory, dewdrop checks, watering limits, growth timing, harvest eligibility, malformed plot state, and the occupied-plot harvest branch.
+- Economy-rule cases cover inventory capacity, storage-upgrade capacity, malformed item IDs, fractional quantities, invalid inventory counts, and invalid upgrade levels.
+- TestEZ is installed as a Wally dev dependency, but **these new specs have not been executed**. The workflow currently does not invoke a TestEZ runner. Do not report these tests as passing until a compatible Roblox/TestEZ runner actually runs them.
+- These tests validate the shared gameplay rules used by the server; they do not replace Roblox RemoteFunction integration tests, DataStore tests, or live multiplayer tests.
 
 ## Next verification
-Repeat StyLua and Selene checks after Luau source files are added. Add TestEZ suites before treating unit testing as available, and retain separate Roblox engine and manual client testing.
+1. Dispatch a new workflow run on `main` against the updated `ai/game-build` head. Confirm Rojo, StyLua, and Selene all pass.
+2. Execute `src/shared/PocketHabitat.spec.lua` with TestEZ in a supported Roblox runner; it has not yet been run.
+3. Add integration tests for RemoteFunction invocation, reward rollback/plot-reset ordering, and player-session behavior.
+4. Retain separate Roblox Studio, touch/gamepad, DataStore, and multi-client playtests.
 
 ## Running the CI development pipeline
 
