@@ -1,148 +1,137 @@
-# Pocket Habitat — Testing Strategy
+# Pocket Habitat — Testing and Verification Strategy
 
 ## Principles
-- Record only checks that actually ran and their real exit status.
-- Separate static repository checks from Roblox-engine tests and manual client playtests.
-- Never describe a system as reliable until it has evidence from repeatable tests.
 
-## Local and CI checks
-1. Parse `default.project.json` as valid JSON.
-2. Install the versions pinned in `rokit.toml` using Rokit.
-3. Run `rojo build default.project.json` and verify the generated model.
-4. Run StyLua formatting checks on Luau source.
-5. Run Selene linting on Luau source.
-6. Run unit tests (TestEZ) once test suites exist.
+- Record only checks that actually ran and their real result.
+- Separate source/static checks from Roblox-engine and manual playtesting.
+- A test file is not a passed test. Dependency installation is not test execution.
+- Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
+- Keep historical results, but label them by run and do not present them as the current baseline.
 
-## Roblox engine tests
-- Use Roblox Open Cloud Luau Execution for server-side checks that need Roblox engine APIs.
-- Keep a dedicated test place and never use production player data for experiments.
-- Capture execution IDs, output, errors, and completion status.
-- Cloud Luau execution does not replace full client rendering, input, or visual testing.
+## Standard deterministic checks
 
-## Manual playtesting
-- Use Roblox Studio on a client-capable machine to test spawn, movement, collection, planting, UI, and touch layouts.
-- Test two or more players for data isolation, remote validation, and shared-world behavior.
-- Test save, rejoin, load failure, and shutdown/departure behavior.
+Run the checks supported by the environment:
 
-## Current verified CI baseline (historical)
+1. Validate project JSON and relevant manifests.
+2. Install the toolchain pinned by rokit.toml through Rokit.
+3. Install Wally dependencies where required.
+4. Build: rojo build default.project.json -o build/pocket-habitat.rbxl
+5. Format check: stylua --check src
+6. Lint: selene src
+7. Diff hygiene: git diff --check
+8. Inspect working tree: git status --short
 
-- GitHub Actions run #27 (run ID 43083640009) installed OpenCode v2.2.7 and the pinned Roblox toolchain successfully.
-- Rojo build passed and produced `build/pocket-habitat.rbxl`.
-- StyLua `stylua --check src` passed.
-- Selene `selene src` failed because `src/server/PlantManager.lua` declared `PLOT_POSITIONS` without using it. The run also had an earlier `seedId` shadowing warning that the implementation pass corrected.
-- Independent review executed, but its output omitted the required `REVIEW_FINDINGS: YES/NO` header. The repair stage was skipped because its output format was invalid.
-- The focused validation-repair stage executed with Copilot but could not read the runner-temporary validation log due to a non-interactive permission approval gate; it made no changes.
-- QA returned `QA_BLOCKER: NO`; it identified missing TestEZ coverage for plot interactions, harvest rewards, and persistence.
-- The workflow persisted checkpoint `c81cd87` to `ai/game-build` and successfully uploaded the build/pipeline artifact. This was a failed validation run, not a fully passing pipeline.
-- Follow-up source and workflow fixes were committed after run #27. They have not yet been validated by a new workflow run.
+Format/lint only project-owned Luau files under src/. Never format the repository root or vendored DevPackages source.
 
-## Current project-owned TestEZ coverage
+## TestEZ and production logic
 
-- `src/shared/PocketHabitat.spec.lua` now tests the production `PlantRules.validateInteraction` and `EconomyRules.canAddItem` functions used by the server managers.
-- Plant-rule cases cover invalid plot indexes, absent sessions/data, unknown actions, unsupported or unowned seeds, occupied plots, deterministic `harvest_or_plant` seed selection, empty inventory, dewdrop checks, watering limits, growth timing, harvest eligibility, malformed plot state, and the occupied-plot harvest branch.
-- Economy-rule cases cover inventory capacity, storage-upgrade capacity, malformed item IDs, fractional quantities, invalid inventory counts, and invalid upgrade levels.
-- TestEZ is installed as a Wally dev dependency, but **these new specs have not been executed**. The workflow currently does not invoke a TestEZ runner. Do not report these tests as passing until a compatible Roblox/TestEZ runner actually runs them.
-- These tests validate the shared gameplay rules used by the server; they do not replace Roblox RemoteFunction integration tests, DataStore tests, or live multiplayer tests.
+src/shared/PocketHabitat.spec.lua contains TestEZ specifications for production PlantRules and EconomyRules logic. It covers interaction validation, seed selection/ownership, watering and growth constraints, harvest eligibility, malformed state, inventory capacity, and invalid inventory data.
 
-## Next verification
-1. Dispatch a new workflow run on `main` against the updated `ai/game-build` head. Confirm Rojo, StyLua, and Selene all pass.
-2. Execute `src/shared/PocketHabitat.spec.lua` with TestEZ in a supported Roblox runner; it has not yet been run.
-3. Add integration tests for RemoteFunction invocation, reward rollback/plot-reset ordering, and player-session behavior.
-4. Retain separate Roblox Studio, touch/gamepad, DataStore, and multi-client playtests.
+These specs have not been executed by a compatible Roblox/TestEZ runner as of the latest verified gameplay run. The CI workflow installs TestEZ as a dependency but does not currently invoke a TestEZ runner. Do not report TestEZ as passed until a real test execution result is available.
 
-## Running the CI development pipeline
+Expand tests around production logic for:
+- Habitat allocation and owner isolation.
+- Plot/resource ownership and independent cooldowns.
+- Concurrent interaction and duplicate reward prevention.
+- Quest action progress and idempotent claims.
+- Upgrade purchase/effect consistency.
+- Save schema validation and migration.
+- Cross-server session token, lease expiry, renewal, save, and release.
+- Load failure, save failure, shutdown, and rejoin handling.
 
-The GitHub Actions workflow on `main` runs the real provider-backed implementation, independent review, conditional repair, deterministic validation, and QA stages on every manual dispatch.
+Use mocks for external Roblox service boundaries, not for the production business rules being tested.
 
-To start a task: Actions → Autonomous Roblox Builder → Run workflow → select branch `main` → enter the task. The run installs OpenCode and may consume provider quota or paid/free-tier usage. Confirm that at least one supported provider secret is configured before starting.
+## Roblox engine and manual tests
 
-After the pipeline runs, its persistence step commits working changes to `ai/game-build`. The workflow also uploads the Roblox build, pipeline report, validation log, and per-model usage log.
+These require a supported Roblox engine runner or Studio. They are not replaced by static validation or TestEZ pure-rule tests.
 
-## CI multi-provider model pipeline
+- Server startup and player lifecycle.
+- Client/server RemoteFunction and RemoteEvent signatures.
+- ProximityPrompt interactions and server-side distance/ownership checks.
+- Two or more simultaneous players attempting equivalent resource/plot actions.
+- Habitat allocation, respawn, cleanup, and no cross-player interference.
+- DataStore load/save, session contention, lease expiration, crash recovery, and rejoin.
+- UI input on mouse/keyboard, touch, and gamepad where supported.
+- Performance, memory, connection cleanup, and mobile device behavior.
 
-The GitHub Actions workflow on `main` orchestrates implementation, independent review, a controlled alternate-review fallback when the required decision header is missing, conditional repair, deterministic validation, and independent QA. For Copilot validation repair, the workflow embeds the validation log directly in the prompt rather than requiring Copilot to open a runner-temporary file. The workflow checks out `ai/game-build`, where `opencode.json` defines the OpenCode providers and project agents.
+Use a dedicated test place and test data. Never use production player data for experiments. Record execution IDs, output, errors, and actual completion status where a cloud runner is used. Cloud Luau execution does not prove full client rendering or input behavior.
 
-### Configured model routes
+## Latest verified gameplay pipeline run
 
-| Provider | Model routes | Access |
-|---|---|---|
-| Google | Gemini 3.5 Flash-Lite, Gemini 3.1 Flash-Lite, Gemini 3.8 Flash, Gemma 4 31B IT, Gemma 4 26B A4B IT | Existing Gemini key |
-| Cloudflare Workers AI | GLM-4.7 Flash (`@cf/zai-org/glm-4.7-flash`) | Workers AI Free allocation |
-| Cohere direct | North Mini Code, Command A+, Command A Reasoning | Trial API key |
-| Groq | Qwen 3.8 27B, GPT-OSS 120B, GPT-OSS 20B | Existing Groq key |
-| OpenRouter | Nemotron 3 Ultra, Cohere North Mini Code, Recursive Flint, Inkling 2 Small, ERNIE 5.5 Flash Preview, Nemotron 3.5 Lightning, Nemotron 3.5 Super VL | Existing OpenRouter key; `:free` variants |
-| GitHub Copilot | Copilot CLI Auto | Optional Copilot Free entitlement and fine-grained PAT |
+### Run #30 — 2026-11-11
 
-The Copilot CLI adapter is not an OpenCode model ID. It is a separate fallback route named `github-copilot/auto`. Copilot Free uses automatic model selection; the workflow invokes the CLI only in implementation/repair stages. Reviewer and QA stages remain read-only OpenCode agents.
+- Run ID: 43098662842.
+- Gameplay checkpoint persisted: 21386b54aa0432c1f5fdb796411c30a41d060350.
+- Implementation: SUCCESS.
+- Independent review: SUCCESS.
+- Conditional repair: SUCCESS.
+- QA: SUCCESS.
+- Rojo build: PASSED.
+- StyLua check src: PASSED, zero errors/warnings/parse errors.
+- Selene src: PASSED.
+- TestEZ: NOT EXECUTED.
+- Roblox Studio/gameplay: NOT EXECUTED.
+- Multiplayer: NOT EXECUTED.
+- DataStore integration/stress: NOT EXECUTED.
+- Artifact upload: SUCCESS; artifact was pocket-habitat-pipeline-30.
 
-### Required Actions secrets
+This run supersedes Run #27's failed Selene result for the checkpoint it validated. Preserve Run #27 below as historical evidence, not the current baseline.
 
-Existing secrets:
-- `GEMINI_API_KEY`
-- `GROQ_API_KEY`
-- `OPENROUTER_API_KEY`
+### Run #27 — historical failure
 
-Optional new secrets:
-- `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_API_TOKEN`
-- `COHERE_API_KEY`
-- `COPILOT_GITHUB_TOKEN`
+- Run ID: 43083640009.
+- Rojo and StyLua passed; Selene failed due to an unused PLOT_POSITIONS local.
+- Reviewer output omitted its required decision header; repair was skipped.
+- The run persisted a checkpoint and uploaded an artifact but failed overall.
+- Subsequent source changes were checked by Run #30.
 
-Cloudflare requires both the account ID and an API token with Account > Workers AI > Read permission. GLM-4.7 Flash is available on Workers Free. Workers AI includes 10,000 Neurons per day shared across Workers AI models; usage limits reset at 00:00 UTC. On Workers Free, requests beyond the included allocation fail rather than becoming paid overage. Do not switch the account to a paid Workers plan for this project unless paid usage is intentionally approved.
+## Adaptive model/provider retry behavior
 
-Cohere trial keys provide up to 1,000 Chat API calls per month, shared by the trial key across models, with a 20 requests/minute per-model limit for North Mini Code, Command A+, and Command A Reasoning. Treat it as one small monthly pool, not 1,000 calls per model.
+The GitHub Actions workflow on main was updated after Run #30. Its latest retry-policy commit is 36c16722d6ebc2a4bd66433ec5e9ec15ee17b7fa.
 
-Groq's GPT-OSS 20B is a separate model ID, but it uses the same Groq account and its own model-specific rate-limit row. Check the actual account dashboard because model limits and eligibility can change.
+The updated router now classifies and handles separately:
+- Explicit shared daily/monthly quota exhaustion.
+- Model-specific daily quota exhaustion.
+- Request size/context incompatibility.
+- Authentication and permission failures.
+- Unavailable/retired models.
+- Model-level RPM/TPM limits.
+- Provider-shared rate limits.
+- Temporary provider/model capacity, 5xx, and network failures.
 
-OpenRouter free variants share the account's free-tier pool: 20 requests/minute and 50 requests/day on a free account. Failed attempts count toward the daily allowance. Adding more `:free` model IDs adds fallback choices, not additional OpenRouter daily quotas. If one free model reports the shared daily quota exhausted, the router skips the remaining OpenRouter free models for that run.
+For recoverable temporary failures it reads retry hints/Retry-After where available, otherwise uses bounded exponential backoff. It cools down the affected model or provider, tries other eligible routes, and resumes the same stage automatically when a route becomes eligible.
 
-GitHub Copilot Free includes limited chat/agent usage and Copilot CLI, with Auto model selection. GitHub does not publish a fixed numeric Free AI Credit allowance in its plan table. Usage can therefore end when the account's free allowance is exhausted. The token must be a fine-grained personal access token owned by the user's personal account with the Account permission `Copilot Requests`; restrict repository access to this repository where possible.
+Committed policy at the time of this document:
+- Four attempts per model per stage.
+- At most 50 model calls per stage.
+- Up to two hours of automatic waiting per stage.
+- Up to four hours of automatic waiting across the workflow.
+- Workflow job timeout: 350 minutes.
 
-### Quota-routing behavior
+Daily/shared quota exhaustion, invalid credentials, unavailable models, and oversized requests are not pointlessly retried. The workflow records attempt classifications, cooldowns, waits, and quota events in its usage log/report.
 
-- Models are included only when the corresponding credential(s) exist.
-- A model is attempted at most once per workflow run, including across stages.
-- A daily/monthly shared-pool exhaustion disables that provider for the remainder of the run for Cloudflare, Cohere, OpenRouter free, and Copilot.
-- RPM/TPM failures get at most one retry using a reasonable provider retry hint.
-- Repeated OpenRouter free-tier RPM failure disables the shared OpenRouter pool for that run.
-- Invalid credentials disable the affected provider for the run.
-- Unavailable model IDs and unsupported context errors skip that model.
-- Unclassified errors fail the stage visibly rather than being hidden by fallback.
-- Each attempted model, retry, skip reason, and stage outcome is recorded in the pipeline usage TSV artifact.
+**Verification status:** these retry changes are committed but have not yet been exercised by a fresh live workflow run. Their startup classifier/retry-delay fixtures are part of the workflow and will execute on the next run before the model stages. They do not query live provider balances and cannot guarantee that every provider remains available.
 
-Free-tier capacity and quotas can change. The workflow reacts to provider errors but does not query remaining quota balances. Check each provider dashboard for exact account-level usage.
+Free-tier policies and provider quotas change. Do not hard-code current quota counts into reusable prompts. Use opencode.json for configured routes and workflow logs for what actually happened during a run. Provider dashboards are the authority for remaining account balance.
 
-### Data and privacy note
+## Running the autonomous development workflow
 
-The pipeline sends repository instructions and relevant source/diff content to whichever provider is selected. Never put secrets, tokens, or private credentials in prompts or source files. Some OpenRouter free endpoints, including Inkling 2 Small and NVIDIA free endpoints, state that prompts/session data may be logged or used to improve their services. Do not route sensitive or confidential material to those endpoints. Treat all free endpoints as third-party processing, not as a private local model.
+1. Open GitHub Actions.
+2. Select Autonomous Roblox Builder.
+3. Dispatch the workflow on branch main.
+4. Enter either a specific task or the reusable generic continuation handoff.
+5. Review the run summary and uploaded artifact.
 
-## Recent fallback regression test
-- Workflow run 42911900811 reached Gemini 3.5 Flash-Lite but hit Google's 250,000 input-token-per-minute Free Tier limit. This was not a daily quota failure.
-- The fallback script initially failed to catch the error because GitHub Actions enables Bash `errexit` by default. The failed pipeline exited before the classifier could run.
-- The workflow now explicitly disables `errexit` in the model-routing step and wraps each OpenCode pipeline in an `if` condition to capture its actual status safely.
-- Roblox toolchain installation is now a dedicated pre-agent workflow step: official Rokit installer, pinned tools, Wally dependencies, version checks, and a Rojo build smoke test. The agent no longer needs to spend model calls installing basic CI tools.
-- A local Bash simulation verified that a nonzero OpenCode pipeline is captured and the Gemini input-token-per-minute message matches the RPM/TPM classifier. The updated workflow has not yet completed a live provider-switch test.
+The workflow checks out ai/game-build. It runs implementation, independent review, conditional repair, Rojo/StyLua/Selene validation, independent QA, conditional final repair, and persistence to the gameplay branch.
 
+A configured model is only a possible route; it is not proof of available quota or successful invocation. The workflow's bounded retry/time budgets can still be exhausted if all candidates are unavailable or daily quotas are gone.
 
-## Latest toolchain smoke-test failure (workflow run 10)
-- Rokit 1.2.0, Rojo 7.6.1, StyLua 2.6.0, Selene 0.28.0, and Wally 0.3.2 installed successfully; `wally install` completed and installed TestEZ under `DevPackages`.
-- `rojo build default.project.json` then failed because the project mapped `ReplicatedStorage.Packages` to a directory that did not exist after Wally install. The manifest currently has only a dev dependency, so no shared/runtime `Packages` directory is expected.
-- Commit `05221ee` removes the unused `Packages` mapping. The corrected project configuration has not yet been tested by a fresh workflow run. If a normal `[dependencies]` entry is added later, add its `Packages` Rojo mapping at the same time.
-- OpenCode was skipped and no gameplay implementation or provider fallback test occurred in run 10.
+## Historical pipeline notes
 
+- Earlier runs encountered unavailable model IDs, Gemini per-minute token limits, transient high-demand responses, malformed reviewer output, and runner-temporary file access issues.
+- The workflow was subsequently improved with a pinned toolchain preflight, safe command exit-status capture, review-format fallback, and inline validation-log attachment for Copilot repair.
+- These are historical workflow developments. Use the current main branch workflow and latest run logs for current behavior.
 
-## Workflow run 11 — first gameplay code checkpoint
-- Pre-agent checks passed: pinned Roblox tools installed, Wally completed, and `rojo build default.project.json` succeeded with the corrected project mapping.
-- Initial Milestone 1 modules were committed: server-side data, economy, resource gathering, planting, quests, and creature-discovery modules, plus shared constants/remotes/types and server startup.
-- The code was persisted despite the agent job failing on model availability. This was an interrupted implementation checkpoint, not a validated playable build.
-- The log shows Gemini 3.5 Flash-Lite repeatedly rate-limited for input tokens per minute; Gemini 3.1 Flash-Lite returned "This model is currently experiencing high demand" until OpenCode exited. The workflow previously failed to recognize that specific provider-capacity error.
-- Main workflow commit `ae1d395` adds `high demand|spikes in demand|try again later` to provider-availability classification so a new run can proceed to later configured models.
-- No post-agent Rojo build, StyLua, Selene, TestEZ, Roblox engine, or manual Studio test is recorded for the newly created gameplay modules. Run all static checks and add targeted tests before relying on these systems.
+## Data and privacy
 
-
-## Workflow run 12 — restricted Google fallback model
-- Run 42917643374 passed the pre-agent toolchain and Rojo smoke test. Gemini 3.5 Flash-Lite ran out of RPM/TPM capacity; Gemini 3.1 Flash-Lite then encountered TPM limits and repeated high-demand errors.
-- The fallback logic advanced to Gemini 2.5 Flash-Lite, but Google rejected it because the model is no longer available to new users. Google currently limits 2.5 model access to users who actively used them before and recommends Gemini 3.5 Flash-Lite or Gemini 3.8 Flash for new projects.
-- Main workflow commit `3e956a7` removes the restricted Gemini 2.5 model and classifies "no longer available" / "not available to new users" as provider/model availability failures. Gemini 3.8 Flash is now next in the configured chain.
-- Run 12 saved client/UI scaffolding and server-module changes in commit `04a4108`, but the agent stopped before post-agent validations completed. No post-agent Rojo build, StyLua, Selene, TestEZ, Roblox engine, or manual Studio test is recorded.
-- Run 12 also reformatted tracked third-party TestEZ package sources. Commit `25750bf` restored the vendored `DevPackages` directory. `AGENTS.md` now explicitly restricts formatting/linting to project-owned code under `src/`.
+Repository instructions and relevant code/diff content are sent to whichever external provider the workflow selects. Never place secrets, tokens, private credentials, or confidential user data in prompts or source files. Treat third-party free model routes as external processing; follow provider privacy terms and do not assume free endpoints are private or local.
