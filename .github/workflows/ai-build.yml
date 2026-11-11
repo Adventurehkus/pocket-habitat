@@ -187,6 +187,25 @@ jobs:
             grep -Eiq 'used up.{0,100}daily free allocation|daily free allocation|daily.{0,80}allocation.{0,80}neurons|neurons.{0,80}daily.{0,80}(allocation|quota|limit)' "$1"
           }
 
+          # Return YES, NO, or INVALID from a reviewer transcript. Strip terminal
+          # color codes first because some CLI renderers decorate the first line.
+          review_decision() {
+            local normalized
+            if [[ ! -f "$1" ]]; then
+              echo "INVALID"
+              return 0
+            fi
+
+            normalized="$(sed -E $'s/\\033\\[[0-9;]*[[:alpha:]]//g' "$1")"
+            if grep -Eq '^[[:space:]]*REVIEW_FINDINGS:[[:space:]]*YES[[:space:]]*$' <<< "$normalized"; then
+              echo "YES"
+            elif grep -Eq '^[[:space:]]*REVIEW_FINDINGS:[[:space:]]*NO[[:space:]]*$' <<< "$normalized"; then
+              echo "NO"
+            else
+              echo "INVALID"
+            fi
+          }
+
           # Regression tests: recognize the documented exhausted-allocation
           # wording, but do not misclassify an ordinary per-minute rate limit.
           quota_classifier_test_file="$RUNNER_TEMP/cloudflare-quota-classifier-test.log"
@@ -202,6 +221,30 @@ jobs:
           fi
           rm -f "$quota_classifier_test_file"
           echo "Cloudflare daily Neurons quota classifier regression tests passed."
+
+          review_classifier_test_file="$RUNNER_TEMP/review-classifier-test.log"
+          printf '%s\\n' 'REVIEW_FINDINGS: YES' > "$review_classifier_test_file"
+          if [[ "$(review_decision "$review_classifier_test_file")" != "YES" ]]; then
+            echo "::error::Reviewer response classifier failed its YES regression test."
+            exit 1
+          fi
+          printf '%s\\n' 'REVIEW_FINDINGS: NO' > "$review_classifier_test_file"
+          if [[ "$(review_decision "$review_classifier_test_file")" != "NO" ]]; then
+            echo "::error::Reviewer response classifier failed its NO regression test."
+            exit 1
+          fi
+          printf '%s\\n' 'Reviewer returned a summary without the required decision.' > "$review_classifier_test_file"
+          if [[ "$(review_decision "$review_classifier_test_file")" != "INVALID" ]]; then
+            echo "::error::Reviewer response classifier failed its invalid-output regression test."
+            exit 1
+          fi
+          printf '\\033[32mREVIEW_FINDINGS: YES\\033[0m\\n' > "$review_classifier_test_file"
+          if [[ "$(review_decision "$review_classifier_test_file")" != "YES" ]]; then
+            echo "::error::Reviewer response classifier failed its ANSI-colored-header regression test."
+            exit 1
+          fi
+          rm -f "$review_classifier_test_file"
+          echo "Reviewer response classifier regression tests passed."
 
           # Keep models from already-used providers later in the list. They
           # remain eligible as a last resort if independent providers are out.
@@ -289,7 +332,17 @@ jobs:
                   copilot_prompt="$prompt"
                   for attachment in "${STAGE_FILES[@]}"; do
                     if [[ -f "$attachment" ]]; then
-                      copilot_prompt+=" Supporting pipeline file to read before acting: $attachment."
+                      if [[ "$stage" == "validation-repair" ]]; then
+                        # Copilot's approval boundary may block reads outside the
+                        # workspace (notably RUNNER_TEMP). Inline this small,
+                        # non-secret validation report so repair never depends on
+                        # interactive approval to inspect its evidence.
+                        copilot_prompt+=$'\\n\\nBEGIN COMPLETE DETERMINISTIC VALIDATION OUTPUT\\n'
+                        copilot_prompt+="$(cat "$attachment")"
+                        copilot_prompt+=$'\\nEND DETERMINISTIC VALIDATION OUTPUT\\n'
+                      else
+                        copilot_prompt+=" Supporting pipeline file to read before acting: $attachment."
+                      fi
                     fi
                   done
                   command_args+=(
@@ -468,7 +521,7 @@ jobs:
           IMPLEMENT_PROMPT="You are the Pocket Habitat implementation agent. Read AGENTS.md and the relevant project documentation before changing code. Complete the user's task below with working, integrated Luau gameplay rather than disconnected scaffolding. Inspect the current repository state first and preserve correct existing work. Keep gameplay server-authoritative; validate all remote requests, ownership, distance, rewards, inventory, purchases, quests, and persistence. Do not publish to Roblox, access publishing credentials, create/switch branches, commit, or push. Never modify or reformat DevPackages or other vendored dependencies. Format/lint only src/. Run the checks you can actually run and report exact results; never claim Roblox Studio, engine, multiplayer, or TestEZ execution unless it truly happened. Update docs/PROJECT_STATE.md and docs/TESTING.md accurately. User task: ${TASK}"
 
           echo "Configured models: ${#MODEL_CHAIN[@]}"
-          echo "Pipeline stages: implementation -> independent review -> repair -> deterministic validation -> QA"
+          echo "Pipeline stages: implementation -> independent review (with strict-format fallback) -> repair -> deterministic validation -> QA"
 
           # Stage 1: implementation.
           COPILOT_STAGE_ALLOWED=true
@@ -493,17 +546,46 @@ jobs:
             REVIEW_RESULT=$?
             REVIEW_PROVIDER="${STAGE_PROVIDER[review]:-}"
 
-            # Stage 3: repair verified findings only. Avoid spending another
-            # model request when the reviewer explicitly found no defects.
+            # Stage 3: repair verified findings only. If a reviewer exits
+            # successfully but omits the required header, try one additional
+            # independent model before treating the review as incomplete.
+            REVIEW_LOG_PATH="${STAGE_LOG[review]:-}"
+            REVIEW_DECISION="INVALID"
+            if [[ "$REVIEW_RESULT" -eq 0 ]]; then
+              REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
+              if [[ "$REVIEW_DECISION" == "INVALID" ]]; then
+                STAGE_STATUS["review"]="SUCCESS (invalid response format)"
+                echo "::warning::Reviewer output was missing REVIEW_FINDINGS: YES/NO; requesting one independent fallback review."
+                REVIEW_FALLBACK_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Inspect the attached implementation diff and relevant source evidence. Do not edit files or run shell commands. Verify findings against the supplied code. Your FIRST output line MUST be exactly REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Do not put a preamble, Markdown fence, or explanation before it. Use YES only for at least one confirmed actionable defect; otherwise use NO. Then provide concise evidence, severity, file/line, impact, and a specific correction for each confirmed finding. Never claim tests ran unless the evidence proves it."
+                prioritize_models REVIEW_FALLBACK_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
+                STAGE_FILES=("$DIFF_FILE")
+                run_stage "review-fallback" "reviewer" "$REVIEW_FALLBACK_PROMPT" "${REVIEW_FALLBACK_MODELS[@]}"
+                REVIEW_FALLBACK_RESULT=$?
+                if [[ "$REVIEW_FALLBACK_RESULT" -eq 0 ]]; then
+                  REVIEW_LOG_PATH="${STAGE_LOG[review-fallback]:-}"
+                  REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
+                  if [[ "$REVIEW_DECISION" == "INVALID" ]]; then
+                    STAGE_STATUS["review-fallback"]="SUCCESS (invalid response format)"
+                    echo "::warning::Fallback reviewer also omitted the required header; the review remains incomplete."
+                  else
+                    REVIEW_PROVIDER="${STAGE_PROVIDER[review-fallback]:-}"
+                    echo "Independent fallback reviewer returned REVIEW_FINDINGS: $REVIEW_DECISION."
+                  fi
+                else
+                  echo "::warning::No independent fallback reviewer completed the strict-format review."
+                fi
+              fi
+            fi
+
             if [[ "$REVIEW_RESULT" -ne 0 ]]; then
               PIPELINE_EXIT=1
               STAGE_STATUS["repair"]="SKIPPED (review unavailable)"
               echo "::warning::No independent model completed the review stage; repair stage skipped."
-            elif grep -Eiq '^REVIEW_FINDINGS:[[:space:]]*YES' "${STAGE_LOG[review]}"; then
+            elif [[ "$REVIEW_DECISION" == "YES" ]]; then
               COPILOT_STAGE_ALLOWED=true
-              REPAIR_PROMPT="You are the Pocket Habitat repair engineer. Read the attached independent review output and verify each finding in the current source before changing anything. Fix confirmed CRITICAL and HIGH findings, plus MEDIUM findings that directly break the requested task or core progression. Do not blindly apply speculative comments. Preserve working behavior, keep all server-side validation and data safety, never modify DevPackages, do not publish, and do not commit or push. Run appropriate local checks and accurately update project-state/testing docs. Attached file is the review stage output."
+              REPAIR_PROMPT="You are the Pocket Habitat repair engineer. Read the attached independent review output and verify each finding in the current source before changing anything. Fix confirmed CRITICAL and HIGH findings, plus MEDIUM findings that directly break the requested task or core progression. Do not blindly apply speculative comments. Preserve working behavior, keep all server-side validation and data safety, never modify DevPackages, do not publish, and do not commit or push. Run appropriate local checks and accurately update project-state/testing docs. The attached text is the selected independent review report."
               prioritize_models REPAIR_MODELS "$REVIEW_PROVIDER"
-              STAGE_FILES=("${STAGE_LOG[review]}")
+              STAGE_FILES=("$REVIEW_LOG_PATH")
               run_stage "repair" "build" "$REPAIR_PROMPT" "${REPAIR_MODELS[@]}"
               REPAIR_RESULT=$?
               REPAIR_PROVIDER="${STAGE_PROVIDER[repair]:-}"
@@ -511,13 +593,13 @@ jobs:
                 PIPELINE_EXIT=1
                 echo "::warning::The review repair stage could not complete."
               fi
-            elif grep -Eiq '^REVIEW_FINDINGS:[[:space:]]*NO' "${STAGE_LOG[review]}"; then
+            elif [[ "$REVIEW_DECISION" == "NO" ]]; then
               STAGE_STATUS["repair"]="SKIPPED (no confirmed findings)"
               echo "Independent reviewer found no confirmed actionable defects; repair call not needed."
             else
               PIPELINE_EXIT=1
-              STAGE_STATUS["repair"]="SKIPPED (review output format invalid)"
-              echo "::warning::Reviewer did not provide the required REVIEW_FINDINGS header; treating review as incomplete."
+              STAGE_STATUS["repair"]="SKIPPED (review invalid after fallback)"
+              echo "::error::Review could not produce a valid YES/NO decision after the controlled fallback; repair is not safe to run."
             fi
 
             # Stage 4: deterministic CI validation, independent of model claims.
@@ -525,7 +607,7 @@ jobs:
             if [[ "$VALIDATION_STATUS" -ne 0 ]]; then
               echo "::warning::Initial deterministic validation failed; requesting one focused repair."
               COPILOT_STAGE_ALLOWED=true
-              VALIDATION_REPAIR_PROMPT="The attached CI validation log contains real failures from Rojo, StyLua, and/or Selene. Fix only the confirmed failures in project-owned files. Do not modify DevPackages, do not weaken checks or rules to hide failures, do not publish, and do not commit or push. Then report what you changed."
+              VALIDATION_REPAIR_PROMPT="The complete deterministic validation output is embedded directly in this prompt. Use that output as your evidence; do not try to open a runner-temporary file or request interactive approval to read it. Fix only confirmed failures in project-owned files. Do not modify DevPackages, weaken checks, publish, commit, or push. Then report the exact changes made."
               prioritize_models VALIDATION_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
               STAGE_FILES=("$VALIDATION_LOG")
               run_stage "validation-repair" "build" "$VALIDATION_REPAIR_PROMPT" "${VALIDATION_REPAIR_MODELS[@]}"
@@ -590,7 +672,7 @@ jobs:
             echo
             echo "| Stage | Result | Model | Provider |"
             echo "|---|---|---|---|"
-            for stage in implementation review repair validation-repair qa qa-repair; do
+            for stage in implementation review review-fallback repair validation-repair qa qa-repair; do
               printf '| %s | %s | %s | %s |\n' "$stage" "${STAGE_STATUS[$stage]:-NOT RUN}" "${STAGE_MODEL[$stage]:-—}" "${STAGE_PROVIDER[$stage]:-—}"
             done
             printf '| deterministic-validation | %s | — | CI tools |\n' "${VALIDATION_STATUS:-NOT RUN}"
