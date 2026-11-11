@@ -41,23 +41,63 @@
 ## Next verification
 Repeat StyLua and Selene checks after Luau source files are added. Add TestEZ suites before treating unit testing as available, and retain separate Roblox engine and manual client testing.
 
-## CI model fallback
-The autonomous GitHub Actions workflow tries configured models in this order:
-1. Google Gemini 3.5 Flash-Lite.
-2. Google Gemini 3.1 Flash-Lite.
-3. Google Gemini 3.8 Flash.
-4. Google Gemma 4 31B IT.
-5. Google Gemma 4 26B A4B IT.
-6. Groq Qwen 3.8 27B.
-7. Groq GPT-OSS 120B.
-8. OpenRouter NVIDIA Nemotron 3 Ultra (free).
-9. OpenRouter Cohere North Mini Code (free), when `OPENROUTER_API_KEY` is configured.
+## CI multi-provider model pipeline
 
-Provider keys are read from GitHub Actions repository secrets. `GEMINI_API_KEY` and `GROQ_API_KEY` are already used by the workflow; OpenRouter is optional. To enable its last-resort free fallback, create an OpenRouter API key and add it to repository Settings → Secrets and variables → Actions as `OPENROUTER_API_KEY`. Never paste API keys into prompts, source files, or chat.
+The GitHub Actions workflow on `main` orchestrates separate implementation, independent review, conditional repair, deterministic validation, and independent QA stages. The workflow checks out `ai/game-build`, where `opencode.json` defines the OpenCode providers and project agents.
 
-On a daily request/token quota error, the workflow moves to the next model. On explicit RPM/TPM errors, it waits for the provider's retry hint and resumes the same OpenCode session, up to four retries per model before moving on. Recognized temporary provider/auth/model availability errors also move to the next model. Unrecognized errors fail fast rather than hiding actual agent/tool failures. Every model switch continues the same OpenCode session and original task; GitHub Actions persists the working tree at job end.
+### Configured model routes
 
-OpenRouter's free tier currently advertises 50 requests/day and 20 requests/minute; failed free-model attempts count toward its daily cap. Treat it as a small last-resort reserve, not another 500-request pool. The NVIDIA free Nemotron endpoint states that request data may be logged and used to improve NVIDIA products. Avoid sending confidential information when that fallback is selected; never include credentials in prompts.
+| Provider | Model routes | Access |
+|---|---|---|
+| Google | Gemini 3.5 Flash-Lite, Gemini 3.1 Flash-Lite, Gemini 3.8 Flash, Gemma 4 31B IT, Gemma 4 26B A4B IT | Existing Gemini key |
+| Cloudflare Workers AI | GLM-4.7 Flash (`@cf/zai-org/glm-4.7-flash`) | Workers AI Free allocation |
+| Cohere direct | North Mini Code, Command A+, Command A Reasoning | Trial API key |
+| Groq | Qwen 3.8 27B, GPT-OSS 120B, GPT-OSS 20B | Existing Groq key |
+| OpenRouter | Nemotron 3 Ultra, Cohere North Mini Code, Recursive Flint, Inkling 2 Small, ERNIE 5.5 Flash Preview, Nemotron 3.5 Lightning, Nemotron 3.5 Super VL | Existing OpenRouter key; `:free` variants |
+| GitHub Copilot | Copilot CLI Auto | Optional Copilot Free entitlement and fine-grained PAT |
+
+The Copilot CLI adapter is not an OpenCode model ID. It is a separate fallback route named `github-copilot/auto`. Copilot Free uses automatic model selection; the workflow invokes the CLI only in implementation/repair stages. Reviewer and QA stages remain read-only OpenCode agents.
+
+### Required Actions secrets
+
+Existing secrets:
+- `GEMINI_API_KEY`
+- `GROQ_API_KEY`
+- `OPENROUTER_API_KEY`
+
+Optional new secrets:
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
+- `COHERE_API_KEY`
+- `COPILOT_GITHUB_TOKEN`
+
+Cloudflare requires both the account ID and an API token with Account > Workers AI > Read permission. GLM-4.7 Flash is available on Workers Free. Workers AI includes 10,000 Neurons per day shared across Workers AI models; usage limits reset at 00:00 UTC. On Workers Free, requests beyond the included allocation fail rather than becoming paid overage. Do not switch the account to a paid Workers plan for this project unless paid usage is intentionally approved.
+
+Cohere trial keys provide up to 1,000 Chat API calls per month, shared by the trial key across models, with a 20 requests/minute per-model limit for North Mini Code, Command A+, and Command A Reasoning. Treat it as one small monthly pool, not 1,000 calls per model.
+
+Groq's GPT-OSS 20B is a separate model ID, but it uses the same Groq account and its own model-specific rate-limit row. Check the actual account dashboard because model limits and eligibility can change.
+
+OpenRouter free variants share the account's free-tier pool: 20 requests/minute and 50 requests/day on a free account. Failed attempts count toward the daily allowance. Adding more `:free` model IDs adds fallback choices, not additional OpenRouter daily quotas. If one free model reports the shared daily quota exhausted, the router skips the remaining OpenRouter free models for that run.
+
+GitHub Copilot Free includes limited chat/agent usage and Copilot CLI, with Auto model selection. GitHub does not publish a fixed numeric Free AI Credit allowance in its plan table. Usage can therefore end when the account's free allowance is exhausted. The token must be a fine-grained personal access token owned by the user's personal account with the Account permission `Copilot Requests`; restrict repository access to this repository where possible.
+
+### Quota-routing behavior
+
+- Models are included only when the corresponding credential(s) exist.
+- A model is attempted at most once per workflow run, including across stages.
+- A daily/monthly shared-pool exhaustion disables that provider for the remainder of the run for Cloudflare, Cohere, OpenRouter free, and Copilot.
+- RPM/TPM failures get at most one retry using a reasonable provider retry hint.
+- Repeated OpenRouter free-tier RPM failure disables the shared OpenRouter pool for that run.
+- Invalid credentials disable the affected provider for the run.
+- Unavailable model IDs and unsupported context errors skip that model.
+- Unclassified errors fail the stage visibly rather than being hidden by fallback.
+- Each attempted model, retry, skip reason, and stage outcome is recorded in the pipeline usage TSV artifact.
+
+Free-tier capacity and quotas can change. The workflow reacts to provider errors but does not query remaining quota balances. Check each provider dashboard for exact account-level usage.
+
+### Data and privacy note
+
+The pipeline sends repository instructions and relevant source/diff content to whichever provider is selected. Never put secrets, tokens, or private credentials in prompts or source files. Some OpenRouter free endpoints, including Inkling 2 Small and NVIDIA free endpoints, state that prompts/session data may be logged or used to improve their services. Do not route sensitive or confidential material to those endpoints. Treat all free endpoints as third-party processing, not as a private local model.
 
 ## Recent fallback regression test
 - Workflow run 42911900811 reached Gemini 3.5 Flash-Lite but hit Google's 250,000 input-token-per-minute Free Tier limit. This was not a daily quota failure.
