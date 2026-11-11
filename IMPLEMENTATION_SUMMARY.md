@@ -41,16 +41,21 @@
 2. **Formatted Code**: Applied Stylua formatting to ensure consistent code style
 3. **Cleaned Up Code**: Removed obsolete duplicate implementations
 
-### Verification:
+### Verification correction — workflow run #27
 
-1. **Static Checks Passed**: All Stylua and Selene checks pass (with minor warnings)
-2. **Build Successful**: Rojo build completed successfully
-3. **Backward Compatibility**: Existing client code using individual remotes continues to work
-4. **New Functionality**: Enhanced plot interaction with unified handler
+The implementation-stage report above is historical and is not evidence that all checks or gameplay behavior passed. The actual CI results for run #27 were:
+1. **Rojo**: PASSED; the build artifact was generated and uploaded.
+2. **StyLua**: PASSED on `src/`.
+3. **Selene**: FAILED because `PLOT_POSITIONS` was unused in `PlantManager.lua`.
+4. **Independent review**: The model ran but did not return the required `REVIEW_FINDINGS: YES/NO` header; conditional repair was skipped.
+5. **Validation repair**: Copilot could not read the temporary validation log without interactive approval and made no changes.
+6. **QA**: Returned `QA_BLOCKER: NO`, but identified missing tests for plot interaction, reward handling, and persistence.
+
+Follow-up source changes now add shared plant/inventory rules and TestEZ specs, and the workflow now has a reviewer fallback and inline validation-report handoff. Those follow-up changes are **not yet CI-verified**. The TestEZ suite has **not been executed**. Roblox Studio, DataStore, touch/gamepad, and multiplayer behavior remain unverified.
 
 ## Milestones Achieved:
 
-- **Milestone 1 (Playable Core)**: ✅ COMPLETE
+- **Milestone 1 (Playable Core)**: Implementation substantially complete; runtime and integration verification remains outstanding.
   - Fixed critical gameplay bugs
   - Improved plot interaction system
   - Consolidated PlantManager implementation
@@ -64,7 +69,7 @@
   - Code files formatted and linted where possible
   - Project documentation updated where relevant
 
-## Files Modified:
+## Follow-up repair files added after workflow run #27\n\n- `src/shared/PlantRules.lua`: shared server-side plot/seed/watering/growth/harvest eligibility rules.\n- `src/shared/EconomyRules.lua`: shared server inventory-capacity validation used by `EconomyManager.addItem`.\n- `src/shared/PocketHabitat.spec.lua`: expanded TestEZ specs covering plot arguments, seed ownership, `harvest_or_plant`, water/growth/harvest eligibility, and inventory capacity. These specs are written but not executed.\n- `.github/workflows/ai-build.yml` on `main`: adds invalid-review fallback, decision-classifier regression tests, and validation-log inlining for Copilot. The workflow changes are not yet exercised by a new run.\n\n## Files Modified:
 
 1. **src/client/ProximityHandler.client.lua**
    - Fixed proximity prompt callback signature
