@@ -59,7 +59,11 @@ function PlantRules.getPlantDef(seedId: any): any?
     return Constants.PLANTS[plantKey]
 end
 
-local function resolveSeed(data: any, requestedSeedId: any, allowAutomatic: boolean): (string?, string?)
+local function resolveSeed(
+    data: any,
+    requestedSeedId: any,
+    allowAutomatic: boolean
+): (string?, string?)
     if requestedSeedId ~= nil then
         if type(requestedSeedId) ~= "string" or not PlantRules.getPlantDef(requestedSeedId) then
             return nil, "Invalid seed type"
@@ -115,7 +119,8 @@ local function validatePlant(
         seedId = seedId,
         plantDef = PlantRules.getPlantDef(seedId),
         automatic = allowAutomatic,
-    }, nil
+    },
+        nil
 end
 
 local function validateWater(data: any, plot: any, plotIndex: number): (InteractionPlan?, string?)
@@ -150,14 +155,11 @@ local function validateWater(data: any, plot: any, plotIndex: number): (Interact
         plot = plot,
         plotIndex = plotIndex,
         plantDef = plantDef,
-    }, nil
+    },
+        nil
 end
 
-local function validateHarvest(
-    plot: any,
-    plotIndex: number,
-    now: any
-): (InteractionPlan?, string?)
+local function validateHarvest(plot: any, plotIndex: number, now: any): (InteractionPlan?, string?)
     if type(plot.seedId) ~= "string" then
         return nil, "Nothing to harvest"
     end
@@ -201,7 +203,8 @@ local function validateHarvest(
         plot = plot,
         plotIndex = plotIndex,
         plantDef = plantDef,
-    }, nil
+    },
+        nil
 end
 
 function PlantRules.validateInteraction(

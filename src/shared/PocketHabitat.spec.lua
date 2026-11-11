@@ -54,20 +54,13 @@ return function()
             local invalidIndices: { any } = { 0, -1, 1.5, math.huge, -math.huge, 0 / 0, "1" }
 
             for _, plotIndex in ipairs(invalidIndices) do
-                local plan = validateInteraction(
-                    data,
-                    plotIndex,
-                    "plant",
-                    BERRY_SEED,
-                    NOW
-                )
+                local plan = validateInteraction(data, plotIndex, "plant", BERRY_SEED, NOW)
                 expect(plan).to.equal(nil)
             end
         end)
 
         it("rejects plot indices that do not belong to the player's session", function()
-            local plan, reason =
-                validateInteraction(makeData(), 99, "plant", BERRY_SEED, NOW)
+            local plan, reason = validateInteraction(makeData(), 99, "plant", BERRY_SEED, NOW)
 
             expect(plan).to.equal(nil)
             expect(reason).to.equal("Invalid plot")
@@ -84,8 +77,7 @@ return function()
             local data = makeData()
             local unknownPlan, unknownReason =
                 validateInteraction(data, 1, "grant_rewards", nil, NOW)
-            local malformedPlan =
-                validateInteraction(data, 1, 123, nil, NOW)
+            local malformedPlan = validateInteraction(data, 1, 123, nil, NOW)
 
             expect(unknownPlan).to.equal(nil)
             expect(unknownReason).to.equal(
@@ -94,24 +86,26 @@ return function()
             expect(malformedPlan).to.equal(nil)
         end)
 
-        it("accepts a supported seed only when the player owns a positive whole quantity", function()
-            local data = makeData()
-            local validPlan = validateInteraction(data, 1, "plant", BERRY_SEED, NOW)
+        it(
+            "accepts a supported seed only when the player owns a positive whole quantity",
+            function()
+                local data = makeData()
+                local validPlan = validateInteraction(data, 1, "plant", BERRY_SEED, NOW)
 
-            expect(validPlan.action).to.equal("plant")
-            expect(validPlan.seedId).to.equal(BERRY_SEED)
+                expect(validPlan.action).to.equal("plant")
+                expect(validPlan.seedId).to.equal(BERRY_SEED)
 
-            data.inventory[BERRY_SEED] = 0
-            local emptyPlan, emptyReason =
-                validateInteraction(data, 1, "plant", BERRY_SEED, NOW)
-            expect(emptyPlan).to.equal(nil)
-            expect(emptyReason).to.equal("No seeds available")
+                data.inventory[BERRY_SEED] = 0
+                local emptyPlan, emptyReason =
+                    validateInteraction(data, 1, "plant", BERRY_SEED, NOW)
+                expect(emptyPlan).to.equal(nil)
+                expect(emptyReason).to.equal("No seeds available")
 
-            data.inventory[BERRY_SEED] = 0.5
-            local fractionalPlan =
-                validateInteraction(data, 1, "plant", BERRY_SEED, NOW)
-            expect(fractionalPlan).to.equal(nil)
-        end)
+                data.inventory[BERRY_SEED] = 0.5
+                local fractionalPlan = validateInteraction(data, 1, "plant", BERRY_SEED, NOW)
+                expect(fractionalPlan).to.equal(nil)
+            end
+        )
 
         it("rejects unsupported seed identifiers and occupied plots", function()
             local data = makeData()
@@ -144,8 +138,7 @@ return function()
             data.inventory[BERRY_SEED] = nil
             data.inventory[FLOWER_SEED] = 0
 
-            local plan, reason =
-                validateInteraction(data, 1, "harvest_or_plant", nil, NOW)
+            local plan, reason = validateInteraction(data, 1, "harvest_or_plant", nil, NOW)
 
             expect(plan).to.equal(nil)
             expect(reason).to.equal("No seeds available for planting")
@@ -153,8 +146,7 @@ return function()
 
         it("requires a planted valid crop and dewdrops before watering", function()
             local data = makeData()
-            local emptyPlan, emptyReason =
-                validateInteraction(data, 1, "water", nil, NOW)
+            local emptyPlan, emptyReason = validateInteraction(data, 1, "water", nil, NOW)
             expect(emptyPlan).to.equal(nil)
             expect(emptyReason).to.equal("Nothing planted here")
 
@@ -164,14 +156,12 @@ return function()
             plot.waterCount = 0
 
             data.inventory[DEWDROP] = 0
-            local dryPlan, dryReason =
-                validateInteraction(data, 1, "water", nil, NOW)
+            local dryPlan, dryReason = validateInteraction(data, 1, "water", nil, NOW)
             expect(dryPlan).to.equal(nil)
             expect(dryReason).to.equal("No dewdrops available")
 
             data.inventory[DEWDROP] = 1
-            local validPlan =
-                validateInteraction(data, 1, "water", nil, NOW)
+            local validPlan = validateInteraction(data, 1, "water", nil, NOW)
             expect(validPlan.action).to.equal("water")
             expect(validPlan.plantDef.id).to.equal("berry")
         end)
@@ -183,56 +173,57 @@ return function()
             plot.plantedTime = NOW - 5
             plot.waterCount = Constants.PLANTS.berry.waterNeeded
 
-            local fullPlan, fullReason =
-                validateInteraction(data, 1, "water", nil, NOW)
+            local fullPlan, fullReason = validateInteraction(data, 1, "water", nil, NOW)
             expect(fullPlan).to.equal(nil)
             expect(fullReason).to.equal("Already fully watered")
 
             plot.waterCount = 0.5
-            local malformedPlan =
-                validateInteraction(data, 1, "water", nil, NOW)
+            local malformedPlan = validateInteraction(data, 1, "water", nil, NOW)
             expect(malformedPlan).to.equal(nil)
         end)
 
-        it("requires both elapsed growth time and the complete water requirement to harvest", function()
-            local data = makeData()
-            local plot = data.plots[1]
-            plot.seedId = BERRY_SEED
-            plot.plantedTime = NOW - Constants.PLANTS.berry.growthTime - 1
-            plot.waterCount = Constants.PLANTS.berry.waterNeeded - 1
+        it(
+            "requires both elapsed growth time and the complete water requirement to harvest",
+            function()
+                local data = makeData()
+                local plot = data.plots[1]
+                plot.seedId = BERRY_SEED
+                plot.plantedTime = NOW - Constants.PLANTS.berry.growthTime - 1
+                plot.waterCount = Constants.PLANTS.berry.waterNeeded - 1
 
-            local underWateredPlan, underWateredReason =
-                validateInteraction(data, 1, "harvest", nil, NOW)
-            expect(underWateredPlan).to.equal(nil)
-            expect(underWateredReason).to.equal("Plant is still growing")
+                local underWateredPlan, underWateredReason =
+                    validateInteraction(data, 1, "harvest", nil, NOW)
+                expect(underWateredPlan).to.equal(nil)
+                expect(underWateredReason).to.equal("Plant is still growing")
 
-            plot.waterCount = Constants.PLANTS.berry.waterNeeded
-            plot.plantedTime = NOW - 1
-            local growingPlan, growingReason =
-                validateInteraction(data, 1, "harvest", nil, NOW)
-            expect(growingPlan).to.equal(nil)
-            expect(growingReason).to.equal("Plant is still growing")
-        end)
+                plot.waterCount = Constants.PLANTS.berry.waterNeeded
+                plot.plantedTime = NOW - 1
+                local growingPlan, growingReason = validateInteraction(data, 1, "harvest", nil, NOW)
+                expect(growingPlan).to.equal(nil)
+                expect(growingReason).to.equal("Plant is still growing")
+            end
+        )
 
-        it("allows harvest only when crop timing, watering, and reward configuration are valid", function()
-            local data = makeData()
-            local plot = plantBerry(data, 1)
+        it(
+            "allows harvest only when crop timing, watering, and reward configuration are valid",
+            function()
+                local data = makeData()
+                local plot = plantBerry(data, 1)
 
-            local plan, reason =
-                validateInteraction(data, 1, "harvest", nil, NOW)
+                local plan, reason = validateInteraction(data, 1, "harvest", nil, NOW)
 
-            expect(reason).to.equal(nil)
-            expect(plan.action).to.equal("harvest")
-            expect(plan.plot).to.equal(plot)
-            expect(plan.plantDef.id).to.equal("berry")
-        end)
+                expect(reason).to.equal(nil)
+                expect(plan.action).to.equal("harvest")
+                expect(plan.plot).to.equal(plot)
+                expect(plan.plantDef.id).to.equal("berry")
+            end
+        )
 
         it("routes harvest_or_plant to harvest for an occupied, ready plot", function()
             local data = makeData()
             plantBerry(data, 1)
 
-            local plan =
-                validateInteraction(data, 1, "harvest_or_plant", nil, NOW)
+            local plan = validateInteraction(data, 1, "harvest_or_plant", nil, NOW)
 
             expect(plan.action).to.equal("harvest")
             expect(plan.plantDef.id).to.equal("berry")
@@ -281,17 +272,26 @@ return function()
             expect(reason).to.equal("Inventory full")
         end)
 
-        it("rejects malformed item identifiers, quantities, inventory, and upgrade state", function()
-            local upgrades = { storage_expansion = 1 }
-            local badItem = EconomyRules.canAddItem({}, upgrades, "", 1)
-            local badAmount = EconomyRules.canAddItem({}, upgrades, "crop_berry", 0.5)
-            local badInventory = EconomyRules.canAddItem({ wood = -1 }, upgrades, "crop_berry", 1)
-            local badUpgrade = EconomyRules.canAddItem({}, { storage_expansion = 0 }, "crop_berry", 1)
+        it(
+            "rejects malformed item identifiers, quantities, inventory, and upgrade state",
+            function()
+                local upgrades = { storage_expansion = 1 }
+                local badItem = EconomyRules.canAddItem({}, upgrades, "", 1)
+                local badAmount = EconomyRules.canAddItem({}, upgrades, "crop_berry", 0.5)
+                local badInventory =
+                    EconomyRules.canAddItem({ wood = -1 }, upgrades, "crop_berry", 1)
+                local badUpgrade = EconomyRules.canAddItem(
+                    {},
+                    { storage_expansion = 0 },
+                    "crop_berry",
+                    1
+                )
 
-            expect(badItem).to.equal(false)
-            expect(badAmount).to.equal(false)
-            expect(badInventory).to.equal(false)
-            expect(badUpgrade).to.equal(false)
-        end)
+                expect(badItem).to.equal(false)
+                expect(badAmount).to.equal(false)
+                expect(badInventory).to.equal(false)
+                expect(badUpgrade).to.equal(false)
+            end
+        )
     end)
 end

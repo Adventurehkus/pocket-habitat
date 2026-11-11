@@ -31,7 +31,7 @@ local function OnPlotAction(_player: Player, prompt: ProximityPrompt)
             print("[ProximityHandler] Harvest result:", success, res, "from plot", plotIndex)
         elseif plotAction == "harvest_or_plant" then
             local success, res =
-                RemoteEvents.InteractWithPlot:InvokeServer(_player, plotIndex, "harvest_or_plant")
+                RemoteEvents.InteractWithPlot:InvokeServer(plotIndex, "harvest_or_plant")
             print("[ProximityHandler] Harvest/Plant result:", success, res, "from plot", plotIndex)
         end
     end
@@ -50,11 +50,15 @@ local function ConnectToFolder(folder: Instance?)
             local plotIndex = descendant:GetAttribute("PlotIndex")
 
             if nodeId then
-                descendant.Triggered:Connect(OnResourceGathered)
+                descendant.Triggered:Connect(function(player)
+                    OnResourceGathered(player, descendant)
+                end)
             end
 
             if plotIndex then
-                descendant.Triggered:Connect(OnPlotAction)
+                descendant.Triggered:Connect(function(player)
+                    OnPlotAction(player, descendant)
+                end)
             end
         end
     end
@@ -73,11 +77,15 @@ if habitatWorld then
             local plotIndex = descendant:GetAttribute("PlotIndex")
 
             if nodeId then
-                descendant.Triggered:Connect(OnResourceGathered)
+                descendant.Triggered:Connect(function(player)
+                    OnResourceGathered(player, descendant)
+                end)
             end
 
             if plotIndex then
-                descendant.Triggered:Connect(OnPlotAction)
+                descendant.Triggered:Connect(function(player)
+                    OnPlotAction(player, descendant)
+                end)
             end
         end
     end)

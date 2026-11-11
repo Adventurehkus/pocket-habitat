@@ -3,8 +3,7 @@
 local EconomyRules = {}
 
 local function isFiniteInteger(value: any, minimum: number): boolean
-    return
-        type(value) == "number"
+    return type(value) == "number"
         and value == value
         and value > -math.huge
         and value < math.huge

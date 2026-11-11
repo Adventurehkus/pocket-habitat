@@ -35,10 +35,9 @@
 - These changes are committed to their respective branches, but no new workflow or TestEZ execution has verified them yet.
 
 ## Phase 1 - Existing Gameplay Repair (2026-11-11)
-- Fixed ProximityPrompt trigger signature bug in src/client/ProximityHandler.client.lua
-  - Corrected callback to properly receive prompt and player arguments
-  - Implemented unified OnPlotAction handler that checks prompt attributes
-  - Improved proximity prompt connection efficiency based on prompt type
+- Repaired ProximityPrompt triggered event connection in `src/client/ProximityHandler.client.lua` to correctly pass the prompt instance as an argument.
+- Corrected RemoteFunction invocation arguments in `src/client/ProximityHandler.client.lua` to exclude `player` from arguments (as Roblox handles this automatically).
+- Verified `PlantManager.lua` remote handling of plots.
 - Added unified plot interaction logic to PlantManager.lua
   - Consolidated multiple plot handlers into single InteractWithPlot handler
   - Added support for new "harvest_or_plant" action for enhanced gameplay
