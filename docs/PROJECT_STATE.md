@@ -50,7 +50,7 @@
 - Fixed variable shadowing warnings in PlantManager.lua
 - Historical note: workflow run #27 did not pass all static checks; Selene failed. Follow-up fixes are pending a new CI verification run.
 
-## Milestone 1 — Playable Core: COMPLETED SYSTEMS
+## Milestone 1 — Playable Core: documented implementation scope (not all runtime-verified)
 
 ### Habitat and World
 - Floating low-poly island environment with baseplate, pond, paths, and decorative elements.
@@ -152,15 +152,10 @@
 - No manual Studio playtest performed in this environment.
 
 ## Exact next task
-- **Phase 1 Complete**: All critical gameplay systems repaired and consolidated
-  - ProximityPrompt handling fixed and optimized
-  - PlantManager unified and enhanced with "harvest_or_plant" action
-  - Prior run #27 passed Rojo and StyLua but failed Selene; follow-up corrections are not yet revalidated
-- **Next Priority**: Continue Milestone 2 content expansion
-  - Implement TestEZ unit tests for core gameplay logic (resource rewards, inventory rules, plant growth, harvest eligibility, currency transactions, quest completion)
-  - Continue adding additional content (more plant varieties, creature types, resources, quests, upgrades)
-  - Consider adding day/night cycle and lighting improvements as part of presentation polish
-- **Immediate Action**: Dispatch a new workflow run to validate the follow-up commits, then execute the new TestEZ suite with a supported runner.
+1. Dispatch a fresh workflow run on `main` so the updated workflow validates the current `ai/game-build` head. Confirm Rojo, StyLua, and Selene results.
+2. Execute `src/shared/PocketHabitat.spec.lua` with a supported TestEZ runner; the specs are written but not yet run.
+3. Add integration-level coverage for the RemoteFunction path, harvest reward/reset ordering, and player-session behavior.
+4. Continue Milestone 2 content work only after the core validation checkpoint is green.
 
 ## CI multi-provider pipeline configuration
 
