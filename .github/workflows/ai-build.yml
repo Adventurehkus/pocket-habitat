@@ -308,15 +308,32 @@ jobs:
                   return 0
                 fi
 
-                if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|quota.*day|day.*quota|RPD|TPD|requests per month|monthly quota|monthly limit|quota.*month|month.*quota|monthly.*calls|AI credits.*(exhausted|limit)|premium request.*(exhausted|limit)|neurons.*(exhausted|limit)|workers ai.*(quota|limit)' "$log_file"; then
+                # Cloudflare Workers AI Free reports an exhausted daily
+                # Neurons pool with wording such as:
+                # "You have used up your daily free allocation of 10,000 neurons".
+                # Detect this provider-specific message before the RPM/TPM retry
+                # classifier. The allocation is shared across Workers AI models,
+                # so disable the entire provider immediately for every later stage.
+                # Breaking here deliberately suppresses any retry/backoff attempt.
+                if [[ "$provider" == "cloudflare-workers-ai" ]] && grep -Eiq 'used up.{0,100}daily free allocation|daily free allocation|daily.{0,80}allocation.{0,80}neurons|neurons.{0,80}daily.{0,80}(allocation|quota|limit)' "$log_file"; then
+                  MODEL_BLOCKED["$model"]="Cloudflare Workers AI daily free Neurons allocation exhausted"
+                  PROVIDER_BLOCKED["cloudflare-workers-ai"]="shared daily Workers AI Neurons allocation exhausted"
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "Cloudflare daily free Neurons allocation exhausted; retry suppressed"
+                  echo "::warning::Cloudflare Workers AI daily Neurons allocation is exhausted; disabling the entire provider for all remaining stages and continuing to the next provider without retry."
+                  break
+                fi
+
+                # General daily/monthly quota detection. This remains ahead of
+                # RPM/TPM handling so quota exhaustion never enters retry/backoff.
+                if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|daily free allocation|used up.{0,100}daily.{0,100}allocation|quota.*day|day.*quota|RPD|TPD|requests per month|monthly quota|monthly limit|quota.*month|month.*quota|monthly.*calls|AI credits.*(exhausted|limit)|premium request.*(exhausted|limit)|neurons.*(exhausted|limit)|workers ai.*(quota|limit)' "$log_file"; then
                   MODEL_BLOCKED["$model"]="daily/monthly/provider quota exhausted"
                   # Cloudflare, Cohere, OpenRouter free and Copilot each have
                   # a shared account pool across the configured models.
                   if [[ "$provider" == "openrouter" || "$provider" == "cohere" || "$provider" == "cloudflare-workers-ai" || "$provider" == "github-copilot" ]]; then
                     PROVIDER_BLOCKED["$provider"]="shared daily/monthly quota exhausted"
                   fi
-                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "daily/monthly/shared quota exhausted"
-                  echo "::warning::$provider/$model reached a quota; its shared provider pool will not be called again this run."
+                  record_attempt "$stage" "$provider" "$model" "$((retry_count + 1))" "PROVIDER_DISABLED" "daily/monthly/shared quota exhausted; retry suppressed"
+                  echo "::warning::$provider/$model reached a daily/monthly quota; its shared provider pool will not be called again this run and no retry will be attempted."
                   break
                 fi
 
