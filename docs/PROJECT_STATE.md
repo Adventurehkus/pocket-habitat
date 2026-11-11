@@ -4,8 +4,9 @@
 
 - **Gameplay repository:** Adventurehkus/pocket-habitat
 - **Gameplay branch:** ai/game-build
-- **Current gameplay source HEAD:** 21386b54aa0432c1f5fdb796411c30a41d060350
+- **Latest gameplay implementation checkpoint verified by CI:** 21386b54aa0432c1f5fdb796411c30a41d060350
 - **Latest completed gameplay workflow:** Run #30, run ID 43098662842
+- **Documentation refresh:** subsequent documentation-only commits advanced ai/game-build beyond that gameplay checkpoint; re-read the current branch HEAD at the beginning of each run.
 - **Run #30 result:** completed successfully; its gameplay checkpoint was persisted to ai/game-build.
 - **Workflow configuration branch:** main
 - **Latest adaptive temporary-limit retry workflow commit:** 36c16722d6ebc2a4bd66433ec5e9ec15ee17b7fa
