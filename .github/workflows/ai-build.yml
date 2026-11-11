@@ -258,6 +258,7 @@ jobs:
                     break
                   fi
 
+                  record_attempt "$stage" "$provider" "$model" "$retry_count" "RETRYING" "RPM/TPM backoff ${delay}s"
                   echo "RPM/TPM limit on $model; one retry after ${delay}s."
                   sleep "$delay"
                   continue
@@ -352,16 +353,20 @@ jobs:
             # Stage 2: independent, read-only review using a different provider
             # first. Attach a concrete diff so the reviewer does not need shell.
             refresh_diff
-            REVIEW_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Review the attached implementation diff against the repository's actual code and architecture. Do not edit files, run shell commands, or ask another agent to make changes. Verify every suspected issue against the source before reporting it. Prioritize exploitable remote/event flows, player-data loss or cross-player leakage, economy/inventory duplication, broken gameplay interactions, persistence failure handling, runtime errors, and regressions. Ignore style-only opinions unless they cause a real problem. Return a concise Markdown report with severity (CRITICAL/HIGH/MEDIUM/LOW), file and line, evidence, impact, and a specific suggested correction. If no actionable findings exist, explicitly say so. Do not claim a test was run unless the attached evidence shows it."
+            REVIEW_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Review the attached implementation diff against the repository's actual code and architecture. Do not edit files, run shell commands, or ask another agent to make changes. Verify every suspected issue against the source before reporting it. Prioritize exploitable remote/event flows, player-data loss or cross-player leakage, economy/inventory duplication, broken gameplay interactions, persistence failure handling, runtime errors, and regressions. Ignore style-only opinions unless they cause a real problem. Start with exactly one line: REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Use YES only if at least one actionable defect is confirmed in source. Return a concise Markdown report with severity (CRITICAL/HIGH/MEDIUM/LOW), file and line, evidence, impact, and a specific suggested correction. If no actionable findings exist, use REVIEW_FINDINGS: NO and explain any remaining runtime checks. Do not claim a test was run unless the attached evidence shows it."
             prioritize_models REVIEW_MODELS "$IMPLEMENT_PROVIDER"
             STAGE_FILES=("$DIFF_FILE")
             run_stage "review" "reviewer" "$REVIEW_PROMPT" "${REVIEW_MODELS[@]}"
             REVIEW_RESULT=$?
             REVIEW_PROVIDER="${STAGE_PROVIDER[review]:-}"
 
-            # Stage 3: repair only verified findings; do not blindly apply
-            # speculative review comments or rewrite unrelated systems.
-            if [[ "$REVIEW_RESULT" -eq 0 ]]; then
+            # Stage 3: repair verified findings only. Avoid spending another
+            # model request when the reviewer explicitly found no defects.
+            if [[ "$REVIEW_RESULT" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              STAGE_STATUS["repair"]="SKIPPED (review unavailable)"
+              echo "::warning::No independent model completed the review stage; repair stage skipped."
+            elif grep -Eiq '^REVIEW_FINDINGS:[[:space:]]*YES' "${STAGE_LOG[review]}"; then
               REPAIR_PROMPT="You are the Pocket Habitat repair engineer. Read the attached independent review output and verify each finding in the current source before changing anything. Fix confirmed CRITICAL and HIGH findings, plus MEDIUM findings that directly break the requested task or core progression. Do not blindly apply speculative comments. Preserve working behavior, keep all server-side validation and data safety, never modify DevPackages, do not publish, and do not commit or push. Run appropriate local checks and accurately update project-state/testing docs. Attached file is the review stage output."
               prioritize_models REPAIR_MODELS "$REVIEW_PROVIDER"
               STAGE_FILES=("${STAGE_LOG[review]}")
@@ -369,11 +374,12 @@ jobs:
               REPAIR_RESULT=$?
               REPAIR_PROVIDER="${STAGE_PROVIDER[repair]:-}"
               if [[ "$REPAIR_RESULT" -ne 0 ]]; then
-                echo "::warning::The review repair stage could not complete; proceeding to independent validation."
+                PIPELINE_EXIT=1
+                echo "::warning::The review repair stage could not complete."
               fi
             else
-              STAGE_STATUS["repair"]="SKIPPED (review unavailable)"
-              echo "::warning::No independent model completed the review stage; repair stage skipped."
+              STAGE_STATUS["repair"]="SKIPPED (no confirmed findings)"
+              echo "Independent reviewer found no confirmed actionable defects; repair call not needed."
             fi
 
             # Stage 4: deterministic CI validation, independent of model claims.
@@ -397,6 +403,10 @@ jobs:
             STAGE_FILES=("$DIFF_FILE" "$VALIDATION_LOG")
             run_stage "qa" "qa" "$QA_PROMPT" "${QA_MODELS[@]}"
             QA_RESULT=$?
+            if [[ "$QA_RESULT" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              echo "::warning::The independent QA stage did not complete; this run will be reported as incomplete."
+            fi
 
             # If QA finds a confirmed blocker, allow one extra repair pass and
             # re-run deterministic checks before the checkpoint is persisted.
@@ -410,6 +420,9 @@ jobs:
               QA_REPAIR_RESULT=$?
               if [[ "$QA_REPAIR_RESULT" -eq 0 ]]; then
                 run_validation
+              else
+                PIPELINE_EXIT=1
+                echo "::error::QA reported a blocker but no repair model completed the fix stage."
               fi
             fi
 
