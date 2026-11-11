@@ -69,7 +69,14 @@ Follow-up source changes now add shared plant/inventory rules and TestEZ specs, 
   - Code files formatted and linted where possible
   - Project documentation updated where relevant
 
-## Follow-up repair files added after workflow run #27\n\n- `src/shared/PlantRules.lua`: shared server-side plot/seed/watering/growth/harvest eligibility rules.\n- `src/shared/EconomyRules.lua`: shared server inventory-capacity validation used by `EconomyManager.addItem`.\n- `src/shared/PocketHabitat.spec.lua`: expanded TestEZ specs covering plot arguments, seed ownership, `harvest_or_plant`, water/growth/harvest eligibility, and inventory capacity. These specs are written but not executed.\n- `.github/workflows/ai-build.yml` on `main`: adds invalid-review fallback, decision-classifier regression tests, and validation-log inlining for Copilot. The workflow changes are not yet exercised by a new run.\n\n## Files Modified:
+## Follow-up repair files added after workflow run #27
+
+- `src/shared/PlantRules.lua`: shared server-side plot/seed/watering/growth/harvest eligibility rules.
+- `src/shared/EconomyRules.lua`: shared server inventory-capacity validation used by `EconomyManager.addItem`.
+- `src/shared/PocketHabitat.spec.lua`: expanded TestEZ specs covering plot arguments, seed ownership, `harvest_or_plant`, water/growth/harvest eligibility, and inventory capacity. These specs are written but not executed.
+- `.github/workflows/ai-build.yml` on `main`: adds invalid-review fallback, decision-classifier regression tests, and validation-log inlining for Copilot. The workflow changes are not yet exercised by a new run.
+
+## Files Modified:
 
 1. **src/client/ProximityHandler.client.lua**
    - Fixed proximity prompt callback signature
