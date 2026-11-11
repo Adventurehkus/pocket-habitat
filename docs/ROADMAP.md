@@ -1,63 +1,122 @@
 # Pocket Habitat — Development Roadmap
 
-## Milestone 0: Foundation ✅ COMPLETE
-- Repository layout and Rojo project configuration (`default.project.json`).
-- Rokit version pinning (`rokit.toml`) and dependency setup (`wally.toml`).
-- Required documentation suite (`docs/`).
-- Initial project structure (`src/server`, `src/shared`, `src/client`, `assets/runtime`).
-- Verification of checks and initial project state.
-- CI toolchain: Rojo 7.6.1, StyLua 2.6.0, Selene 0.28.0, Wally 0.3.2, TestEZ 0.4.1.
+## How to use this roadmap
 
-## Milestone 1: Playable Core ✅ COMPLETE
-- Basic habitat island environment setup with baseplate, pond, paths.
-- Server-authoritative resource collection nodes (6 nodes: wood, stone, dewdrops, berry seeds).
-- ProximityPrompts on all interactables for cross-device support.
-- Planting and growth mechanics (2 plant types: berry bush, flower).
-- Watering system with dewdrop consumption and growth stages.
-- Harvest validation with crop and bell rewards.
-- Initial creature discovery (2 creatures: Meadow Bunny, Dew Sprite).
-- Creature visual models with idle wandering behavior.
-- Basic client-server feedback loops (particles, floating text, sounds, notifications).
-- Quest system with 6 sequential starter quests.
-- Currency economy (Bells) with server-validated transactions.
-- Upgrade system (Plot Expansion, Storage Expansion).
-- Safe, versioned DataStore persistence with retry logic and session locking.
+This is a living priority queue, not a fixed prompt. The current implementation and verification facts belong in docs/PROJECT_STATE.md. At the start of each run, verify the current source and choose the highest-priority unfinished acceptance item below. After meaningful progress, update statuses and the next task so the next run can continue without a rewritten handoff.
 
-## Milestone 2: Progression 🔄 IN PROGRESS
-- [x] Safe, versioned DataStore persistence manager.
-- [x] Persistent inventory management system.
-- [x] Currency economy (Bells transactions).
-- [x] Quest tracking and reward system.
-- [x] Habitat upgrades and zone unlocking.
+Status labels:
+- **Complete:** integrated and verified to the level stated.
+- **Implemented, runtime-unverified:** source exists and relevant static checks pass, but Roblox engine/gameplay behavior is not verified.
+- **In progress:** partly implemented or missing important integration/validation.
+- **Planned:** not implemented.
 
-### Content Expansion (2026-11-11)
-- [x] 3 new plant varieties with unique attributes (Sun Petal, Moonflower, Glowcap)
-- [x] 3 new creature types with unique behaviors (Leafling, Tortoise, Cloud Finch)
-- [ ~~] Additional resource nodes (rare/special resources) — Pending
-- [x] Expanded quest chains with branching objectives (4 new quests)
-- [x] More habitat upgrades (2 new upgrades added: Decorative Tile, Watering Can)
+## Milestone 0 — Foundation
 
-## Milestone 3: Presentation 📋 PLANNED
-- Low-poly environment polishing and atmospheric lighting (day/night cycle).
-- Dynamic creature animations and behavior states (eating, sleeping, social).
-- Immersive UI design across all devices (animations, transitions).
-- Sound effects (SFX) and ambient music integration.
-- Visual polish: weather effects, seasonal changes, particle variety.
+**Status: COMPLETE for the current project configuration and automated build foundation.**
 
-## Milestone 4: Quality Assurance (QA) 📋 PLANNED
-- Server-authoritative security hardening & validation (penetration testing).
-- Persistence error recovery and robust save migration.
-- Multiplayer data isolation and synchronization checks (2+ players).
-- Cross-device input and performance optimization.
-- Automated TestEZ unit test suite for core logic.
-- Roblox engine integration tests via Open Cloud.
+- Rojo project configuration and repository structure.
+- Rokit-pinned toolchain and Wally dependency manifest.
+- Core project documentation.
+- GitHub Actions autonomous development pipeline.
+- Automated Rojo, StyLua, and Selene validation.
 
-## Milestone 5: Release Preparation 📋 PLANNED
-- Monetization setup (gamepasses and developer products).
-- Final polish, balance pass, and release checklist.
-- Readiness review (without publishing credentials).
-- App store assets (icons, screenshots, trailer).
-- Community feedback integration plan.
+The pipeline's adaptive temporary-limit retry changes are committed on main but still require a fresh workflow run to validate their live behavior.
 
-## Current Focus
-**Milestone 2 content expansion** — The core gameplay loop is complete and verified. Next priority is adding breadth: more plants, creatures, resources, quests, and upgrades to create a richer progression experience.
+## Milestone 1 — Playable prototype loop
+
+**Status: IMPLEMENTED IN SOURCE; ROBLOX RUNTIME NOT VERIFIED.**
+
+Source contains world construction, resource gathering, planting, watering, harvesting, inventory/currency, quests, creature discovery, and client prompt handling. PlantRules and EconomyRules centralize important production validations.
+
+Acceptance criteria before calling the prototype reliably playable:
+- A new player can join, spawn, gather, plant, water, harvest, earn rewards, and receive feedback in Roblox Studio.
+- All actions are server-authoritative and fail safely.
+- Full-inventory and failed-reward cases do not lose or duplicate items.
+- Quest and upgrade actions reflect real server-side gameplay.
+- The experience works in a two-client server.
+- Save/rejoin behavior is verified without overwriting data.
+
+## Milestone 2 — Personal habitats and multiplayer/data reliability
+
+**Status: HIGHEST PRIORITY; IN PROGRESS.**
+
+This milestone establishes the defining Pocket Habitat experience: every player has an independent, persistent world.
+
+### Habitat lifecycle
+- [ ] Server-owned allocation and registry keyed by server-known UserId.
+- [ ] One isolated habitat per player, with non-overlapping placement.
+- [ ] Correct spawn and respawn handling.
+- [ ] Safe restoration from validated player data.
+- [ ] Cleanup on leave and shutdown without duplicate instances.
+- [ ] Ownership validation on every plot/resource/creature action.
+
+### Independent resources, plants, and creatures
+- [ ] Per-habitat resource nodes and cooldowns.
+- [ ] Player-specific plot state and world instances.
+- [ ] Player-specific creature registries, discovery, restore, behavior, and cleanup.
+- [ ] No cross-player reward, inventory, cooldown, or habitat mutation.
+- [ ] Concurrency protection against simultaneous duplicate requests.
+
+### Persistence safety
+- [ ] Atomic cross-server session ownership using UpdateAsync and a server-specific token.
+- [ ] Expiring lease and safe recovery from crashed servers.
+- [ ] Writes rejected when the server no longer owns the session.
+- [ ] Explicit schema validation/migration while preserving PocketHabitat_v2_PlayerData.
+- [ ] Failed reads never initialize defaults over inaccessible existing data.
+- [ ] Bounded save, release, and shutdown behavior.
+
+**Milestone acceptance:** at least two simultaneous players can build independently, leave/rejoin safely, and retain correct worlds and progression. Automated tests should cover the core ownership/session rules; Roblox Studio testing is still required.
+
+## Milestone 3 — Progression integrity and content completion
+
+**Status: PARTIALLY IMPLEMENTED; BLOCKED BY CORE RELIABILITY WORK.**
+
+- [ ] Make all quest definitions reachable and progression durable.
+- [ ] Replace inferred inventory-based progress with server-recorded action counters where appropriate.
+- [ ] Correct harvest, upgrade, plant, gathering, and creature objectives.
+- [ ] Make quest rewards idempotent.
+- [ ] Audit every plant definition through obtain → plant → grow → water → harvest → reward → quest → persistence.
+- [ ] Implement distinct, habitat-scoped behavior for every released creature.
+- [ ] Ensure every purchasable upgrade has a real effect and restored world state.
+- [ ] Add rare/special resources only after normal resource isolation is reliable.
+- [ ] Preserve save compatibility for every added progression field.
+
+## Milestone 4 — Player experience and presentation
+
+**Status: PARTIALLY IMPLEMENTED / PLANNED.**
+
+- [ ] Clear, responsive inventory, currency, quest, discovery, and plant-state UI.
+- [ ] Natural feedback for gathering, planting, watering, harvesting, discovery, quests, and purchases.
+- [ ] Desktop, touch, and gamepad usability where practical.
+- [ ] Cohesive low-poly environment, lighting, day/night atmosphere, and environmental details.
+- [ ] Distinct creature animations and readable behaviors.
+- [ ] Sound and subtle environmental effects.
+- [ ] Performance profiling and budgets for mobile hardware.
+
+## Milestone 5 — Quality assurance and hardening
+
+**Status: IN PROGRESS; ENGINE-LEVEL VERIFICATION OUTSTANDING.**
+
+- [ ] Execute the existing TestEZ suite in a supported Roblox runner.
+- [ ] Add tests for habitat allocation/ownership, independent cooldowns, quest progress, reward idempotency, persistence locks, and concurrency.
+- [ ] Add integration coverage for remotes and player lifecycle.
+- [ ] Complete two-client multiplayer testing.
+- [ ] Test save/rejoin, failed DataStore reads/writes, lock expiry, server shutdown, and crash recovery.
+- [ ] Test mobile touch and low-end device performance.
+- [ ] Verify cleanup, memory, and connection lifecycles.
+- [ ] Keep security tests focused on client/server trust boundaries.
+
+## Milestone 6 — Release preparation
+
+**Status: PLANNED.**
+
+- [ ] Balance and polish the complete game loop.
+- [ ] Decide optional monetization while preserving enjoyable free progression.
+- [ ] Configure real product IDs only through Creator Dashboard, with idempotent server receipt handling.
+- [ ] Prepare thumbnails, icon, screenshots, and trailer.
+- [ ] Complete a release checklist and readiness review.
+- [ ] Do not publish without explicit user authorization.
+
+## Current focus
+
+Build a server-owned personal-habitat allocation/lifecycle vertical slice. Use docs/PROJECT_STATE.md for the precise next task and known source gaps. Re-evaluate the next task after each meaningful implementation checkpoint rather than keeping a fixed milestone inside a reusable prompt.
