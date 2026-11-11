@@ -221,7 +221,17 @@ jobs:
               return 0
             fi
 
-            if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|daily free allocation|used up.{0,100}daily.{0,100}allocation|quota.{0,30}(per day|per-day|daily)|RPD|TPD|requests per month|monthly quota|monthly limit|quota.{0,30}(per month|monthly)|monthly.{0,30}calls|AI credits.{0,30}(exhausted|limit)|premium request.{0,30}(exhausted|limit)|neurons.{0,30}(exhausted|limit)|workers ai.{0,30}(quota|limit)' "$log_file"; then
+            # Google Generative Language API reports free-tier daily request
+            # exhaustion as RESOURCE_EXHAUSTED plus a metric name and a
+            # per-day limit. The wording can place many characters between
+            # "quota exceeded" and "per day", so match the metric explicitly
+            # before the broad 429/RESOURCE_EXHAUSTED rate-limit detector.
+            if [[ "$provider" == "google" ]] && grep -Eiq 'generate_content_free_tier_requests|free_tier_requests.{0,160}(per day|daily)|quota exceeded for metric.{0,200}(per day|daily)' "$log_file"; then
+              echo "MODEL_DAILY_QUOTA"
+              return 0
+            fi
+
+            if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|daily free allocation|used up.{0,100}daily.{0,100}allocation|quota.{0,200}(per day|per-day|daily)|RPD|TPD|requests per month|monthly quota|monthly limit|quota.{0,30}(per month|monthly)|monthly.{0,30}calls|AI credits.{0,30}(exhausted|limit)|premium request.{0,30}(exhausted|limit)|neurons.{0,30}(exhausted|limit)|workers ai.{0,30}(quota|limit)' "$log_file"; then
               case "$provider" in
                 openrouter|cohere|cloudflare-workers-ai|github-copilot)
                   echo "SHARED_DAILY_QUOTA"
@@ -377,7 +387,9 @@ jobs:
             fi
           }
           assert_failure_class "google" 'Quota exceeded for metric generate_content_free_tier_requests; limit 20 per day.' "MODEL_DAILY_QUOTA"
+          assert_failure_class "google" 'google.api_core.exceptions.ResourceExhausted: 429 Quota exceeded for metric: generate_content_free_tier_requests; limit: 20 per day.' "MODEL_DAILY_QUOTA"
           assert_failure_class "google" 'Generate content free tier input token count per minute limit exceeded. Please retry in 43.4s.' "MODEL_RATE_LIMIT"
+          assert_failure_class "google" 'Generate content free tier requests per minute limit exceeded. Please retry in 43.4s.' "MODEL_RATE_LIMIT"
           assert_failure_class "google" 'Please retry in 43.4s.' "MODEL_RATE_LIMIT"
           assert_failure_class "groq" 'Request too large for model; input tokens per minute Limit 7000, Requested 12283.' "REQUEST_TOO_LARGE"
           assert_failure_class "cohere" 'Trial key is limited to 20 API calls / minute.' "PROVIDER_RATE_LIMIT"
