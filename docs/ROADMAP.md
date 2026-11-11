@@ -43,9 +43,9 @@ Acceptance criteria before calling the prototype reliably playable:
 This milestone establishes the defining Pocket Habitat experience: every player has an independent, persistent world.
 
 ### Habitat lifecycle
-- [ ] Server-owned allocation and registry keyed by server-known UserId.
-- [ ] One isolated habitat per player, with non-overlapping placement.
-- [ ] Correct spawn and respawn handling.
+- [x] Server-owned allocation and registry keyed by server-known UserId.
+- [x] One isolated habitat per player, with non-overlapping placement.
+- [x] Correct spawn and respawn handling.
 - [ ] Safe restoration from validated player data.
 - [ ] Cleanup on leave and shutdown without duplicate instances.
 - [ ] Ownership validation on every plot/resource/creature action.

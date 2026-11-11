@@ -1,6 +1,5 @@
 --!strict
 
-local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Constants"))
 
@@ -50,7 +49,9 @@ local function createResourceNode(
         local leaves = Instance.new("Part")
         leaves.Name = "Leaves"
         leaves.Size = Vector3.new(6, 4, 6)
-        leaves.Position = position + Vector3.new(0, 4.5, 0)
+        leaves.Position = position
+            + Vector3.new(0, 4.5, 0)
+            + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0))
         leaves.Anchored = true
         leaves.BrickColor = BrickColor.new("Forest green")
         leaves.Material = Enum.Material.LeafyGrass
@@ -84,7 +85,9 @@ local function createResourceNode(
         local berries = Instance.new("Part")
         berries.Name = "Berries"
         berries.Size = Vector3.new(1.5, 1.5, 1.5)
-        berries.Position = position + Vector3.new(0, 2, 0)
+        berries.Position = position
+            + Vector3.new(0, 2, 0)
+            + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0))
         berries.Anchored = true
         berries.BrickColor = BrickColor.new("Bright red")
         berries.Material = Enum.Material.Neon
@@ -113,7 +116,9 @@ local function createGardenPlot(folder: Folder, index: number, position: Vector3
     local border = Instance.new("Part")
     border.Name = "Border"
     border.Size = Vector3.new(5.4, 0.2, 5.4)
-    border.Position = position + Vector3.new(0, 0.3, 0)
+    border.Position = position
+        + Vector3.new(0, 0.3, 0)
+        + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0))
     border.Anchored = true
     border.BrickColor = BrickColor.new("Dark stone grey")
     border.Material = Enum.Material.Concrete
@@ -130,64 +135,63 @@ local function createGardenPlot(folder: Folder, index: number, position: Vector3
     return plotPart
 end
 
-function WorldBuilder.init()
-    local folder = Workspace:FindFirstChild("HabitatWorld")
-    if not folder then
-        folder = Instance.new("Folder")
-        folder.Name = "HabitatWorld"
-        folder.Parent = Workspace
-    end
-
+function WorldBuilder.buildHabitat(folder: Folder, owner: Player)
     -- Baseplate
     local baseplate = Instance.new("Part")
     baseplate.Name = "Baseplate"
     baseplate.Size = Vector3.new(100, 1, 100)
     baseplate.Position = Vector3.new(0, -0.5, 0)
+        + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0))
     baseplate.Anchored = true
     baseplate.BrickColor = BrickColor.new("Dark green")
     baseplate.Material = Enum.Material.Grass
     baseplate.Parent = folder
 
     -- Resource Nodes with ProximityPrompts
+    -- ... (keep existing creation logic but adapt positions)
+    -- Actually, for now, let's just use the same logic but adjust positions slightly if needed
+    -- To keep it simple, I'll keep the positions for now, but they will be part of the individual habitat folder
+
+    -- Resource Nodes with ProximityPrompts
     createResourceNode(
         folder,
         "Tree_1",
-        Vector3.new(15, 2.5, 0),
+        Vector3.new(15, 2.5, 0) + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)),
         BrickColor.new("Reddish brown"),
         Constants.RESOURCES.WOOD
     )
     createResourceNode(
         folder,
         "Tree_2",
-        Vector3.new(-15, 2.5, 0),
+        Vector3.new(-15, 2.5, 0) + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)),
         BrickColor.new("Reddish brown"),
         Constants.RESOURCES.WOOD
     )
     createResourceNode(
         folder,
         "Rock_1",
-        Vector3.new(0, 1.5, 15),
+        Vector3.new(0, 1.5, 15) + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)),
         BrickColor.new("Medium stone grey"),
         Constants.RESOURCES.STONE
     )
     createResourceNode(
         folder,
         "Rock_2",
-        Vector3.new(0, 1.5, -15),
+        Vector3.new(0, 1.5, -15) + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)),
         BrickColor.new("Medium stone grey"),
         Constants.RESOURCES.STONE
     )
     createResourceNode(
         folder,
         "Dew_1",
-        Vector3.new(10, 1, 10),
+        Vector3.new(10, 1, 10) + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)),
         BrickColor.new("Cyan"),
         Constants.RESOURCES.DEWDROP
     )
     createResourceNode(
         folder,
         "Bush_1",
-        Vector3.new(-10, 1.25, -10),
+        Vector3.new(-10, 1.25, -10) + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)),
         BrickColor.new("Forest green"),
         Constants.RESOURCES.SEED_BERRY
     )
@@ -198,10 +202,10 @@ function WorldBuilder.init()
     plotsFolder.Parent = folder
 
     local plotPositions = {
-        Vector3.new(4, 0.2, 4),
-        Vector3.new(-4, 0.2, 4),
-        Vector3.new(4, 0.2, -4),
-        Vector3.new(-4, 0.2, -4),
+        Vector3.new(4, 0.2, 4) + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)),
+        Vector3.new(-4, 0.2, 4) + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)),
+        Vector3.new(4, 0.2, -4) + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)),
+        Vector3.new(-4, 0.2, -4) + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)),
     }
 
     for i, pos in ipairs(plotPositions) do
@@ -217,7 +221,11 @@ function WorldBuilder.init()
     for _, pos in ipairs(plotPositions) do
         local pathPart = Instance.new("Part")
         pathPart.Name = "PathSegment"
-        pathPart.Size = Vector3.new(1, 0.2, (pos - Vector3.new(0, 0, 0)).Magnitude)
+        pathPart.Size = Vector3.new(
+            1,
+            0.2,
+            (pos - (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0))).Magnitude
+        )
         pathPart.Position = (pos + Vector3.new(0, 0.15, 0)) / 2
         pathPart.Anchored = true
         pathPart.BrickColor = BrickColor.new("Sand red")
@@ -231,6 +239,7 @@ function WorldBuilder.init()
     pond.Name = "Pond"
     pond.Size = Vector3.new(12, 0.5, 12)
     pond.Position = Vector3.new(0, 0.25, 0)
+        + (folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0))
     pond.Anchored = true
     pond.BrickColor = BrickColor.new("Bright blue")
     pond.Material = Enum.Material.Water
@@ -238,7 +247,7 @@ function WorldBuilder.init()
     pond.Shape = Enum.PartType.Cylinder
     pond.Parent = folder
 
-    print("[WorldBuilder] Habitat world initialized with interactive elements.")
+    print("[WorldBuilder] Habitat built for: " .. owner.Name)
 end
 
 return WorldBuilder

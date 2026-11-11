@@ -157,7 +157,15 @@ This workflow change is committed but has not yet had a live CI run. The workflo
 
 ## Current priority and exact next task
 
-**Next task:** implement the first complete vertical slice of player-owned habitats, starting with a server-owned habitat registry/allocation and a reliable lifecycle integrated with player join, character spawn, and cleanup. Before editing, inspect the current WorldBuilder, ServerMain, DataStoreManager, PlantManager, ResourceManager, CreatureManager, and remote call sites. Design the minimum compatible data/runtime boundary so later resource and creature isolation can attach to it.
+**Next task:** implement per-habitat resource nodes and cooldowns. Scope node identity, availability, cooldowns, and rewards to the owning habitat/session. Validate server-resolved node and owner. Prevent concurrent requests from duplicating rewards. Keep one player's gathering from changing another player's resources.
 
-Do not attempt to build every subsystem at once. First produce one working, testable per-player habitat slice and update this state/roadmap with the next dependency. Treat DataStore cross-server locking as a critical dependent workstream; do not claim persistence isolation until it is implemented and tested.
+**Progress achieved:** Server-owned habitat allocation/lifecycle vertical slice is implemented:
+- [x] Server-owned allocation and registry keyed by server-known UserId.
+- [x] One isolated habitat per player, with non-overlapping placement.
+- [x] Correct spawn and respawn handling.
+- [ ] Safe restoration from validated player data.
+- [ ] Cleanup on leave and shutdown without duplicate instances.
+- [ ] Ownership validation on every plot/resource/creature action.
+
+This foundation enables later resource and creature isolation to attach to it. Need to work on resource node independence and validation before claiming milestone 2 completeness.
 

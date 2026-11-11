@@ -2,10 +2,10 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local RemoteEvents = require(Shared:WaitForChild("RemoteEvents"))
-local _Constants = require(Shared:WaitForChild("Constants"))
 
 local _player = Players.LocalPlayer
 
@@ -37,7 +37,24 @@ local function OnPlotAction(_player: Player, prompt: ProximityPrompt)
     end
 end
 
--- Connect to all proximity prompts in the world
+local function ConnectToPlayerHabitat(player: Player)
+    local habitat = Workspace:WaitForChild("Habitats")
+    habitat = habitat:FindFirstChild("Habitat_" .. tostring(player.UserId))
+    if habitat then
+        -- Wait for habitat to be fully initialized
+        if habitat:FindFirstChild("GardenPlots") then
+            ConnectToFolder(habitat)
+        else
+            -- Wait for garden plots to be created
+            habitat.ChildAdded:Connect(function(child)
+                if child.Name == "GardenPlots" then
+                    ConnectToFolder(habitat)
+                end
+            end)
+        end
+    end
+end
+
 local function ConnectToFolder(folder: Instance?)
     if not folder then
         return
@@ -50,45 +67,36 @@ local function ConnectToFolder(folder: Instance?)
             local plotIndex = descendant:GetAttribute("PlotIndex")
 
             if nodeId then
-                descendant.Triggered:Connect(function(player)
-                    OnResourceGathered(player, descendant)
+                descendant.Triggered:Connect(function(triggeringPlayer)
+                    OnResourceGathered(triggeringPlayer, descendant)
                 end)
             end
 
             if plotIndex then
-                descendant.Triggered:Connect(function(player)
-                    OnPlotAction(player, descendant)
+                descendant.Triggered:Connect(function(triggeringPlayer)
+                    OnPlotAction(triggeringPlayer, descendant)
                 end)
             end
         end
     end
 end
 
--- Wait for world to load
-local workspace = game:GetService("Workspace")
-local habitatWorld = workspace:WaitForChild("HabitatWorld", 10)
-if habitatWorld then
-    ConnectToFolder(habitatWorld)
-
-    -- Watch for new prompts added dynamically during gameplay
-    habitatWorld.DescendantAdded:Connect(function(descendant)
-        if descendant:IsA("ProximityPrompt") then
-            local nodeId = descendant:GetAttribute("NodeId")
-            local plotIndex = descendant:GetAttribute("PlotIndex")
-
-            if nodeId then
-                descendant.Triggered:Connect(function(player)
-                    OnResourceGathered(player, descendant)
-                end)
-            end
-
-            if plotIndex then
-                descendant.Triggered:Connect(function(player)
-                    OnPlotAction(player, descendant)
-                end)
-            end
+local habitatsFolder = Workspace:WaitForChild("Habitats")
+if habitatsFolder then
+    habitatsFolder.ChildAdded:Connect(function(child)
+        if child:IsA("Folder") then
+            -- New habitat folder added
+            ConnectToFolder(child)
         end
     end)
 end
+
+-- Initialize connection when player joins
+Players.PlayerAdded:Connect(function(player)
+    if player == _player then
+        print("[ProximityHandler] Connected to player, setting up habitat prompts")
+        ConnectToPlayerHabitat(_player)
+    end
+end)
 
 print("[ProximityHandler] Client proximity prompts connected successfully.")
