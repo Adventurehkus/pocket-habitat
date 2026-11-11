@@ -1,8 +1,10 @@
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Constants"))
-local RemoteEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RemoteEvents"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Constants = require(Shared:WaitForChild("Constants"))
+local EconomyRules = require(Shared:WaitForChild("EconomyRules"))
+local RemoteEvents = require(Shared:WaitForChild("RemoteEvents"))
 local DataStoreManager = require(script.Parent:WaitForChild("DataStoreManager"))
 
 local EconomyManager = {}
@@ -36,18 +38,16 @@ function EconomyManager.addItem(player: Player, itemId: string, amount: number):
         return false
     end
 
-    local currentQty = data.inventory[itemId] or 0
-    local maxCapacity = 50 + (data.upgrades.storage_expansion or 1) * 25
-    local totalItems = 0
-    for _, qty in pairs(data.inventory) do
-        totalItems += qty
-    end
-
-    if totalItems + amount > maxCapacity then
-        RemoteEvents.Notification:FireClient(player, "Inventory full!")
+    local canAdd, validationError =
+        EconomyRules.canAddItem(data.inventory, data.upgrades, itemId, amount)
+    if not canAdd then
+        if validationError == "Inventory full" then
+            RemoteEvents.Notification:FireClient(player, "Inventory full!")
+        end
         return false
     end
 
+    local currentQty = data.inventory[itemId] or 0
     data.inventory[itemId] = currentQty + amount
     RemoteEvents.SyncData:FireClient(player, data)
     return true
