@@ -262,8 +262,7 @@ jobs:
                   copilot_prompt="$prompt"
                   for attachment in "${STAGE_FILES[@]}"; do
                     if [[ -f "$attachment" ]]; then
-                      copilot_prompt+=$'\\n\\nRead this supporting pipeline file before acting: '
-                      copilot_prompt+="$attachment"
+                      copilot_prompt+=" Supporting pipeline file to read before acting: $attachment."
                     fi
                   done
                   command_args+=(
