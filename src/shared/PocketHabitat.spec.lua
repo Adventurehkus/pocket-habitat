@@ -1,4 +1,5 @@
 --!strict
+-- selene: allow(undefined_variable)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Constants"))
