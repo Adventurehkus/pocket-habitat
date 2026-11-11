@@ -60,7 +60,7 @@ After the pipeline runs, its persistence step commits working changes to `ai/gam
 
 ## CI multi-provider model pipeline
 
-The GitHub Actions workflow on `main` orchestrates separate implementation, independent review, conditional repair, deterministic validation, and independent QA stages. The workflow checks out `ai/game-build`, where `opencode.json` defines the OpenCode providers and project agents.
+The GitHub Actions workflow on `main` orchestrates implementation, independent review, a controlled alternate-review fallback when the required decision header is missing, conditional repair, deterministic validation, and independent QA. For Copilot validation repair, the workflow embeds the validation log directly in the prompt rather than requiring Copilot to open a runner-temporary file. The workflow checks out `ai/game-build`, where `opencode.json` defines the OpenCode providers and project agents.
 
 ### Configured model routes
 
