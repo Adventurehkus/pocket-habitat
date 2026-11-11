@@ -102,7 +102,14 @@
         "question": false,
         "lsp": false,
         "skill": false
-      }
+      },
+      "permissions": [
+        {
+          "action": "subagent",
+          "resource": "*",
+          "effect": "deny"
+        }
+      ]
     }
   }
 }
