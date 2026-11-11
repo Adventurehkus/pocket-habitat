@@ -1,27 +1,131 @@
 # Pocket Habitat — Technical Architecture
 
-## Architecture Overview
-Pocket Habitat follows a strict **Client-Server Architecture** with **Server-Authoritative** state management. All critical actions—such as resource harvesting, planting, quest completion, currency rewards, inventory updates, and purchases—are validated and processed on the server to prevent exploitation and ensure data integrity.
+## Architecture principles
 
-## Directory & Module Structure
-- **Server (`src/server`)**:
-  - `ServerMain.server.luau`: Entry point for server initialization.
-  - `Systems/`: Server-side simulation systems (DataStoreManager, EconomyManager, InventoryManager, QuestManager, CreatureManager, PlantManager).
-- **Shared (`src/shared`)**:
-  - `Data/`: Static configuration tables (ItemDefs, PlantDefs, CreatureDefs, QuestDefs).
-  - `Network/`: RemoteEvent and RemoteFunction definitions and wrappers.
-  - `Utils/`: Common utility math and helper functions.
-- **Client (`src/client`)**:
-  - `ClientMain.client.luau`: Entry point for client initialization.
-  - `Controllers/`: UI controllers, input handlers, and audio/visual feedback managers.
-- **Assets (`assets/runtime`)**:
-  - Low-poly models, prefabs, particles, and sounds stored in ServerStorage during runtime.
+Pocket Habitat uses a Roblox client/server architecture. The server owns gameplay state, player progression, rewards, ownership, and persistence. The client provides input, presentation, UI, and feedback. Treat every client request and every client-supplied value as untrusted.
 
-## Data Persistence & Security (Planned Requirements)
-The following are required design constraints; they are not implemented or verified yet:
-- **DataStores**: Add versioned player data, safe migrations, retry logic with bounded backoff, and clear failure handling.
-- **Multiplayer Isolation**: Key player records by `UserId` and prevent cross-player state changes or save races.
-- **Client Validation**: Treat the client as presentation/input only. Validate requests, ownership, distance, cooldowns, and rewards on the server before mutating state.
+This document separates the **current source architecture** from the **target architecture**. A target design must not be described as implemented until it exists in source and is verified.
 
-## Implementation Status
-This document describes the intended architecture. It does not claim the listed managers, persistence layer, network wrappers, or gameplay systems already exist.
+## Current source layout
+
+The project uses a compact Rojo mapping rather than the older proposed Systems/Data/Network folder tree.
+
+### Server modules
+
+- src/server/ServerMain.server.lua — server startup and player lifecycle orchestration.
+- src/server/WorldBuilder.lua — current shared world/habitat construction.
+- src/server/ResourceManager.lua — resource node interactions and rewards.
+- src/server/PlantManager.lua — plot interactions, planting, watering, and harvesting.
+- src/server/EconomyManager.lua — inventory, Bells, spending, and upgrades.
+- src/server/QuestManager.lua — quest state, objectives, and rewards.
+- src/server/CreatureManager.lua — discovery checks and runtime creature instances.
+- src/server/DataStoreManager.lua — player data loading, in-memory session table, and save behavior.
+
+### Shared modules
+
+- src/shared/Constants.lua — item, plant, creature, quest, and upgrade definitions.
+- src/shared/PlantRules.lua — production plant/plot interaction validation.
+- src/shared/EconomyRules.lua — production inventory and capacity validation.
+- src/shared/PocketHabitat.spec.lua — TestEZ specifications for shared production rules.
+
+### Client modules
+
+- src/client/ProximityHandler.client.lua — client-side ProximityPrompt interaction wiring and remote invocation. Inspect current source for other client controllers before extending the client architecture.
+
+### Project and tooling
+
+- default.project.json — Rojo project mapping.
+- rokit.toml and wally.toml — pinned toolchain and package dependencies.
+- opencode.json — provider/model registry for the autonomous development pipeline.
+- DevPackages — installed/vendored dependencies; do not edit or format dependency source.
+
+## Current runtime architecture and known limitations
+
+The current prototype has functional source paths for resource gathering, planting/watering/harvesting, inventory/economy operations, quest definitions, creature discoveries, and client prompt interactions. Run #30 passed Rojo, StyLua, and Selene. Roblox runtime, TestEZ execution, Studio, and multiplayer are not verified.
+
+At the inspected gameplay checkpoint:
+
+- WorldBuilder creates one shared Workspace.HabitatWorld and uses fixed world positions for the existing starter plots/resources. A full per-player habitat allocation/restore/cleanup lifecycle is not implemented.
+- ResourceManager has shared module-level node/cooldown state rather than independently allocated resource state per habitat.
+- CreatureManager uses shared runtime storage and a global creature registry keyed by creature type/ID. Discovery data is player-aware, but instance lifecycle and movement bounds are not fully scoped to an owner.
+- DataStoreManager uses GetAsync/SetAsync and an in-memory activeSessions table. An in-memory table does not prevent the same user from loading/saving from another Roblox server; atomic cross-server session ownership is still required.
+- Quest definitions and quest sequencing are not fully aligned. Some objective types do not have complete server-side action tracking.
+- Some upgrade definitions do not yet have corresponding complete world/gameplay effects.
+
+Re-check all findings against current source before making changes. Update this section as the architecture evolves.
+
+## Target player-owned habitat architecture
+
+The desired architecture has one server-owned habitat runtime per player session.
+
+### Ownership and registry
+
+- The server creates an authoritative habitat record keyed by the Player.UserId obtained from Roblox's Player instance.
+- The registry maps each user to exactly one active habitat runtime in that server.
+- The habitat root and relevant descendants may expose OwnerUserId attributes for inspection, but attributes are metadata, not authorization. Server registries and server-side comparisons determine ownership.
+- Clients never choose their own UserId, habitat owner, plot owner, resource owner, reward, or save key.
+- All lookups begin from the server-supplied Player and resolve the target inside that player's registered habitat.
+
+### Lifecycle
+
+1. Player joins.
+2. Server acquires cross-server save-session ownership.
+3. Server loads, validates, and migrates saved data.
+4. Server allocates the player's runtime habitat.
+5. Server creates/restores its plots, resources, plants, upgrades, and discovered creatures.
+6. Character spawns at that habitat.
+7. Server validates and processes player interactions.
+8. Session state is saved while the lease is valid.
+9. On departure, the server performs a bounded final save, cleans runtime instances/connections, and releases session ownership.
+10. BindToClose performs bounded work for remaining sessions.
+
+Character respawns must reuse the existing habitat. A failed load or failed lock acquisition must not create a default save or a partially restored world.
+
+### Resource subsystem
+
+Resource node identity and availability are scoped to an owning habitat/session. A request resolves the node using the calling Player and server registry, then validates node identity, owner, character/root part, interaction distance, current cooldown, inventory capacity, and session state. Mutations and reward grants must be concurrency-safe and idempotent.
+
+### Plant and plot subsystem
+
+Each plot belongs to one habitat. Keep shared validation in PlantRules and extend it rather than duplicating rules in managers. Validate plot membership and ownership using the server registry. Persistent data stores serializable plot state only; runtime Instances and ProximityPrompts are reconstructed from validated data.
+
+### Creature subsystem
+
+Creature discovery progress is stored per player. Runtime instances and behavior loops are parented/scoped to that player's habitat. Registry keys include ownership and creature identity. Movement boundaries derive from the owning habitat rather than fixed global coordinates. Cleanup disconnects loops and destroys only the leaving player's runtime objects.
+
+### Economy, quest, and upgrade subsystems
+
+Economy operations validate finite integer quantities, ownership, balance, capacity, and item definitions. Multi-step reward/purchase operations are ordered or rolled back safely.
+
+Quest progress comes from server-confirmed gameplay actions, not client-supplied counters or unreliable inference from current inventory. Claims are idempotent and persistent.
+
+An upgrade can be purchased only when its effect is implemented. Its effect must be applied to the habitat/runtime and restored from save data on rejoin.
+
+## Persistence architecture
+
+The existing data key is PocketHabitat_v2_PlayerData. Preserve compatibility.
+
+The target session protocol must use an atomic UpdateAsync operation to acquire an owner token and expiring lease. Each live server has a unique session token. Saves must confirm that token/lease ownership inside an atomic update; stale servers must not overwrite a newer session. Lease renewal and release must verify the token. Use bounded retry/backoff and distinguish:
+- A successfully read missing key (new player).
+- A successfully read valid existing record.
+- A malformed/incompatible record.
+- A read request failure or throttling.
+- A lock held by another live session.
+- A lost/expired lease.
+- A failed save/release operation.
+
+Only the first case may initialize default player data. Add explicit schema validation and migrations; never serialize Roblox Instances or other non-serializable runtime objects.
+
+## Remote and interaction boundaries
+
+- Roblox supplies Player automatically as the first OnServerInvoke callback argument for RemoteFunction:InvokeServer calls. Do not send LocalPlayer as an ordinary client argument.
+- Roblox supplies Player automatically as the first OnServerEvent callback argument for RemoteEvent:FireServer calls.
+- ProximityPrompt.Triggered provides playerWhoTriggered. Use the event signature and validate the request on the server.
+- Validate types, ranges, session, ownership, target ancestry/registry membership, server-measured distance, cooldown, request rate, inventory, and current gameplay state before mutation.
+- Client UI, hidden prompts, attributes, or local state are never authorization.
+
+## Test boundaries
+
+Pure shared rules should be tested directly through their production modules. External Roblox services and engine Instances should be isolated behind narrow adapters so service boundaries can be mocked without mocking the gameplay rules themselves.
+
+TestEZ specifications exist for PlantRules and EconomyRules, but they have not been executed by a compatible Roblox/TestEZ runner. Run #30 did not run Roblox engine, Studio, multiplayer, or DataStore integration tests. Never report those as passing without actual evidence.
