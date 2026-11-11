@@ -11,6 +11,9 @@ permissions:
   - action: task
     resource: "*"
     effect: deny
+  - action: subagent
+    resource: "*"
+    effect: deny
 ---
 
 # Pocket Habitat Independent Reviewer
