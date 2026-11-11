@@ -8,26 +8,6 @@ on:
         required: true
         type: string
         default: "Read AGENTS.md and continue the next incomplete milestone."
-      test_mode:
-        description: Use mock agents only (no provider API calls and no repository commits)
-        required: true
-        type: choice
-        options:
-          - live
-          - mock
-        default: live
-      test_scenario:
-        description: Scenario to simulate when test mode is mock
-        required: true
-        type: choice
-        options:
-          - happy-path
-          - review-repair
-          - qa-repair
-          - validation-repair
-          - daily-quota
-          - rate-limit
-        default: happy-path
 
 permissions:
   contents: write
@@ -72,7 +52,6 @@ jobs:
           echo "OpenCode provider/model registry is valid JSON and required provider sections exist."
 
       - name: Install OpenCode
-        if: inputs.test_mode == 'live'
         shell: bash
         run: |
           curl -fsSL https://opencode.ai/v2/install | bash
@@ -98,17 +77,13 @@ jobs:
       - name: Run staged multi-agent development pipeline
         id: pipeline
         env:
-          # In mock mode, deliberately replace every real credential with an
-          # invalid sentinel. The mock branch never launches OpenCode or Copilot.
-          GOOGLE_GENERATIVE_AI_API_KEY: ${{ inputs.test_mode == 'mock' && 'MOCK_MODE_NO_API' || secrets.GEMINI_API_KEY }}
-          GROQ_API_KEY: ${{ inputs.test_mode == 'mock' && 'MOCK_MODE_NO_API' || secrets.GROQ_API_KEY }}
-          OPENROUTER_API_KEY: ${{ inputs.test_mode == 'mock' && 'MOCK_MODE_NO_API' || secrets.OPENROUTER_API_KEY }}
-          COHERE_API_KEY: ${{ inputs.test_mode == 'mock' && 'MOCK_MODE_NO_API' || secrets.COHERE_API_KEY }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ inputs.test_mode == 'mock' && 'MOCK_MODE_NO_API' || secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ inputs.test_mode == 'mock' && 'MOCK_MODE_NO_API' || secrets.CLOUDFLARE_API_TOKEN }}
-          COPILOT_GITHUB_TOKEN: ${{ inputs.test_mode == 'mock' && 'MOCK_MODE_NO_API' || secrets.COPILOT_GITHUB_TOKEN }}
-          PIPELINE_TEST_MODE: ${{ inputs.test_mode == 'mock' }}
-          TEST_SCENARIO: ${{ inputs.test_scenario }}
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           TASK: ${{ inputs.task }}
           NO_COLOR: "1"
         shell: bash
@@ -148,96 +123,50 @@ jobs:
               cohere/*) echo "cohere" ;;
               cloudflare-workers-ai/*) echo "cloudflare-workers-ai" ;;
               github-copilot/*) echo "github-copilot" ;;
-              mock/*) echo "mock" ;;
               *) echo "unknown" ;;
             esac
           }
 
-          if [[ "$PIPELINE_TEST_MODE" == "true" ]]; then
-            echo "::notice::MOCK MODE ENABLED — no real model CLI will be launched."
-            case "$TEST_SCENARIO" in
-              happy-path|review-repair|qa-repair|validation-repair)
-                MODEL_CHAIN=(
-                  "mock/implementation"
-                  "mock/reviewer"
-                  "mock/repair"
-                  "mock/qa"
-                  "mock/validation-repair"
-                  "mock/qa-repair"
-                )
-                ;;
-              daily-quota)
-                MODEL_CHAIN=(
-                  "openrouter/test-daily-quota"
-                  "openrouter/test-free-sibling"
-                  "mock/implementation"
-                  "mock/reviewer"
-                  "mock/repair"
-                  "mock/qa"
-                  "mock/validation-repair"
-                  "mock/qa-repair"
-                )
-                ;;
-              rate-limit)
-                MODEL_CHAIN=(
-                  "openrouter/test-rate-limit"
-                  "openrouter/test-free-sibling"
-                  "mock/implementation"
-                  "mock/reviewer"
-                  "mock/repair"
-                  "mock/qa"
-                  "mock/validation-repair"
-                  "mock/qa-repair"
-                )
-                ;;
-              *)
-                echo "::error::Unknown mock test scenario: $TEST_SCENARIO"
-                exit 1
-                ;;
-            esac
-          else
-            if [[ -n "${GOOGLE_GENERATIVE_AI_API_KEY:-}" ]]; then
-              MODEL_CHAIN+=(
-                "google/gemini-3.5-flash-lite"
-                "google/gemini-3.1-flash-lite"
-                "google/gemini-3.8-flash"
-                "google/gemma-4-31b-it"
-                "google/gemma-4-26b-a4b-it"
-              )
-            fi
-            if [[ -n "${CLOUDFLARE_ACCOUNT_ID:-}" && -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
-              MODEL_CHAIN+=("cloudflare-workers-ai/glm-4.7-flash")
-            fi
-            if [[ -n "${COHERE_API_KEY:-}" ]]; then
-              MODEL_CHAIN+=(
-                "cohere/north-mini-code"
-                "cohere/command-a-plus"
-                "cohere/command-a-reasoning"
-              )
-            fi
-            if [[ -n "${GROQ_API_KEY:-}" ]]; then
-              MODEL_CHAIN+=(
-                "groq/qwen/qwen3.8-27b"
-                "groq/openai/gpt-oss-120b"
-                "groq/openai/gpt-oss-20b"
-              )
-            fi
-            if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
-              MODEL_CHAIN+=(
-                "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
-                "openrouter/cohere/north-mini-code:free"
-                "openrouter/recursive/flint-v1.0:free"
-                "openrouter/thinkingmachines/inkling-2-small:free"
-                "openrouter/baidu/ernie-5.5-flash-preview:free"
-                "openrouter/nvidia/nemotron-3.5-lightning:free"
-                "openrouter/nvidia/nemotron-3.5-super-vl:free"
-              )
-            fi
-  
-            # Copilot Free exposes an Auto model through its CLI adapter.
-            if [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]] && command -v copilot >/dev/null 2>&1; then
-              MODEL_CHAIN+=("github-copilot/auto")
-            fi
+            MODEL_CHAIN+=(
+              "google/gemini-3.5-flash-lite"
+              "google/gemini-3.1-flash-lite"
+              "google/gemini-3.8-flash"
+              "google/gemma-4-31b-it"
+              "google/gemma-4-26b-a4b-it"
+            )
+          fi
+          if [[ -n "${CLOUDFLARE_ACCOUNT_ID:-}" && -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+            MODEL_CHAIN+=("cloudflare-workers-ai/glm-4.7-flash")
+          fi
+          if [[ -n "${COHERE_API_KEY:-}" ]]; then
+            MODEL_CHAIN+=(
+              "cohere/north-mini-code"
+              "cohere/command-a-plus"
+              "cohere/command-a-reasoning"
+            )
+          fi
+          if [[ -n "${GROQ_API_KEY:-}" ]]; then
+            MODEL_CHAIN+=(
+              "groq/qwen/qwen3.8-27b"
+              "groq/openai/gpt-oss-120b"
+              "groq/openai/gpt-oss-20b"
+            )
+          fi
+          if [[ -n "${OPENROUTER_API_KEY:-}" ]]; then
+            MODEL_CHAIN+=(
+              "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+              "openrouter/cohere/north-mini-code:free"
+              "openrouter/recursive/flint-v1.0:free"
+              "openrouter/thinkingmachines/inkling-2-small:free"
+              "openrouter/baidu/ernie-5.5-flash-preview:free"
+              "openrouter/nvidia/nemotron-3.5-lightning:free"
+              "openrouter/nvidia/nemotron-3.5-super-vl:free"
+            )
+          fi
+
+          # Copilot Free exposes an Auto model through its CLI adapter.
+          if [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]] && command -v copilot >/dev/null 2>&1; then
+            MODEL_CHAIN+=("github-copilot/auto")
           fi
 
           if [[ "${#MODEL_CHAIN[@]}" -eq 0 ]]; then
@@ -318,90 +247,53 @@ jobs:
                 RUN_COUNTER=$((RUN_COUNTER + 1))
                 log_file="$RUNNER_TEMP/opencode-${stage}-${RUN_COUNTER}.log"
                 echo "::group::${stage}: $model (attempt $((retry_count + 1)))"
-                if [[ "$PIPELINE_TEST_MODE" == "true" ]]; then
-                  # Deterministic mock provider responses exercise the exact
-                  # quota classifier, retry loop, stage gates, and repair paths.
-                  # No opencode/copilot executable is invoked in this branch.
-                  if [[ "$model" == "openrouter/test-daily-quota" ]]; then
-                    printf 'MOCK PROVIDER ERROR: daily quota exceeded; requests per day limit reached.\n' > "$log_file"
-                    status=1
-                  elif [[ "$model" == "openrouter/test-rate-limit" && "$retry_count" -lt 2 ]]; then
-                    printf 'MOCK PROVIDER ERROR: requests per minute limit; retry in 0s.\n' > "$log_file"
-                    status=1
-                  else
-                    case "$stage" in
-                      review)
-                        if [[ "$TEST_SCENARIO" == "review-repair" ]]; then
-                          printf 'REVIEW_FINDINGS: YES\n\nMOCK: reviewer found a simulated high-severity defect.\n' > "$log_file"
-                        else
-                          printf 'REVIEW_FINDINGS: NO\n\nMOCK: no actionable defects.\n' > "$log_file"
-                        fi
-                        ;;
-                      qa)
-                        if [[ "$TEST_SCENARIO" == "qa-repair" ]]; then
-                          printf 'QA_BLOCKER: YES\n\nMOCK: QA found a simulated blocker.\n' > "$log_file"
-                        else
-                          printf 'QA_BLOCKER: NO\n\nMOCK: no blocking defects.\n' > "$log_file"
-                        fi
-                        ;;
-                      implementation) printf 'MOCK_IMPLEMENTATION: completed\n' > "$log_file" ;;
-                      repair) printf 'MOCK_REPAIR: completed\n' > "$log_file" ;;
-                      validation-repair) printf 'MOCK_VALIDATION_REPAIR: completed\n' > "$log_file" ;;
-                      qa-repair) printf 'MOCK_QA_REPAIR: completed\n' > "$log_file" ;;
-                      *) printf 'MOCK_STAGE: %s completed\n' "$stage" > "$log_file" ;;
-                    esac
-                    status=0
-                  fi
-                  cat "$log_file"
+                # Give each agent only the credentials for the provider it is
+                # currently using.
+                command_args=(env -i "PATH=$PATH" "HOME=$HOME" "NO_COLOR=1" "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" "RUNNER_TEMP=$RUNNER_TEMP")
+                case "$provider" in
+                  google) command_args+=("GOOGLE_GENERATIVE_AI_API_KEY=$GOOGLE_GENERATIVE_AI_API_KEY") ;;
+                  groq) command_args+=("GROQ_API_KEY=$GROQ_API_KEY") ;;
+                  openrouter) command_args+=("OPENROUTER_API_KEY=$OPENROUTER_API_KEY") ;;
+                  cohere) command_args+=("COHERE_API_KEY=$COHERE_API_KEY") ;;
+                  cloudflare-workers-ai)
+                    command_args+=("CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN" "CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID")
+                    ;;
+                  github-copilot) command_args+=("COPILOT_GITHUB_TOKEN=$COPILOT_GITHUB_TOKEN") ;;
+                esac
+
+                if [[ "$provider" == "github-copilot" ]]; then
+                  copilot_prompt="$prompt"
+                  for attachment in "${STAGE_FILES[@]}"; do
+                    if [[ -f "$attachment" ]]; then
+                      copilot_prompt+=" Supporting pipeline file to read before acting: $attachment."
+                    fi
+                  done
+                  command_args+=(
+                    copilot -p "$copilot_prompt" --allow-all-tools
+                    --deny-tool='shell(git commit)'
+                    --deny-tool='shell(git push)'
+                    --deny-tool='shell(gh workflow run)'
+                    --deny-tool='shell(gh release create)'
+                    --deny-tool='shell(rojo upload)'
+                  )
                 else
-                  # Give each agent only the credentials for the provider it is
-                  # currently using. The test branch never enters this code.
-                  command_args=(env -i "PATH=$PATH" "HOME=$HOME" "NO_COLOR=1" "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" "RUNNER_TEMP=$RUNNER_TEMP")
-                  case "$provider" in
-                    google) command_args+=("GOOGLE_GENERATIVE_AI_API_KEY=$GOOGLE_GENERATIVE_AI_API_KEY") ;;
-                    groq) command_args+=("GROQ_API_KEY=$GROQ_API_KEY") ;;
-                    openrouter) command_args+=("OPENROUTER_API_KEY=$OPENROUTER_API_KEY") ;;
-                    cohere) command_args+=("COHERE_API_KEY=$COHERE_API_KEY") ;;
-                    cloudflare-workers-ai)
-                      command_args+=("CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN" "CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID")
-                      ;;
-                    github-copilot) command_args+=("COPILOT_GITHUB_TOKEN=$COPILOT_GITHUB_TOKEN") ;;
-                  esac
+                  command_args+=(
+                    opencode run --standalone --auto
+                    --model "$model" --agent "$agent"
+                    --title "Pocket Habitat ${stage} run ${GITHUB_RUN_NUMBER}"
+                  )
+                  for attachment in "${STAGE_FILES[@]}"; do
+                    if [[ -f "$attachment" ]]; then
+                      command_args+=(--file "$attachment")
+                    fi
+                  done
+                  command_args+=("$prompt")
+                fi
 
-                  if [[ "$provider" == "github-copilot" ]]; then
-                    copilot_prompt="$prompt"
-                    for attachment in "${STAGE_FILES[@]}"; do
-                      if [[ -f "$attachment" ]]; then
-                        copilot_prompt+=" Supporting pipeline file to read before acting: $attachment."
-                      fi
-                    done
-                    command_args+=(
-                      copilot -p "$copilot_prompt" --allow-all-tools
-                      --deny-tool='shell(git commit)'
-                      --deny-tool='shell(git push)'
-                      --deny-tool='shell(gh workflow run)'
-                      --deny-tool='shell(gh release create)'
-                      --deny-tool='shell(rojo upload)'
-                    )
-                  else
-                    command_args+=(
-                      opencode run --standalone --auto
-                      --model "$model" --agent "$agent"
-                      --title "Pocket Habitat ${stage} run ${GITHUB_RUN_NUMBER}"
-                    )
-                    for attachment in "${STAGE_FILES[@]}"; do
-                      if [[ -f "$attachment" ]]; then
-                        command_args+=(--file "$attachment")
-                      fi
-                    done
-                    command_args+=("$prompt")
-                  fi
-
-                  if "${command_args[@]}" 2>&1 | tee "$log_file"; then
-                    status=0
-                  else
-                    status=$?
-                  fi
+                if "${command_args[@]}" 2>&1 | tee "$log_file"; then
+                  status=0
+                else
+                  status=$?
                 fi
                 echo "::endgroup::"
                 STAGE_LOG["$stage"]="$log_file"
@@ -455,11 +347,7 @@ jobs:
 
                   record_attempt "$stage" "$provider" "$model" "$retry_count" "RETRYING" "RPM/TPM backoff ${delay}s"
                   echo "RPM/TPM limit on $model; one retry after ${delay}s."
-                  if [[ "$PIPELINE_TEST_MODE" == "true" ]]; then
-                    echo "Mock mode: skipping the real backoff wait."
-                  else
-                    sleep "$delay"
-                  fi
+                  sleep "$delay"
                   continue
                 fi
 
@@ -506,7 +394,6 @@ jobs:
             git diff --no-ext-diff --binary HEAD -- . ':(exclude)DevPackages/**' > "$DIFF_FILE"
           }
 
-          MOCK_VALIDATION_FAIL_USED=false
           run_validation() {
             local result=0
             : > "$VALIDATION_LOG"
@@ -532,12 +419,6 @@ jobs:
               result=1
             fi
 
-            if [[ "$PIPELINE_TEST_MODE" == "true" && "$TEST_SCENARIO" == "validation-repair" && "$MOCK_VALIDATION_FAIL_USED" == "false" ]]; then
-              MOCK_VALIDATION_FAIL_USED=true
-              echo "MOCK: deliberate one-time validation failure to exercise validation-repair routing." >> "$VALIDATION_LOG"
-              result=1
-            fi
-
             VALIDATION_STATUS="$result"
             cat "$VALIDATION_LOG"
             return "$result"
@@ -546,9 +427,6 @@ jobs:
           IMPLEMENT_PROMPT="You are the Pocket Habitat implementation agent. Read AGENTS.md and the relevant project documentation before changing code. Complete the user's task below with working, integrated Luau gameplay rather than disconnected scaffolding. Inspect the current repository state first and preserve correct existing work. Keep gameplay server-authoritative; validate all remote requests, ownership, distance, rewards, inventory, purchases, quests, and persistence. Do not publish to Roblox, access publishing credentials, create/switch branches, commit, or push. Never modify or reformat DevPackages or other vendored dependencies. Format/lint only src/. Run the checks you can actually run and report exact results; never claim Roblox Studio, engine, multiplayer, or TestEZ execution unless it truly happened. Update docs/PROJECT_STATE.md and docs/TESTING.md accurately. User task: ${TASK}"
 
           echo "Configured models: ${#MODEL_CHAIN[@]}"
-          if [[ "$PIPELINE_TEST_MODE" == "true" ]]; then
-            echo "::notice::MOCK PIPELINE TEST: scenario=$TEST_SCENARIO; no provider requests will be made."
-          fi
           echo "Pipeline stages: implementation -> independent review -> repair -> deterministic validation -> QA"
 
           # Stage 1: implementation.
@@ -666,14 +544,7 @@ jobs:
             echo
             echo "- Run: ${GITHUB_RUN_NUMBER}"
             echo "- Task: ${TASK}"
-            if [[ "$PIPELINE_TEST_MODE" == "true" ]]; then
-              echo "- Execution mode: MOCK TEST"
-              echo "- Scenario: ${TEST_SCENARIO}"
-              echo "- Model provider API requests: NONE"
-              echo "- Repository persistence: SKIPPED"
-            else
-              echo "- Execution mode: LIVE"
-            fi
+            echo "- Execution mode: LIVE"
             echo "- Models configured: ${#MODEL_CHAIN[@]}"
             echo
             echo "| Stage | Result | Model | Provider |"
@@ -705,7 +576,7 @@ jobs:
           exit "$PIPELINE_EXIT"
 
       - name: Persist work to GitHub
-        if: always() && inputs.test_mode != 'mock'
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
