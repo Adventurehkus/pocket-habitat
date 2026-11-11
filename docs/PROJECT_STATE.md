@@ -1,10 +1,11 @@
 # Pocket Habitat — Project State
 
 ## Current status
-- **Current milestone:** Milestone 1 — Playable Core (substantially complete; core gameplay loop implemented and verified via static checks).
-- **Status:** All core systems implemented: habitat world with ProximityPrompts, resource gathering, inventory, planting/growth/watering/harvesting, creature discovery with visual models and idle behavior, quest system, currency/upgrades, DataStore persistence. Client has full HUD with visual feedback (particles, floating text, sounds). All static checks pass (Rojo build, StyLua format, Selene lint).
-- **Last AI run:** Current session (gemini-3.8-flash fallback) — implemented complete Milestone 1 gameplay loop with visual polish.
-- **Latest gameplay checkpoint:** Core gameplay loop fully implemented and validated.
+- **Current milestone:** Milestone 1 — Playable Core, with follow-up repairs and validation work in progress.
+- **Latest completed workflow:** Run #27 (ID `43083640009`) produced a Rojo build and passed StyLua, but failed Selene because `PLOT_POSITIONS` was unused. The independent reviewer omitted its required decision header; the repair agent could not access the runner-temporary validation log; QA returned `QA_BLOCKER: NO`.
+- **Current source changes:** PlantManager plot handling was consolidated around shared production validation rules; inventory capacity validation was extracted into a shared production rule; targeted TestEZ specs were added. The workflow on `main` now has a reviewer-format fallback and embeds the validation report in Copilot repair prompts.
+- **Verification status:** These follow-up commits have not yet been checked by a new CI run. TestEZ specs are written but have not been executed. No new Roblox Studio, DataStore, or multiplayer tests are claimed.
+- **Last persisted gameplay checkpoint before follow-up repairs:** `c81cd87` on `ai/game-build`.
 
 ## Implemented and documented
 - Pocket Habitat game concept and core loops are documented in `GAME_DESIGN.md`.
@@ -14,14 +15,24 @@
 - Project configuration files are present: `default.project.json`, `rokit.toml`, `wally.toml`, `selene.toml`, `.stylua.toml`, and `opencode.json`.
 - `.gitignore` and concise project-specific `AGENTS.md` are present.
 
-## Actual checks from the latest run
-- Rokit installation using the official Linux installer: PASSED (Rokit 1.2.0).
-- Tool version checks: Rojo 7.6.1, StyLua 2.6.0, Selene 0.28.0, and Wally 0.3.2: PASSED.
-- `wally install`: PASSED; TestEZ 0.4.1 was installed under `DevPackages`.
-- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASSED, artifact size 41KB.
-- `stylua --check src`: PASSED (0 errors, 0 warnings).
-- `selene src`: PASSED (0 errors, 0 warnings).
-- TestEZ installed but test suite not yet run in Roblox engine.
+## Actual checks from workflow run #27
+- Rokit/toolchain installation and version checks: PASSED (Rokit 1.2.0, Rojo 7.6.1, StyLua 2.6.0, Selene 0.28.0, Wally 0.3.2).
+- `wally install`: PASSED; TestEZ 0.4.1 was installed.
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASSED; the build artifact was successfully uploaded.
+- `stylua --check src`: PASSED.
+- `selene src`: FAILED due to the unused `PLOT_POSITIONS` local in `src/server/PlantManager.lua`.
+- Independent review stage executed, but returned an invalid response format. Conditional review repair was skipped.
+- Validation repair did not make changes because Copilot could not read `$RUNNER_TEMP/pocket-habitat-validation.log` without interactive approval.
+- QA returned `QA_BLOCKER: NO`, while identifying missing tests for `harvest_or_plant`, prompt integration, server validation, rewards, and persistence.
+- The workflow job failed overall. Its checkpoint and artifact upload steps did succeed.
+
+## Follow-up fixes committed after run #27 (not yet CI-verified)
+- Added `src/shared/PlantRules.lua` and moved `PLOT_POSITIONS` above its use in `src/server/PlantManager.lua`; the handler now uses the shared rule validator.
+- Corrected manual/automatic seed selection and consumption, and changed legacy server callbacks to invoke the shared local handler instead of calling `InvokeServer` from the server.
+- Added `src/shared/EconomyRules.lua` and made `EconomyManager.addItem` use the same production inventory-capacity rule that is tested.
+- Expanded `src/shared/PocketHabitat.spec.lua` to cover plot validation, seed ownership, deterministic `harvest_or_plant`, watering, growth/harvest eligibility, and inventory capacity.
+- Updated `.github/workflows/ai-build.yml` on `main`: invalid reviewer output triggers one controlled independent fallback; YES/NO parsing has regression cases; Copilot receives the full validation report inline rather than having to open a runner-temporary file.
+- These changes are committed to their respective branches, but no new workflow or TestEZ execution has verified them yet.
 
 ## Phase 1 - Existing Gameplay Repair (2026-11-11)
 - Fixed ProximityPrompt trigger signature bug in src/client/ProximityHandler.client.lua
@@ -37,7 +48,7 @@
   - Legacy PlantSeed/WaterPlot/HarvestPlot handlers now route to unified handler
   - Enhanced plot management with cleaner, more maintainable code
 - Fixed variable shadowing warnings in PlantManager.lua
-- All static checks continue to pass (stylua, selene), rojo build successful
+- Historical note: workflow run #27 did not pass all static checks; Selene failed. Follow-up fixes are pending a new CI verification run.
 
 ## Milestone 1 — Playable Core: COMPLETED SYSTEMS
 
@@ -144,12 +155,12 @@
 - **Phase 1 Complete**: All critical gameplay systems repaired and consolidated
   - ProximityPrompt handling fixed and optimized
   - PlantManager unified and enhanced with "harvest_or_plant" action
-  - All static checks passing, Rojo build successful
+  - Prior run #27 passed Rojo and StyLua but failed Selene; follow-up corrections are not yet revalidated
 - **Next Priority**: Continue Milestone 2 content expansion
   - Implement TestEZ unit tests for core gameplay logic (resource rewards, inventory rules, plant growth, harvest eligibility, currency transactions, quest completion)
   - Continue adding additional content (more plant varieties, creature types, resources, quests, upgrades)
   - Consider adding day/night cycle and lighting improvements as part of presentation polish
-- **Immediate Action**: Update and run all static validation checks to confirm completed work
+- **Immediate Action**: Dispatch a new workflow run to validate the follow-up commits, then execute the new TestEZ suite with a supported runner.
 
 ## CI multi-provider pipeline configuration
 
