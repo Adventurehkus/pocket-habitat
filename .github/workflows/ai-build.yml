@@ -323,32 +323,32 @@ jobs:
                   # quota classifier, retry loop, stage gates, and repair paths.
                   # No opencode/copilot executable is invoked in this branch.
                   if [[ "$model" == "openrouter/test-daily-quota" ]]; then
-                    printf 'MOCK PROVIDER ERROR: daily quota exceeded; requests per day limit reached.\\n' > "$log_file"
+                    printf 'MOCK PROVIDER ERROR: daily quota exceeded; requests per day limit reached.\n' > "$log_file"
                     status=1
                   elif [[ "$model" == "openrouter/test-rate-limit" && "$retry_count" -lt 2 ]]; then
-                    printf 'MOCK PROVIDER ERROR: requests per minute limit; retry in 0s.\\n' > "$log_file"
+                    printf 'MOCK PROVIDER ERROR: requests per minute limit; retry in 0s.\n' > "$log_file"
                     status=1
                   else
                     case "$stage" in
                       review)
                         if [[ "$TEST_SCENARIO" == "review-repair" ]]; then
-                          printf 'REVIEW_FINDINGS: YES\\n\\nMOCK: reviewer found a simulated high-severity defect.\\n' > "$log_file"
+                          printf 'REVIEW_FINDINGS: YES\n\nMOCK: reviewer found a simulated high-severity defect.\n' > "$log_file"
                         else
-                          printf 'REVIEW_FINDINGS: NO\\n\\nMOCK: no actionable defects.\\n' > "$log_file"
+                          printf 'REVIEW_FINDINGS: NO\n\nMOCK: no actionable defects.\n' > "$log_file"
                         fi
                         ;;
                       qa)
                         if [[ "$TEST_SCENARIO" == "qa-repair" ]]; then
-                          printf 'QA_BLOCKER: YES\\n\\nMOCK: QA found a simulated blocker.\\n' > "$log_file"
+                          printf 'QA_BLOCKER: YES\n\nMOCK: QA found a simulated blocker.\n' > "$log_file"
                         else
-                          printf 'QA_BLOCKER: NO\\n\\nMOCK: no blocking defects.\\n' > "$log_file"
+                          printf 'QA_BLOCKER: NO\n\nMOCK: no blocking defects.\n' > "$log_file"
                         fi
                         ;;
-                      implementation) printf 'MOCK_IMPLEMENTATION: completed\\n' > "$log_file" ;;
-                      repair) printf 'MOCK_REPAIR: completed\\n' > "$log_file" ;;
-                      validation-repair) printf 'MOCK_VALIDATION_REPAIR: completed\\n' > "$log_file" ;;
-                      qa-repair) printf 'MOCK_QA_REPAIR: completed\\n' > "$log_file" ;;
-                      *) printf 'MOCK_STAGE: %s completed\\n' "$stage" > "$log_file" ;;
+                      implementation) printf 'MOCK_IMPLEMENTATION: completed\n' > "$log_file" ;;
+                      repair) printf 'MOCK_REPAIR: completed\n' > "$log_file" ;;
+                      validation-repair) printf 'MOCK_VALIDATION_REPAIR: completed\n' > "$log_file" ;;
+                      qa-repair) printf 'MOCK_QA_REPAIR: completed\n' > "$log_file" ;;
+                      *) printf 'MOCK_STAGE: %s completed\n' "$stage" > "$log_file" ;;
                     esac
                     status=0
                   fi
