@@ -41,6 +41,26 @@
 ## Next verification
 Repeat StyLua and Selene checks after Luau source files are added. Add TestEZ suites before treating unit testing as available, and retain separate Roblox engine and manual client testing.
 
+## Quota-free pipeline mock testing
+
+The Actions workflow on `main` exposes a `test_mode` input:
+- `live`: normal provider-backed staged development.
+- `mock`: no OpenCode or Copilot CLI installation; no provider credentials are supplied (they are replaced with invalid sentinels); no model CLI is invoked; repository persistence is skipped.
+
+In mock mode, the workflow still checks out the game branch, validates the OpenCode registry JSON, installs the pinned Roblox toolchain, runs Rojo/StyLua/Selene, generates `build/pocket-habitat.rbxl`, and uploads the build plus mock logs/reports.
+
+Available `test_scenario` values:
+- `happy-path`: implementation → review (NO findings) → validation → QA (NO blocker).
+- `review-repair`: reviewer reports findings; repair stage must run before validation and QA.
+- `qa-repair`: QA reports a blocker; final repair and a second validation must run.
+- `validation-repair`: deterministic checks run, a one-time synthetic validation failure triggers the validation-repair stage, then checks run again.
+- `daily-quota`: simulates an OpenRouter daily quota exhaustion; verifies the provider pool is blocked for the rest of the run and fallback continues with mock-only models.
+- `rate-limit`: simulates repeated OpenRouter RPM errors; verifies one retry (with no actual wait in mock mode), provider skip, and fallback.
+
+Mock mode does not validate real provider authentication, actual model IDs at inference time, Copilot authentication, or model output quality. It validates pipeline routing and handling of simulated outcomes without consuming model API usage. GitHub Actions still consumes runner time and may download/build dependencies. The mock run is not persisted to `ai/game-build`; generated artifacts are uploaded normally.
+
+To run: Actions → Autonomous Roblox Builder → Run workflow → select branch `main` → set `test_mode=mock` → select a `test_scenario`.
+
 ## CI multi-provider model pipeline
 
 The GitHub Actions workflow on `main` orchestrates separate implementation, independent review, conditional repair, deterministic validation, and independent QA stages. The workflow checks out `ai/game-build`, where `opencode.json` defines the OpenCode providers and project agents.
