@@ -1,5 +1,7 @@
 # Pocket Habitat — Autonomous Recovery Required
 
+RECOVERY_STATUS: OPEN
+
 - Source of this recovery debt: Run #34, GitHub Actions run ID `43131314450`
 - Run URL: https://github.com/Adventurehkus/pocket-habitat/actions/runs/43131314450
 - Gameplay source checkpoint from that run: `8c9c2fa8cfc06f0b85fd5fae781b81cb14ed6d66`
@@ -34,14 +36,16 @@ Source inspection of `src/server/DataStoreManager.lua` found these additional de
 5. Lease renewal is scheduled using a one-time `task.delay` in acquisition/request paths. `renewSession` does not schedule the next renewal, so the lease does not recur. Implement a bounded, recurring renewal lifecycle with cancellation/cleanup and token ownership checks.
 6. Verify shutdown behavior and avoid clearing session data or releasing ownership unless the final save/release sequence actually succeeds. Handle DataStore errors and shutdown time budgets honestly.
 
-Required verification for this part:
+Required verification for the source-level recovery:
 
+- Add/extend tests against the production session/save helpers where the current runner permits.
 - Test atomic acquisition contention and rejection of stale session tokens.
 - Test persistence of modified in-memory data, not only the previously stored record.
 - Test failed Get/Update/Set operations and prove the in-memory state is retained after failure.
-- Test recurring lease renewal, expiration, server handoff, and stale-server rejection.
-- Test PlayerRemoving, BindToClose, save/rejoin, and crash/recovery paths.
-- Use a real supported Roblox/TestEZ runner or clearly label tests that have only been authored or statically inspected. Do not claim Roblox DataStore or multi-server behavior passed without running it.
+- Test recurring lease scheduling/cancellation and token ownership in deterministic tests where possible.
+- Run Rojo, StyLua, Selene, and `git diff --check`; independent reviewer and QA must verify each source fix.
+
+Roblox DataStore integration, real multi-server contention, PlayerRemoving/BindToClose under the engine, save/rejoin, and crash recovery may require Roblox Studio or a supported Roblox runtime unavailable in this GitHub runner. Do not claim these passed unless actually executed. Keep those acceptance items unchecked in `docs/PROJECT_STATE.md` and `docs/ROADMAP.md`. Their runtime verification remains required before Milestone 2 or persistence is called complete, but an unavailable engine-level test must not cause the autonomous workflow to loop forever: the recovery note may be marked resolved for its automation-resolvable source fixes once the source is corrected, deterministic CI passes, independent review and QA confirm the fixes, and all unexecuted runtime checks are explicitly recorded as outstanding.
 
 ## Agent instructions
 
@@ -50,5 +54,6 @@ Required verification for this part:
 - Then address Priority 2 without discarding correct work or changing save-key compatibility.
 - Obtain independent code review, run deterministic validation, and obtain independent QA after changes.
 - Keep this file until both priorities are fixed and their required verification is recorded. Remove it only as part of a reviewed, QA-inspected, deterministically validated checkpoint.
+- When all automation-resolvable items are genuinely fixed, update the first status line to exactly `RECOVERY_STATUS: RESOLVED` and append a dated/run-specific evidence section with the CI commands/results and review/QA evidence. Keep any engine/runtime gaps explicitly outstanding in the project state. Never mark RESOLVED merely because one validator turned green.
 - Do not start unrelated features, claim Milestone 2 persistence complete, or claim the experience release-ready while this note remains open.
 - Never modify vendored `DevPackages/`, publish to Roblox, alter secrets/provider configuration, or weaken safety/validation checks.
