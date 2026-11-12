@@ -4,14 +4,14 @@
 
 - **Gameplay repository:** Adventurehkus/pocket-habitat
 - **Gameplay branch:** ai/game-build
-- **Latest gameplay checkpoint:** `1af27d2aade0922f57ec4333bf5d5331366d7b9b`
-- **Latest completed autonomous workflow:** Run #32, ID `43119650837`
-- **Workflow URL:** https://github.com/Adventurehkus/pocket-habitat/actions/runs/43119650837
-- **Workflow configuration branch:** main
-- **Workflow head used by Run #32:** `b37935206db380e99731d4082c2f9f803954a76e`
-- **Latest workflow configuration commit on main:** `649d6137cb0221bccac914f337754b3db1bf59a8`.
-- **Current workflow policy:** multi-cycle implementation/review/QA with round-robin model reuse, 100% explicit exhaustion target across currently eligible quota pools, per-cycle checkpoint pushes, and hard call/time/no-progress caps.
-- **Verification boundary:** the new multi-cycle router is committed but has NOT yet been exercised by a new workflow run. Run #32 tested only the old one-pass stage orchestration.
+- **Latest gameplay checkpoint:** `44b3798a23602abb6884a90f15e19ce62a469d18`
+- **Latest dispatched autonomous workflow:** Run #34, ID `43131314450` (failed final deterministic validation; this was not a quota-target stop).
+- **Workflow URL:** https://github.com/Adventurehkus/pocket-habitat/actions/runs/43131314450
+- **Workflow configuration branch:** `main`.
+- **Workflow head used by Run #34:** `8b3deb6716370644c4167557f2bc3e9ffca25965`.
+- **Latest workflow configuration commit on main:** `d3240908cfb2e3e89e816c97e084b9e750e5236e`.
+- **Current workflow policy:** 100% of currently eligible quota pools; repeated implementation/review/repair/validation/QA cycles; cross-cycle retries for recoverable agent/provider/code errors; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`.
+- **Verification boundary:** Run #34 executed and passed the 100% quota-accounting preflight fixtures, but stopped at 33% quota exhaustion because final StyLua/Selene validation still failed. The newer cross-cycle error-recovery changes on `main` are committed but have NOT yet been live-tested.
 - **Run #32 artifact:** `pocket-habitat-pipeline-32` (77,705 bytes, includes Rojo .rbxl build and stage/usage logs)
 - **Run #32 result:** workflow completed successfully; implementation, review, repair, validation repair, QA, persistence, and artifact upload succeeded.
 - **Current source warning:** The Run #32 `WorldBuilder.init()` mismatch is fixed in the current worktree. This run also removed a stale `QuestManager.claimQuest` override and fixed resource-node lookup, habitat-slot collisions, and prompt-discovery lifecycle; Roblox runtime behavior remains unverified.
@@ -24,7 +24,7 @@ Pocket Habitat is **not currently verified as a playable Roblox game**. Run #32 
 
 Milestone 2 (personal habitats, multiplayer isolation, and safe persistence) remains **IN PROGRESS and NOT COMPLETE**. The source now allocates non-overlapping active slots per server, but multiplayer isolation is unverified. Character spawn/respawn routing, save restoration, and full player ownership validation are not complete.
 
-**Current highest-priority task:** implement cross-server persistence ownership and failure-safe save/release semantics, then add character spawn/respawn and restore saved habitat state before enabling interactions.
+**Current highest-priority task:** implement character spawn/respawn routing and restore saved habitat state before enabling interactions. Cross-server DataStore session leases and failure-safe save/release semantics are now implemented in source but still need Roblox runtime verification.
 
 ## Latest workflow — Run #32
 
@@ -65,15 +65,15 @@ These items exist in source but are not equivalent to a verified end-to-end Robl
 
 **Important:** While static CI checks pass and the source now includes significant security and validation improvements, the game is **NOT currently verified as a playable Roblox game**. No Roblox runtime, Studio, multiplayer, DataStore, or manual playtests have been executed. Milestone 2 (personal habitats, multiplayer isolation, and safe persistence) remains **IN PROGRESS and NOT COMPLETE**. Server startup no longer has the API mismatch, but character spawn/respawn, world state restoration, DataStore session management, creature runtime isolation, and persistence safety across servers still require implementation and verification.
 
-## Current autonomous workflow behavior (not yet live-tested)
+## Current autonomous workflow behavior (recovery changes committed; live verification pending)
 
-The workflow on `main` now continues beyond the first successful implementation/review/QA pass. It repeats coherent implementation, independent review, conditional repair, deterministic validation, and QA cycles. Later cycles continue the original task if unfinished; otherwise they use the live project state and roadmap to advance to the next unfinished priority.
+The workflow on `main` continues beyond the first successful implementation/review/QA pass. It repeats coherent implementation, independent review, conditional repair, deterministic validation, and QA cycles. Later cycles continue the original task if unfinished; otherwise they use the live project state and roadmap to advance to the next unfinished priority. Recoverable implementation, repair, review-format, QA-format/availability, and deterministic validation failures are now carried through fallback models and later cycles rather than immediately terminating the job.
 
 The router rotates eligible models across cycles and allows previously successful models to be reused in later cycles. The quota target is now 100% of currently eligible pools: every pool still usable in this run must return an explicit daily/monthly quota-exhaustion error before quota-target completion. Google/Groq routes are counted per model; Cohere, OpenRouter, Cloudflare, and Copilot routes are grouped by provider/account. Permanently ineligible routes are excluded from the eligible denominator but are not counted as quota-exhausted. When no pools are measurable, the report shows 0% and does not claim the target. Quota exhaustion is reactive to provider error messages, not a live balance measurement.
 
-Safety limits are 8 calls per model, 120 calls total, 30 cycles, 2 hours of aggregate temporary-limit wait, two consecutive no-progress cycles, and the GitHub Actions 350-minute job timeout. Each reviewed and validated cycle is checkpointed to `ai/game-build` before another cycle begins. Review, QA, validation, or checkpoint-persistence failure stops the run rather than allowing unchecked work to accumulate.
+Safety limits remain 8 calls per model, 120 calls total, 30 cycles, 2 hours of aggregate temporary-limit wait, two consecutive no-progress cycles, and the GitHub Actions 350-minute job timeout. Temporary per-stage failure deferrals reset each cycle so rate-limited and unclassified-error routes can be revisited after cooldown; confirmed quota blocks, permanent auth/model incompatibility, cooldown timestamps, and run-wide call budgets persist. Deterministic validation receives up to 5 repair attempts per cycle; QA blockers receive up to 3 repair/re-check attempts per cycle. Review/QA unavailable or malformed responses and unresolved validation are saved as explicitly unvalidated recovery checkpoints, with the issue recorded durably in `docs/AUTONOMOUS_RECOVERY.md` on `ai/game-build`. The next cycle/run prioritizes that file; it is removed only after review, QA, and deterministic validation all pass. Hard stops are limited to documented global budgets/timeouts, two consecutive no-progress cycles, unrecoverable checkpoint-persistence failure, no safe/meaningful work or eligible route, or all quota pools exhausted while recovery debt remains. A recovery checkpoint is never described as validated.
 
-This behavior is documented in `docs/AUTONOMOUS_AGENT_GUIDE.md` and `docs/TESTING.md`. A new workflow dispatch is required to exercise it. The 100% target and quota-accounting regression fixtures were committed to `main` in `649d6137cb0221bccac914f337754b3db1bf59a8`; they have not yet been exercised by a new workflow dispatch. Provider account billing cannot be inspected by CI; call-count caps are not dollar-spend caps. Check provider free-tier status and spending limits before long runs.
+The 100% quota target and accounting fixtures were exercised in Run #34 and passed during preflight. Run #34 subsequently failed final deterministic validation: StyLua formatting remained out of sync, and Selene reported `game.BindToClose` used as a property instead of the `game:BindToClose(...)` method, plus unused `Workspace` and `Constants` locals. Its stop reason was `final_validation_failed` at only 33% quota exhaustion, confirming the quota target was not the cause. The newer recovery behavior and durable recovery file are committed in `main` but need a fresh workflow dispatch. Push-triggered runs #35 and #36 were created for intermediate workflow-file commits and exposed no job records; they are not evidence that the current recovery implementation ran. Provider account billing cannot be inspected by CI; call-count caps are not dollar-spend caps. Check provider free-tier status and spending limits before long runs.
 
 ## Run #32 findings and current status
 
