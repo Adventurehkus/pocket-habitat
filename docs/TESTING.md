@@ -58,38 +58,49 @@ Use a dedicated test place and test data. Never use production player data for e
 
 ## Latest verified gameplay pipeline run
 
-### Run #30 — 2026-11-11
+### Run #32 — 2026-11-11
+
+- Run ID: 43119650837.
+- Workflow URL: https://github.com/Adventurehkus/pocket-habitat/actions/runs/43119650837
+- Gameplay commit persisted to `ai/game-build`: `1af27d2aade0922f57ec4333bf5d5331366d7b9b`.
+- Workflow branch/head: `main` at `b37935206db380e99731d4082c2f9f803954a76e`.
+- Implementation: SUCCESS (Cohere North Mini Code).
+- Independent review: SUCCESS (Google Gemini 3.5 Flash Lite).
+- Repair: SUCCESS (Cohere Command A+).
+- Validation repair: SUCCESS (GitHub Copilot Auto).
+- QA: SUCCESS (Google Gemini 3.1 Flash Lite; QA_BLOCKER: NO).
+- Review fallback: NOT RUN; QA repair: NOT RUN.
+- Rojo build: PASSED; `build/pocket-habitat.rbxl` was included in the artifact.
+- StyLua `--check src`: PASSED; 0 errors, 0 warnings, 0 parse errors.
+- Selene `src`: PASSED.
+- `git diff --check`: repair-agent log reports PASS after formatting.
+- TestEZ: NOT EXECUTED.
+- Roblox server startup/engine: NOT EXECUTED.
+- Roblox Studio/manual gameplay: NOT EXECUTED.
+- Two-client multiplayer: NOT EXECUTED.
+- DataStore integration, contention, save/rejoin, and shutdown tests: NOT EXECUTED.
+- Artifact: `pocket-habitat-pipeline-32`, 77,705 bytes, upload SUCCESS.
+- Gameplay checkpoint push: SUCCESS.
+
+**Important test interpretation:** Run #32 is a successful CI/pipeline execution, not a playable-game or Milestone 2 pass. The final source calls `WorldBuilder.init()` from ServerMain, but the current WorldBuilder module does not define `init`. This source-confirmed startup mismatch was missed by QA. Other habitat placement, geometry, plot/resource ownership, restoration, spawn, and persistence gaps are documented in `project-state/run-32-audit.md`. The QA report's claim that BaseOffset solved overlap and that spawning was wired is contradicted by source inspection.
+
+### Run #30 — 2026-11-11 (historical)
 
 - Run ID: 43098662842.
 - Gameplay checkpoint persisted: 21386b54aa0432c1f5fdb796411c30a41d060350.
-- Implementation: SUCCESS.
-- Independent review: SUCCESS.
-- Conditional repair: SUCCESS.
-- QA: SUCCESS.
+- Implementation, independent review, conditional repair, and QA: SUCCESS.
 - Rojo build: PASSED.
 - StyLua check src: PASSED, zero errors/warnings/parse errors.
 - Selene src: PASSED.
 - TestEZ: NOT EXECUTED.
-- Roblox Studio/gameplay: NOT EXECUTED.
-- Multiplayer: NOT EXECUTED.
-- DataStore integration/stress: NOT EXECUTED.
-- Artifact upload: SUCCESS; artifact was pocket-habitat-pipeline-30.
+- Roblox Studio/gameplay, multiplayer, and DataStore integration/stress: NOT EXECUTED.
+- Artifact upload: SUCCESS; artifact was `pocket-habitat-pipeline-30`.
 
-This run supersedes Run #27's failed Selene result for the checkpoint it validated. Preserve Run #27 below as historical evidence, not the current baseline.
-
-### Run #27 — historical failure
-
-- Run ID: 43083640009.
-- Rojo and StyLua passed; Selene failed due to an unused PLOT_POSITIONS local.
-- Reviewer output omitted its required decision header; repair was skipped.
-- The run persisted a checkpoint and uploaded an artifact but failed overall.
-- Subsequent source changes were checked by Run #30.
+This run is historical and is superseded by the Run #32 source checkpoint. Preserve it as history, not as the current baseline.
 
 ## Adaptive model/provider retry behavior
 
-The GitHub Actions workflow on main was updated after Run #30. Its latest retry-policy commit is 36c16722d6ebc2a4bd66433ec5e9ec15ee17b7fa.
-
-The updated router now classifies and handles separately:
+The updated workflow on `main` (including commit `b37935206db380e99731d4082c2f9f803954a76e`) classifies:
 - Explicit shared daily/monthly quota exhaustion.
 - Model-specific daily quota exhaustion.
 - Request size/context incompatibility.
@@ -99,20 +110,30 @@ The updated router now classifies and handles separately:
 - Provider-shared rate limits.
 - Temporary provider/model capacity, 5xx, and network failures.
 
-For recoverable temporary failures it reads retry hints/Retry-After where available, otherwise uses bounded exponential backoff. It cools down the affected model or provider, tries other eligible routes, and resumes the same stage automatically when a route becomes eligible.
+For recoverable temporary failures it reads retry hints/Retry-After where available, otherwise uses bounded backoff. It cools down the affected model or provider, tries other eligible routes, and resumes the same stage automatically when a route becomes eligible. Daily/shared quota exhaustion, invalid credentials, unavailable models, and oversized requests are not pointlessly retried.
 
-Committed policy at the time of this document:
+### Live verification in Run #32
+
+The adaptive fallback behavior was exercised in a real workflow run and completed every required stage:
+- 20 models were configured.
+- The report records 3 daily/shared quota-exhaustion events.
+- There were 4 classified temporary-limit events and 0 seconds of automatic wait.
+- The implementation stage encountered Google rate limits/model quota exhaustion and Cloudflare shared quota exhaustion, then succeeded using Cohere North Mini Code.
+- Review succeeded using Google Gemini 3.5 Flash Lite.
+- Repair succeeded using Cohere Command A+.
+- Validation repair skipped oversized Groq routes and exhausted OpenRouter shared quota, then succeeded using GitHub Copilot Auto.
+- QA succeeded using Google Gemini 3.1 Flash Lite.
+- Review fallback and QA repair were not needed.
+- Workflow status, all required stages, artifact upload, and gameplay commit push were SUCCESS.
+
+**Conclusion:** Run #32 did not terminate because all configured models were exhausted. Several model/provider routes were exhausted or unavailable, but fallback routes completed all stages. This does not mean all 20 models were attempted, and it does not reveal remaining account balances after the run. Provider dashboards remain authoritative for balances.
+
+Committed retry policy at the time of Run #32:
 - Four attempts per model per stage.
 - At most 50 model calls per stage.
 - Up to two hours of automatic waiting per stage.
 - Up to four hours of automatic waiting across the workflow.
 - Workflow job timeout: 350 minutes.
-
-Daily/shared quota exhaustion, invalid credentials, unavailable models, and oversized requests are not pointlessly retried. The workflow records attempt classifications, cooldowns, waits, and quota events in its usage log/report.
-
-**Verification status:** these retry changes are committed but have not yet been exercised by a fresh live workflow run. Their startup classifier/retry-delay fixtures are part of the workflow and will execute on the next run before the model stages. They do not query live provider balances and cannot guarantee that every provider remains available.
-
-Free-tier policies and provider quotas change. Do not hard-code current quota counts into reusable prompts. Use opencode.json for configured routes and workflow logs for what actually happened during a run. Provider dashboards are the authority for remaining account balance.
 
 ## Running the autonomous development workflow
 
