@@ -144,23 +144,36 @@ The adaptive fallback behavior was exercised in a real workflow run and complete
 
 The original one-pass retry policy used four temporary failures per model/stage, up to 50 calls per stage, 2 hours of waiting per stage, and 4 hours of aggregate waiting. That was the policy exercised by Run #32. The current main-branch policy is documented below and supersedes those limits for new runs.
 
-## Multi-cycle quota-focused workflow policy — committed, not yet live-tested
+## 100% quota policy and cross-cycle error recovery — committed; recovery live test pending
 
-The workflow on `main` was changed after Run #32:
-- Workflow changes: multi-cycle router commit `d5e4a14b3d433f40fbb16e233533b98ee1dd9858`, followed by regression/checkpoint commit `519de8cea3df3fdf3e719399ec7d7e804c01a4e3`, wait-budget commit `658bb50bad7060dc0ae99760ac673c748684cac4`, and 100% quota-target commit `649d6137cb0221bccac914f337754b3db1bf59a8`.
-- Run mode: first cycle implements the supplied task; subsequent cycles continue it if incomplete, otherwise choose the next highest-priority unfinished roadmap task.
-- Each cycle runs implementation, independent review, conditional repair, deterministic validation, and independent QA.
-- Model candidates rotate by role and a successful model becomes eligible again in later cycles. A model is used at most once per cycle, preserving separation between implementation/review/QA.
-- Every reviewed and validated cycle is committed and pushed to `ai/game-build` before the next cycle, protecting work from a later job timeout.
-- The target is evaluated against confirmed-exhausted plus still-eligible pools. Pools disabled for authentication, model availability, or request-size incompatibility are tracked separately; they are not quota exhaustion. Reaching 100% means every pool still eligible for this run has emitted an explicit exhaustion error.
-- Stop target: 100% of currently eligible quota pools explicitly report daily/monthly exhaustion.
-- Pool accounting: Google/Groq model routes are counted per model; Cohere/OpenRouter/Cloudflare/Copilot routes are grouped by provider/account. Request-size errors, invalid credentials, unavailable models, and unknown errors are excluded from eligible pools and do not count as quota exhaustion.
-- Hard caps: 8 calls per model per run, 120 total model calls, 30 cycles, 2 hours aggregate temporary-limit waiting, two consecutive no-progress cycles, and the GitHub Actions 350-minute job timeout.
-- The run stops earlier if independent review, repair, QA, deterministic validation, or checkpoint persistence cannot complete safely.
+The workflow on `main` has evolved through these changes:
+- Multi-cycle router, model rotation, and checkpointing: `d5e4a14b3d433f40fbb16e233533b98ee1dd9858`.
+- Regression/checkpoint and wait-budget fixes: `519de8cea3df3fdf3e719399ec7d7e804c01a4e3`, `658bb50bad7060dc0ae99760ac673c748684cac4`.
+- 100% eligible-pool exhaustion target: `649d6137cb0221bccac914f337754b3db1bf59a8`.
+- Cross-cycle validation/QA recovery, recovery checkpoints, durable recovery state, per-cycle temporary-route reset, and unknown-error retries: current main head `d3240908cfb2e3e89e816c97e084b9e750e5236e`.
 
-**Important limitation:** quota status is inferred from explicit provider/model errors, not from a live balance API. The 100% target is a percentage of quota scopes estimated by the workflow, not 100% of exact remaining requests or tokens or every configured model. Permanently ineligible routes are excluded from the eligible denominator and are not counted as exhausted. A temporary RPM/TPM limit is cooled down and revisited; it is not counted as daily exhaustion. If no pools are measurable, the report shows 0% and does not declare the target reached.
+### Current behavior
 
-**Verification status:** the multi-cycle policy and local regression fixtures are committed, but no new workflow run has yet executed them. The 100% target update adds fixtures for partial exhaustion, all remaining eligible pools exhausted, permanently ineligible routes, and a zero denominator. Run #32 tested the older one-pass fallback system only. The next dispatched run will test multi-cycle behavior, the updated quota-pool math, model rotation, per-cycle checkpoint pushes, and the configured safety limits.
+- The quota target is **100% of currently eligible quota pools**, based on explicit daily/monthly quota errors. Provider balances are not queried; this is quota-scope evidence, not an exact remaining-token/request meter.
+- Each autonomous cycle runs implementation, independent review, conditional repair, deterministic validation, and independent QA.
+- Candidate models rotate by role. A model used in one role is excluded from other roles during that cycle, then can be reused in later cycles unless a run-wide quota/call restriction applies.
+- Temporary RPM/TPM limits, transient capacity/5xx/timeouts, and unclassified model/tool errors receive bounded cooldown/retry attempts. Per-stage temporary-failure exclusions reset at the start of each later cycle, so these routes can be revisited. Confirmed daily/shared quota exhaustion, authentication failures, unavailable models, request-size incompatibility, per-model call counts, and global budgets remain in force.
+- Deterministic validation can receive up to 5 repair-model attempts per cycle. QA blockers can receive up to 3 repair/re-check attempts per cycle. If a failure remains, the next cycle must prioritize the exact recovery report instead of abandoning the run.
+- If implementation cannot complete, the pipeline retries eligible routes in a later cycle. If review or QA is unavailable or malformed after fallback, it saves an explicitly unreviewed or QA-pending recovery checkpoint. Deterministic validation failures are also saved as recovery work after independent review/QA have inspected the diff.
+- Recovery debt is persisted in `docs/AUTONOMOUS_RECOVERY.md` on `ai/game-build`. A later workflow run loads it automatically and must resolve it before unrelated features. Recovery commits are explicitly labelled as needing follow-up; they are never counted as validated checkpoints. The recovery file is removed only when independent review, QA, and deterministic validation all pass and the validated checkpoint is pushed.
+- A successful review/QA/validation cycle is pushed as a validated checkpoint. Recovery work is pushed separately and visibly labelled. If GitHub persistence itself fails, the pipeline stops rather than pretending the changes were saved.
+- Hard limits remain 8 calls per model per run, 120 total model calls, 30 cycles, 2 hours aggregate temporary-limit waiting, two consecutive no-progress cycles, and the 350-minute GitHub Actions timeout. The pipeline also stops if all quota pools are exhausted while recovery debt remains, if there is no safe/meaningful work or eligible route, or if required runner/toolchain setup or repository persistence is unavailable.
+
+### Run #34 evidence
+
+- Run #34: https://github.com/Adventurehkus/pocket-habitat/actions/runs/43131314450
+- The new 100% quota-accounting preflight regression fixtures **passed**.
+- The development pipeline then failed final deterministic validation at **33% quota exhaustion**, with stop reason `final_validation_failed`. This was not a quota-target stop.
+- The final validation log reported a StyLua formatting diff and Selene findings in `src/server/ServerMain.server.lua`: `game.BindToClose(onBindToClose)` must use `game:BindToClose(onBindToClose)`, and `Workspace` and `Constants` were unused locals.
+- The run had only one completed autonomous cycle and 24/120 model calls. It did not verify the new cross-cycle recovery behavior because that behavior was added afterward.
+- Push-triggered runs #35 and #36 refer to intermediate workflow-file commits and returned no job records through the available GitHub job listing. They do not establish that the current recovery implementation was executed.
+
+**Verification status:** the 100% quota accounting has preflight evidence from Run #34. The newer retry/recovery implementation is committed but still needs a fresh workflow dispatch to verify its YAML, embedded Bash, fallback loops, durable recovery file, and stop conditions. Do not call it live-tested until that run completes and its artifacts/logs are inspected.
 
 **Billing warning:** the 120-call cap is a request-count limit, not a dollar-spend limit. Some API keys can be attached to billable provider accounts. Verify free-tier status and configure spending caps in provider dashboards before dispatching a long quota-focused run.
 
