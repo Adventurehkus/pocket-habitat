@@ -42,22 +42,22 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 
 ## Current runtime architecture and known limitations
 
-Run #32 committed checkpoint `1af27d2aade0922f57ec4333bf5d5331366d7b9b`. Its static checks passed, but no Roblox runtime/Studio test ran. The current source is not verified playable and has a source-confirmed server-startup blocker. See `project-state/run-32-audit.md` for the complete issue register.
+Run #32 committed checkpoint `1af27d2aade0922f57ec4333bf5d5331366d7b9b`. Its static checks passed, but no Roblox runtime/Studio test ran. Its source audit is historical; the current worktree has since corrected the missing `WorldBuilder.init()` API and several habitat/interaction integration defects. The game is still not verified playable.
 
 Current source facts:
 
-- `HabitatManager` creates a Workspace.Habitats folder and tracks `Habitat_<UserId>` folders in a per-server table. It sets a BaseOffset attribute and exposes allocate/get/remove functions. It does not spawn characters, handle CharacterAdded, restore saved plot/world state, or use a collision-free slot allocator.
-- `ServerMain.server.lua` still invokes `WorldBuilder.init()`, but the current `WorldBuilder.lua` defines only `buildHabitat(folder, owner)`. This is a P0 startup API mismatch: execution is expected to fail at that call before subsequent system initialization and player lifecycle connections. The old WorldBuilder version had init(); Run #32 removed it and failed to update the caller.
-- The current BaseOffset formula advances by 0.1 studs along the X=Z diagonal for UserId modulo 1000. Each baseplate is 100×100 studs, so habitats overlap heavily and positions repeat. Some geometry adds offsets twice (tree leaves, berries, plot borders); paths use world origin inconsistently.
-- `ServerMain` allocates a habitat after data load and calls `HabitatManager.removeHabitat` on PlayerRemoving. The allocation does not receive the loaded data. There is no character spawn/respawn placement.
-- `ResourceManager` now stores cooldowns by UserId and node ID, which removes the old single global cooldown table. However, the remote accepts a nodeId and derives a static template position instead of validating an exact resource Instance in the caller's registered habitat. Missing habitat lookup falls back to zero offset. The cooldown is set before the reward is granted, so an inventory-full failure still starts the cooldown.
-- `PlantManager` validates player data and numeric plot interaction rules, but does not resolve the actual plot Instance beneath the caller's habitat or check server-measured distance. Client calls can invoke remotes directly. Effect positions use fixed unoffset coordinates.
-- `ProximityHandler.client.lua` listens for habitat folders and scans prompts. The global ChildAdded path is not filtered to the LocalPlayer's own habitat and may scan before descendant prompts are added. The separate LocalPlayer helper is only called from a Players.PlayerAdded listener; there is no unconditional initial lookup when the LocalScript starts after the local Player exists.
-- `CreatureManager` runtime state and movement are still not fully player/habitat-scoped; inspect the current module before modifying it.
-- `DataStoreManager` still uses GetAsync/SetAsync and an in-memory activeSessions table. There is no atomic cross-server UpdateAsync lease/token. Its removeSession path clears activeSessions after calling save even when save retries fail, so the only in-memory copy can be discarded after a failed final save.
-- Run #32 changed source, but did not execute TestEZ, Roblox engine/Studio, multiplayer, DataStore integration/stress, or manual tests. A generated .rbxl file is not runtime verification.
+- `HabitatManager` tracks each player's habitat and active grid slot per server, spaces 100-stud bounds by 25 studs, reuses released slots, and sets `BaseOffset` and `OwnerUserId` attributes. It does not spawn characters or restore saved world state.
+- `ServerMain.server.lua` calls APIs present in their modules, connects `PlayerAdded` before processing already-connected players, and guards duplicate per-user initialization. It still has no character spawn/respawn routing.
+- `QuestManager.init()` registers the quest-claim callback; ServerMain does not override it with the nonexistent `QuestManager.claimQuest` method.
+- `WorldBuilder.buildHabitat` applies the base offset to local geometry once. Resource node IDs are assigned to both the resource Part (used by server lookup) and its prompt.
+- `ResourceManager` resolves a node Part inside the calling player's registered habitat, checks server-measured distance and the per-user cooldown, grants before starting cooldown, and clears cooldown state on departure.
+- `PlantManager` resolves plots under the caller's registered habitat and validates session, index/action rules, character, and distance before mutation. The plot data schema and generated plot count still need reconciliation.
+- `ProximityHandler.client.lua` only binds prompts beneath the local player's habitat, discovers existing and newly added prompts, and disconnects connections when that habitat is removed.
+- `CreatureManager` runtime state and movement are still not fully player/habitat-scoped.
+- `DataStoreManager` still uses GetAsync/SetAsync and a process-local activeSessions table. There is no atomic cross-server UpdateAsync lease/token; failed final saves can still discard the in-memory session.
+- The current source changes have not yet been run in TestEZ, Roblox engine/Studio, multiplayer, DataStore integration/stress, or manual playtests. A generated .rbxl file is not runtime verification.
 
-Run #32 QA reported QA_BLOCKER: NO but missed the startup API mismatch and asserted that offset placement and spawning were complete. Those claims are contradicted by source. Its review also reported some stale findings: final ServerMain does include PlayerRemoving habitat-folder cleanup and final ProximityHandler uses Players.PlayerAdded (not LocalPlayer.PlayerAdded). The real remaining prompt issue is the startup/ownership/descendant race described above.
+Run #32 QA reported QA_BLOCKER: NO, but its final source still contained the missing startup API, overlapping habitat offsets, and incorrect claims about spawning. The historical review note `project-state/review-opencode-8-fixes.md` is not proof of manual testing; current verification status is recorded in `docs/TESTING.md`.
 
 Re-check all facts against the current source before making changes. The canonical source audit and ordered repair plan are in `project-state/run-32-audit.md`.
 

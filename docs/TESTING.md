@@ -56,6 +56,20 @@ These require a supported Roblox engine runner or Studio. They are not replaced 
 
 Use a dedicated test place and test data. Never use production player data for experiments. Record execution IDs, output, errors, and actual completion status where a cloud runner is used. Cloud Luau execution does not prove full client rendering or input behavior.
 
+## Current worktree verification — 2026-11-12
+
+Source inspection confirmed the `WorldBuilder.init()` definition/call match, and verified the current `InvokeServer` sites do not pass `LocalPlayer` as an explicit argument. It also found that ServerMain replaced QuestManager's valid claim handler with a call to nonexistent `QuestManager.claimQuest`; that override was removed. ResourceManager's Part lookup could not find NodeId when the builder set it only on the prompt; the builder now sets it on the resource Part as well. Per-server habitat slot allocation and local-player prompt lifecycle handling were also corrected.
+
+Checks actually run:
+
+- `rojo build default.project.json -o /tmp/pocket-habitat-validation.rbxl`: PASS; verified the output was non-empty and removed it.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: FAIL because the pre-existing added `temp_test.lua` contains trailing whitespace. That unrelated scratch file was not modified.
+- Roblox engine/Studio, multiplayer, DataStore, TestEZ, and manual tests: NOT RUN.
+
+The requested `/home/runner/work/_temp/opencode-qa-14.log` and `/home/runner/work/_temp/pocket-habitat-validation.log` could not be read with the available tools (permission denied); their claims were not independently inspected.
+
 ## Latest verified gameplay pipeline run
 
 ### Run #32 — 2026-11-11
@@ -82,7 +96,7 @@ Use a dedicated test place and test data. Never use production player data for e
 - Artifact: `pocket-habitat-pipeline-32`, 77,705 bytes, upload SUCCESS.
 - Gameplay checkpoint push: SUCCESS.
 
-**Important test interpretation:** Run #32 is a successful CI/pipeline execution, not a playable-game or Milestone 2 pass. The final source calls `WorldBuilder.init()` from ServerMain, but the current WorldBuilder module does not define `init`. This source-confirmed startup mismatch was missed by QA. Other habitat placement, geometry, plot/resource ownership, restoration, spawn, and persistence gaps are documented in `project-state/run-32-audit.md`. The QA report's claim that BaseOffset solved overlap and that spawning was wired is contradicted by source inspection.
+**Important test interpretation:** Run #32 is a successful CI/pipeline execution, not a playable-game or Milestone 2 pass. At that checkpoint, ServerMain called `WorldBuilder.init()` but the module did not define it; that source-confirmed startup mismatch was missed by QA. The current worktree now defines `WorldBuilder.init()`, but has not been tested in Roblox. Other habitat placement, geometry, plot/resource ownership, restoration, spawn, and persistence gaps from that checkpoint are documented in `project-state/run-32-audit.md`. The QA report's claims that BaseOffset solved overlap and spawning was wired were contradicted by the checkpoint source.
 
 ### Run #30 — 2026-11-11 (historical)
 

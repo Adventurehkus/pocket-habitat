@@ -51,15 +51,6 @@ local staticNodes = {
     },
 }
 
--- Helper to get player's habitat folder
-local function getHabitatFolder(player)
-    local habitatRoot = workspace:WaitForChild("Habitats")
-    if not habitatRoot then
-        return nil
-    end
-    return habitatRoot:FindFirstChild("Habitat_" .. tostring(player.UserId))
-end
-
 -- Per-player cooldown tracking (keyed by UserId)
 local function getPlayerCooldown(player, nodeId)
     local userId = player.UserId
@@ -104,15 +95,29 @@ function ResourceManager.init()
             return false, "Node not found"
         end
 
-        -- Get habitat offset for position calculation
-        local habitatFolder = getHabitatFolder(player)
-        local habitatOffset = Vector3.new(0, 0, 0)
-        if habitatFolder then
-            habitatOffset = habitatFolder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)
+        -- Server-side validation: Verify exact resource Instance ownership and distance
+        local HabitatManager = require(script.Parent:WaitForChild("HabitatManager"))
+        local habitat = HabitatManager.getHabitat(player)
+
+        if not habitat then
+            return false, "Player habitat not found"
         end
 
-        -- Calculate actual position
-        local nodePosition = staticNode.basePosition + habitatOffset
+        -- Find the actual resource Instance in the player's habitat
+        local resourceInstance = nil
+        for _, descendant in ipairs(habitat:GetDescendants()) do
+            if descendant:IsA("Part") and descendant:GetAttribute("NodeId") == nodeId:lower() then
+                resourceInstance = descendant
+                break
+            end
+        end
+
+        if not resourceInstance then
+            return false, "Resource node not found in player habitat"
+        end
+
+        -- Use the actual resource Instance position, not the template position
+        local nodePosition = resourceInstance.Position
 
         -- Check cooldown per player
         local readyTime = getPlayerCooldown(player, nodeId)
@@ -125,14 +130,14 @@ function ResourceManager.init()
             return false, "Too far away"
         end
 
-        -- Update cooldown (convert minutes to seconds)
+        -- Update cooldown (convert minutes to seconds) - move this after successful reward
         local cooldownSeconds = (staticNode.cooldown or 10) * 60
-        setPlayerCooldown(player, nodeId, os.time() + cooldownSeconds)
 
         local rewardItem = staticNode.type
         local rewardAmount = rewardItem == Constants.RESOURCES.DEWDROP and 2 or 1
 
         if EconomyManager.addItem(player, rewardItem, rewardAmount) then
+            setPlayerCooldown(player, nodeId, os.time() + cooldownSeconds)
             CreatureManager.checkDiscoveries(player)
 
             RemoteEvents.GatherEffect:FireClient(player, nodePosition, rewardItem, rewardAmount)
@@ -140,11 +145,16 @@ function ResourceManager.init()
                 player,
                 "Gathered " .. rewardAmount .. " " .. rewardItem .. "!"
             )
+
             return true, "Success"
         end
 
         return false, "Inventory full"
     end
+end
+
+function ResourceManager.removePlayer(player: Player)
+    playerCooldowns[player.UserId] = nil
 end
 
 return ResourceManager

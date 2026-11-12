@@ -24,51 +24,54 @@ Status labels:
 
 ## Milestone 1 — Playable prototype loop
 
-**Status: SOURCE EXISTS; PLAYABILITY NOT VERIFIED; CURRENT STARTUP BLOCKER FOUND.**
+**Status: SOURCE EXISTS; PLAYABILITY NOT VERIFIED; STARTUP API CONSISTENCY VERIFIED BY SOURCE ONLY.**
 
 Source modules contain resource gathering, planting/watering/harvesting, inventory/currency, quests, creature discovery, and client prompt handling. However:
-- Current `ServerMain.server.lua` calls `WorldBuilder.init()`, which does not exist in the current `WorldBuilder.lua`. This is a P0 startup blocker.
+- `ServerMain` and `WorldBuilder` now expose matching `init()` APIs in source. Roblox server startup has not been tested.
 - No Roblox engine or Studio test was run in Run #32.
-- Do not call this prototype playable until the server starts, client interactions work end to end, two clients can play without interference, and save/rejoin is verified.
+- Do not call this prototype playable until client interactions work end to end, two clients can play without interference, and save/rejoin is verified.
 
 Acceptance criteria:
-- [ ] Server starts without runtime errors; all server systems/remotes/player lifecycle handlers initialize.
-- [ ] A new player joins and spawns correctly.
-- [ ] A player can gather, plant, water, harvest, earn rewards, and receive feedback in Roblox Studio.
-- [ ] All actions are server-authoritative and fail safely.
-- [ ] Full-inventory and failed-reward cases do not produce cooldown-only failures, item loss, or duplicate rewards.
-- [ ] Quest and upgrade actions reflect real server-side gameplay.
-- [ ] The experience works in a two-client server.
-- [ ] Save/rejoin behavior is verified without overwriting data.
+- [ ] Server starts without runtime errors; all server systems/remotes/player lifecycle handlers initialize. (API mismatch fixed in source; engine test pending)
+- [ ] A new player joins and spawns correctly. (Character spawn/respawn not yet implemented)
+- [ ] A player can gather, plant, water, harvest, earn rewards, and receive feedback in Roblox Studio. (Partially implemented)
+- [ ] All actions are server-authoritative and fail safely. (Implemented with ownership validation)
+- [ ] Full-inventory and failed-reward cases do not produce cooldown-only failures, item loss, or duplicate rewards. (Fixed cooldown management)
+- [ ] Quest and upgrade actions reflect real server-side gameplay. (Source exists, not yet verified)
+- [ ] The experience works in a two-client server. (Not yet tested)
+- [ ] Save/rejoin behavior is verified without overwriting data. (DataStore persistence not yet implemented)
 
 ## Milestone 2 — Personal habitats and multiplayer/data reliability
 
-**Status: IN PROGRESS; NOT COMPLETE. Current implementation has a startup blocker and significant isolation/lifecycle gaps.**
+**Status: IN PROGRESS; NOT COMPLETE. Significant progress made on habitat allocation, ownership validation, and security, but multiplayer isolation and persistence still require implementation.**
 
 This milestone establishes the defining Pocket Habitat experience: every player has an independent, persistent world.
 
 ### Habitat allocation, geometry, and lifecycle
 - [x] Server-side HabitatManager module creates per-player named folders and tracks them in a per-server registry.
-- [x] PlayerRemoving calls the habitat-folder cleanup helper in the final Run #32 source.
-- [ ] Fix ServerMain's call to the missing WorldBuilder.init() API; verify complete server startup.
-- [ ] Replace the 0.1-stud UserId-modulus diagonal offset with non-overlapping habitat slot/grid allocation and safe slot ownership.
-- [ ] Apply the habitat transform exactly once to baseplate, resource nodes, leaves/berries, plot parts/borders, paths, pond, and all future instances.
-- [ ] Add server-owned OwnerUserId metadata for diagnostics; authorization must still use server registry/Player identity.
-- [ ] Make allocation idempotent and safe against duplicate folders/registry entries.
-- [ ] Spawn characters at their own habitat and handle every respawn.
-- [ ] Restore plots/plants/upgrades/world state from validated saved data before the player can interact.
-- [ ] Ensure leave and BindToClose cleanup disconnects/destroys only that player's runtime objects and handles failed final saves safely.
+- [x] PlayerRemoving removes the current player's habitat and runtime cooldown state before final save.
+- [x] Restore the `WorldBuilder.init()` API used by `ServerMain`.
+- [ ] Verify complete server startup, including remotes and player lifecycle, in Roblox.
+- [x] Replace UserId-modulus placement with non-overlapping per-server habitat slots and safe slot reuse. (Implemented with 100-stud bounds and 25-stud spacing; runtime-unverified)
+- [x] Apply the habitat transform exactly once to baseplate, resource nodes, leaves/berries, plot parts/borders, paths, pond, and all future instances. (Implemented in WorldBuilder)
+- [x] Add server-owned OwnerUserId metadata for diagnostics; authorization must still use server registry/Player identity.
+- [x] Make allocation idempotent and safe against duplicate folders/registry entries. (Implemented in HabitatManager; runtime-unverified)
+- [ ] Spawn characters at their own habitat and handle every respawn. (Not yet implemented)
+- [ ] Restore plots/plants/upgrades/world state from validated saved data before the player can interact. (DataStore restoration not yet implemented)
+- [ ] Ensure leave and BindToClose cleanup disconnects/destroys only that player's runtime objects and handles failed final saves safely. (DataStore session safety not yet implemented)
 
 ### Prompt, plot, and resource ownership
-- [ ] Make LocalScript prompt discovery connect only to the local player's habitat, including an unconditional initial lookup and later DescendantAdded/removed handling.
-- [ ] Validate plot Instance membership in the calling player's habitat, plot index, active session, character, and server-measured interaction distance before any mutation.
-- [ ] Derive plot effect positions from the server-resolved plot Instance instead of fixed shared-world coordinates.
-- [ ] Resolve each resource node from the calling player's registered habitat; do not trust node positions/owners supplied by clients or accept a bare template ID without server-side instance membership validation.
+- [x] Make LocalScript prompt discovery connect only to the local player's habitat, including an initial lookup and later DescendantAdded/removed handling. (Implemented in ProximityHandler; runtime-unverified)
+- [x] Validate plot Instance membership in the calling player's habitat, plot index, active session, character, and server-measured interaction distance before any mutation. (Implemented in PlantManager)
+- [x] Derive plot effect positions from the server-resolved plot Instance instead of fixed shared-world coordinates. (Implemented in PlantManager)
+- [x] Resolve each resource node from the calling player's registered habitat; do not trust node positions/owners supplied by clients or accept a bare template ID without server-side instance membership validation. (NodeId now exists on the exact server-built Part; runtime-unverified)
 - [x] Resource cooldown bookkeeping is now per UserId and node ID in memory.
-- [ ] Update cooldown only after successful reward grant (or safely roll back on failure); test full inventory and duplicate requests.
-- [ ] Decide whether resource cooldown/availability persists across rejoin and implement/document the intended behavior.
-- [ ] Prevent cross-player reward, inventory, cooldown, or habitat mutation.
-- [ ] Add concurrency/idempotency protection against simultaneous duplicate requests.
+- [x] Update cooldown only after a successful reward grant.
+- [ ] Test full-inventory and duplicate-request behavior.
+- [ ] Decide whether resource cooldown/availability persists across rejoin and implement/document the intended behavior. (Still planned)
+- [x] Prevent cross-player reward, inventory, cooldown, or habitat mutation. (Source validates registered habitat membership; multiplayer runtime test pending)
+- [x] Clear per-player resource cooldown state and habitat slot ownership on leave.
+- [ ] Add concurrency/idempotency protection against simultaneous duplicate requests. (Still planned)
 
 ### Creature isolation
 - [ ] Scope creature instances, registries, behavior loops, movement bounds, discoveries, restoration, and cleanup to the owning habitat/UserId.
@@ -127,7 +130,7 @@ This milestone establishes the defining Pocket Habitat experience: every player 
 
 ### Run #32 verification record
 
-Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl artifact. TestEZ, Roblox runtime, multiplayer, DataStore, and manual testing did not run. The QA agent reported no blocker, but the final source contains a missing WorldBuilder.init() call and other issues documented in project-state/run-32-audit.md. Do not treat QA_BLOCKER: NO as proof that the source is correct.
+Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl artifact. TestEZ, Roblox runtime, multiplayer, DataStore, and manual testing did not run. The QA agent reported no blocker, but that checkpoint's final source contained a missing WorldBuilder.init() definition and other issues documented in project-state/run-32-audit.md. The init API is now present in the current worktree; do not treat QA_BLOCKER: NO as proof that source or runtime behavior is correct.
 
 ## Milestone 6 — Release preparation
 
@@ -142,4 +145,4 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-Fix the P0 WorldBuilder/ServerMain API mismatch first. Then implement and verify correct habitat slot placement and one-time geometry transforms, followed by local-player prompt discovery and server-side plot/resource instance ownership checks. Consult docs/PROJECT_STATE.md and project-state/run-32-audit.md for exact source evidence and subsequent priorities. Do not advance the milestone checkboxes based on static CI alone.
+Implement atomic cross-server DataStore session leases and failure-safe save/release semantics. Then add character spawn/respawn routing and restore saved habitat state before enabling interactions. Startup API consistency, per-server habitat slot allocation, local-player prompt discovery, and resource-node identity checks are implemented in source but remain Roblox-runtime unverified. Consult docs/PROJECT_STATE.md for current source facts and project-state/run-32-audit.md for historical Run #32 evidence. Do not advance runtime acceptance checkboxes based on static CI alone.

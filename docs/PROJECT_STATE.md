@@ -14,17 +14,17 @@
 - **Verification boundary:** the new multi-cycle router is committed but has NOT yet been exercised by a new workflow run. Run #32 tested only the old one-pass stage orchestration.
 - **Run #32 artifact:** `pocket-habitat-pipeline-32` (77,705 bytes, includes Rojo .rbxl build and stage/usage logs)
 - **Run #32 result:** workflow completed successfully; implementation, review, repair, validation repair, QA, persistence, and artifact upload succeeded.
-- **Current source warning:** Run #32 introduced a source-confirmed server-startup blocker: ServerMain calls `WorldBuilder.init()`, but the current WorldBuilder module no longer defines that function. See `project-state/run-32-audit.md`.
+- **Current source warning:** The Run #32 `WorldBuilder.init()` mismatch is fixed in the current worktree. This run also removed a stale `QuestManager.claimQuest` override and fixed resource-node lookup, habitat-slot collisions, and prompt-discovery lifecycle; Roblox runtime behavior remains unverified.
 
 This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
 
 ## Current project status
 
-Pocket Habitat is **not currently verified as a playable Roblox game**. Run #32 passed static build, formatting, and lint checks, but no Roblox engine, Studio, multiplayer, DataStore, or manual playtest ran. The committed source has a startup API mismatch that is expected to stop ServerMain before its runtime initialization and player event handlers are registered.
+Pocket Habitat is **not currently verified as a playable Roblox game**. Run #32 passed static build, formatting, and lint checks, but no Roblox engine, Studio, multiplayer, DataStore, or manual playtest ran. The current worktree has a matching `WorldBuilder.init()` definition and call, but server startup still needs engine verification.
 
-Milestone 2 (personal habitats, multiplayer isolation, and safe persistence) remains **IN PROGRESS and NOT COMPLETE**. Do not claim non-overlapping habitats, character spawn/respawn routing, save restoration, or full player ownership validation.
+Milestone 2 (personal habitats, multiplayer isolation, and safe persistence) remains **IN PROGRESS and NOT COMPLETE**. The source now allocates non-overlapping active slots per server, but multiplayer isolation is unverified. Character spawn/respawn routing, save restoration, and full player ownership validation are not complete.
 
-**Current highest-priority task:** fix the WorldBuilder/ServerMain startup API mismatch, then make habitat spatial placement/geometry internally consistent and validate the join-to-interaction path before proceeding to deeper persistence work.
+**Current highest-priority task:** implement cross-server persistence ownership and failure-safe save/release semantics, then add character spawn/respawn and restore saved habitat state before enabling interactions.
 
 ## Latest workflow — Run #32
 
@@ -46,19 +46,24 @@ Milestone 2 (personal habitats, multiplayer isolation, and safe persistence) rem
 - Manual gameplay/mobile/input tests: NOT EXECUTED.
 - Artifact upload and GitHub checkpoint push: SUCCESS.
 
-**Important:** The QA report missed the missing `WorldBuilder.init()` function and incorrectly described the BaseOffset scheme as non-overlapping and character spawning as implemented. Audit final source rather than relying on those specific QA statements. The reviewer also reported a stale PlayerAdded issue and missing cleanup; the final committed source uses `Players.PlayerAdded` and does call `HabitatManager.removeHabitat(player)` on PlayerRemoving. The remaining prompt-discovery race is documented in `project-state/run-32-audit.md`.
+**Important:** At Run #32, QA missed the missing `WorldBuilder.init()` function and incorrectly described BaseOffset placement as non-overlapping and character spawning as implemented. That checkpoint's source also had prompt-discovery races. The current worktree now defines `WorldBuilder.init()`, allocates unique active slots, and tracks prompt descendants; none of those changes has Roblox runtime evidence.
 
 ## Implemented or partially implemented source systems
 
 These items exist in source but are not equivalent to a verified end-to-end Roblox feature:
 
-- Server startup and remote registration modules exist, but the current `WorldBuilder.init()` call is unresolved and blocks successful startup.
-- `HabitatManager` creates a `Workspace.Habitats` folder, allocates `Habitat_<UserId>` folders, stores a per-server registry, and can remove a player's folder.
-- `WorldBuilder.buildHabitat(folder, owner)` creates baseplate, resource, plot, path, and pond instances inside a habitat folder.
-- `ResourceManager` now tracks cooldowns in memory per UserId and node ID. It does not yet validate an exact server-owned resource instance or restore resource availability from saved data.
-- `ServerMain` invokes habitat allocation after data load and removes the habitat folder on PlayerRemoving.
-- Existing plant/economy/quest/creature source modules remain. Plot interaction still lacks actual owned-plot instance and distance validation; creature runtime remains incompletely player-scoped.
+- `ServerMain` calls module APIs that are present in the current source, including `WorldBuilder.init()`; this is source inspection only, not a Roblox startup test.
+- `QuestManager.init()` owns the `ClaimQuest` RemoteFunction handler; `ServerMain` no longer replaces it with a call to a nonexistent `QuestManager.claimQuest`.
+- `HabitatManager` allocates non-overlapping per-server grid slots, reuses slots after removal, stores a per-server registry, and sets `OwnerUserId` metadata. Allocation is idempotent for a live folder.
+- `WorldBuilder.buildHabitat(folder, owner)` creates baseplate, resource, plot, path, and pond instances inside a habitat folder with BaseOffset applied exactly once to all geometry.
+- `ResourceManager` tracks cooldowns in memory per UserId and node ID, validates the matching resource Part inside the calling player's registered habitat, checks distance, applies cooldown only after a successful reward, and clears cooldowns on PlayerRemoving.
+- `ServerMain` registers `PlayerAdded` before processing already-connected players and avoids duplicate initialization for the same UserId. It removes runtime habitat/cooldown state on PlayerRemoving.
+- `PlantManager` now validates exact plot Instance membership in the calling player's habitat, server-measured interaction distance (25 studs), and validates that the plotIndex corresponds to an actual plot Instance. Includes plot position effects derived from server-resolved plot Instance positions.
+- `ProximityHandler.client.lua` connects only to LocalPlayer's habitat, handles existing and newly added habitats, discovers prompts added during construction, and disconnects connections when the habitat is removed.
+- Existing plant/economy/quest/creature source modules remain. Creature runtime remains incompletely player-scoped (Milestone 2 incomplete), plot interaction validation is now implemented, creature runtime isolation still needs work (Milestone 2 incomplete).
 - TestEZ specifications exist for PlantRules/EconomyRules but were not executed in Run #32.
+
+**Important:** While static CI checks pass and the source now includes significant security and validation improvements, the game is **NOT currently verified as a playable Roblox game**. No Roblox runtime, Studio, multiplayer, DataStore, or manual playtests have been executed. Milestone 2 (personal habitats, multiplayer isolation, and safe persistence) remains **IN PROGRESS and NOT COMPLETE**. Server startup no longer has the API mismatch, but character spawn/respawn, world state restoration, DataStore session management, creature runtime isolation, and persistence safety across servers still require implementation and verification.
 
 ## Current autonomous workflow behavior (not yet live-tested)
 
@@ -70,34 +75,29 @@ Safety limits are 8 calls per model, 120 calls total, 30 cycles, 2 hours of aggr
 
 This behavior is documented in `docs/AUTONOMOUS_AGENT_GUIDE.md` and `docs/TESTING.md`. A new workflow dispatch is required to exercise it. The 100% target and quota-accounting regression fixtures were committed to `main` in `649d6137cb0221bccac914f337754b3db1bf59a8`; they have not yet been exercised by a new workflow dispatch. Provider account billing cannot be inspected by CI; call-count caps are not dollar-spend caps. Check provider free-tier status and spending limits before long runs.
 
-## Confirmed Run #32 blockers and gaps
+## Run #32 findings and current status
 
-The canonical source audit is `project-state/run-32-audit.md`. Key points:
+The historical source audit is `project-state/run-32-audit.md`; its findings describe the Run #32 checkpoint and are not all current source facts. In the current worktree, the startup API mismatch and stale quest-handler override are resolved, active habitat slots do not repeat, resource IDs are present on the server-owned Parts searched by `ResourceManager`, and prompt discovery watches existing and subsequently added prompts under only the local player's habitat. These fixes have not been exercised in Roblox.
 
-1. **P0 startup blocker:** ServerMain calls missing `WorldBuilder.init()`; WorldBuilder only defines `buildHabitat`.
-2. **Habitat overlap:** BaseOffset advances by only 0.1 studs on both X/Z and is bounded to a 0–99.9 diagonal range, while every baseplate is 100×100 studs; IDs wrap every 1,000.
-3. **Incorrect geometry offsets:** leaves/berries and plot borders add BaseOffset twice; paths target world origin rather than consistently using the local habitat origin.
-4. **No character spawn/respawn placement:** HabitatManager allocates folders but does not move characters; ServerMain has no CharacterAdded habitat-spawn wiring.
-5. **No saved-world restoration:** loaded data is not passed into habitat construction; plant/plot/upgrade/resource/creature runtime instances are not reconstructed from validated save data.
-6. **Plot remote is insufficiently bound to the world:** numeric plotIndex/action is checked against player data, but no exact plot Instance under that player's habitat or server-measured proximity is verified. Effects use fixed unoffset positions.
-7. **Resource remote needs exact ownership validation:** cooldowns are per-player, but remote accepts a nodeId template and does not prove membership in the player's registered habitat; missing habitat falls back to zero offset. Cooldown is set before the reward succeeds, so full inventory causes a no-reward cooldown.
-8. **Client prompt discovery has races/over-broad folder handling:** no unconditional initial own-habitat lookup; global ChildAdded path scans any habitat folder and may run before descendants/prompts exist. Connect only to local player's habitat and observe prompt descendants.
-9. **Persistence remains unsafe across servers:** GetAsync/SetAsync and local activeSessions are not a cross-server lease. A failed final save can still be followed by clearing the only in-memory session data.
-10. **Creature runtime still requires per-habitat scoping:** verify current CreatureManager and isolate runtime instances, registries, movement bounds, and cleanup.
-11. **Lifecycle/idempotency:** prevent duplicate habitat allocation, remove per-player runtime/cooldown/connection state, and test disconnect/shutdown/rejoin behavior.
+Still-open source gaps include character spawn/respawn placement, saved-world restoration, cross-server DataStore session leases and failure-safe saves, and per-habitat creature runtime isolation. Plot state/schema count consistency and concurrent interaction behavior also need dedicated verification.
+
+Current remaining risks and gaps:
+
+1. Character spawn/respawn placement and saved-world restoration are not implemented.
+2. DataStore sessions still lack cross-server leases and failure-safe save/release semantics.
+3. Creature runtime is not fully scoped to each player's habitat.
+4. Plot state/schema count consistency and concurrent interaction behavior need dedicated verification.
+5. Roblox startup, multiplayer isolation, persistence, and manual gameplay remain untested.
 
 Do not mark checklist items complete based on a folder, helper module, static build, reviewer assertion, or generated .rbxl. Require source verification and runtime evidence at the appropriate level.
 
 ## Current next-task sequence
 
-1. Fix the missing WorldBuilder startup API and add a startup smoke test/check that catches unresolved module calls where feasible.
-2. Replace UserId-modulus placement with a collision-free deterministic habitat slot/grid; apply one consistent transform to all geometry.
-3. Make prompt wiring local-player-only and race-safe; validate actual owned plot/resource instances, session, character, and distance on the server.
-4. Implement character spawn/respawn placement and restore plots/world state from validated player data.
-5. Implement cross-server DataStore session leases and failure-safe save/release semantics.
-6. Scope CreatureManager runtime to each player's habitat.
-7. Add and execute production-rule/integration tests; run Roblox Studio with at least two clients and test persistence/rejoin.
-8. Reassess milestone acceptance only after these checks.
+1. Implement atomic cross-server DataStore session leases and failure-safe save/release semantics.
+2. Add character spawn/respawn routing and reconstruct saved habitat state before interactions are enabled.
+3. Scope CreatureManager runtime to each player's habitat and clean it up with the player session.
+4. Add and execute production-rule/integration tests; run Roblox Studio with at least two clients and test persistence/rejoin.
+5. Reassess milestone acceptance only after these checks.
 
 ## Workflow and model/provider routing status
 

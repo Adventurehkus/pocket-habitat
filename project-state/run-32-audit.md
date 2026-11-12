@@ -1,10 +1,12 @@
 # Run #32 audit — actual status, blockers, and next work
 
+> Historical audit of Run #32's committed checkpoint (`1af27d2aade0922f57ec4333bf5d5331366d7b9b`). Its source findings and "current" labels apply to that checkpoint, not the current worktree. See `docs/PROJECT_STATE.md` for current status.
+
 ## Executive status
 
 - Workflow: **completed successfully**.
 - Gameplay milestone 2 (personal habitats, multiplayer isolation, and reliable persistence): **NOT COMPLETE**.
-- Playable Roblox runtime: **NOT VERIFIED; current source has a startup blocker**.
+- Playable Roblox runtime: **NOT VERIFIED; the Run #32 source had a startup blocker**.
 - Run #32 did not stop because every model was exhausted. Several routes were unavailable, but fallback models completed every required stage.
 - Do not use the Run #32 QA summary or the older `project-state/milestone-2-fixes.md` claims as the source of truth without checking the source. The QA output missed a critical startup defect and made incorrect claims about habitat placement/spawning.
 

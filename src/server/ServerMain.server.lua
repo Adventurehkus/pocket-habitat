@@ -24,28 +24,62 @@ RemoteEvents.PurchaseUpgrade.OnServerInvoke = function(player: Player, upgradeId
     return EconomyManager.purchaseUpgrade(player, upgradeId)
 end
 
-RemoteEvents.ClaimQuest.OnServerInvoke = function(player: Player, questId: any): (boolean, string)
-    return QuestManager.claimQuest(player, questId)
+local loadingPlayers: { [number]: boolean } = {}
+local removingPlayers: { [number]: boolean } = {}
+
+local function initializePlayer(player: Player)
+    local userId = player.UserId
+    if loadingPlayers[userId] or removingPlayers[userId] then
+        return
+    end
+    loadingPlayers[userId] = true
+
+    print("[ServerMain] Player added: " .. player.Name)
+    local data = DataStoreManager.loadPlayerData(player)
+    local currentPlayer = Players:GetPlayerByUserId(userId)
+    if currentPlayer ~= player then
+        loadingPlayers[userId] = nil
+        if currentPlayer then
+            task.spawn(initializePlayer, currentPlayer)
+        elseif data then
+            DataStoreManager.removeSession(player)
+        end
+        return
+    end
+
+    if not data then
+        loadingPlayers[userId] = nil
+        return
+    end
+
+    HabitatManager.allocateHabitat(player)
+    RemoteEvents.SyncData:FireClient(player, data)
+    loadingPlayers[userId] = nil
 end
 
 Players.PlayerAdded:Connect(function(player)
-    print("[ServerMain] Player added: " .. player.Name)
-    local data = DataStoreManager.loadPlayerData(player)
-    if data then
-        task.wait(1)
-        RemoteEvents.SyncData:FireClient(player, data)
-
-        -- Allocate player's habitat
-        HabitatManager.allocateHabitat(player)
-    end
+    task.spawn(initializePlayer, player)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
+    local userId = player.UserId
+    removingPlayers[userId] = true
     print("[ServerMain] Player removing: " .. player.Name)
-    DataStoreManager.removeSession(player)
+    ResourceManager.removePlayer(player)
     -- Clean up habitat folder when player leaves
     HabitatManager.removeHabitat(player)
+    DataStoreManager.removeSession(player)
+    removingPlayers[userId] = nil
+
+    local currentPlayer = Players:GetPlayerByUserId(userId)
+    if currentPlayer and currentPlayer ~= player then
+        task.spawn(initializePlayer, currentPlayer)
+    end
 end)
+
+for _, player in ipairs(Players:GetPlayers()) do
+    task.spawn(initializePlayer, player)
+end
 
 game:BindToClose(function()
     for _, player in ipairs(Players:GetPlayers()) do

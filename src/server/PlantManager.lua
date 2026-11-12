@@ -49,7 +49,11 @@ local function plantSeed(player: Player, data: any, plan: any): (boolean, string
     plot.stage = 1
 
     CreatureManager.checkDiscoveries(player)
-    RemoteEvents.PlantEffect:FireClient(player, getPlotPosition(plan.plotIndex), seedId)
+
+    -- Use actual plot Instance position for effects
+    local plotPosition = plan.plotInstance and plan.plotInstance.Position
+        or getPlotPosition(plan.plotIndex)
+    RemoteEvents.PlantEffect:FireClient(player, plotPosition, seedId)
 
     local message = if plan.automatic then "Planted seed automatically!" else "Planted seed!"
     syncAndNotify(player, data, message)
@@ -79,12 +83,11 @@ local function waterPlant(player: Player, data: any, plan: any): (boolean, strin
     end
 
     CreatureManager.checkDiscoveries(player)
-    RemoteEvents.WaterEffect:FireClient(
-        player,
-        getPlotPosition(plan.plotIndex),
-        plot.waterCount,
-        plantDef.waterNeeded
-    )
+
+    -- Use actual plot Instance position for effects
+    local plotPosition = plan.plotInstance and plan.plotInstance.Position
+        or getPlotPosition(plan.plotIndex)
+    RemoteEvents.WaterEffect:FireClient(player, plotPosition, plot.waterCount, plantDef.waterNeeded)
 
     syncAndNotify(player, data, "Watered plant!")
     return true, "Success"
@@ -116,9 +119,12 @@ local function harvestPlant(player: Player, data: any, plan: any): (boolean, str
     plot.waterCount = 0
     plot.stage = 0
 
+    -- Use actual plot Instance position for effects
+    local plotPosition = plan.plotInstance and plan.plotInstance.Position
+        or getPlotPosition(plan.plotIndex)
     RemoteEvents.HarvestEffect:FireClient(
         player,
-        getPlotPosition(plan.plotIndex),
+        plotPosition,
         reward.itemId,
         rewardQty,
         plantDef.bellReward
@@ -158,6 +164,40 @@ local function handleInteraction(
     if not plan then
         return false, validationError or "Invalid interaction"
     end
+
+    -- Server-side validation: Verify actual plot Instance ownership and distance
+    local HabitatManager = require(script.Parent:WaitForChild("HabitatManager"))
+    local habitat = HabitatManager.getHabitat(player)
+
+    if not habitat then
+        return false, "Player habitat not found"
+    end
+
+    -- Find the actual plot Instance in the player's habitat
+    local plotInstance = nil
+    local plotsFolder = habitat:FindFirstChild("GardenPlots")
+    if plotsFolder then
+        local plotName = "Plot_" .. tostring(plotIndex)
+        plotInstance = plotsFolder:FindFirstChild(plotName)
+    end
+
+    if not plotInstance then
+        return false, "Plot not found in player habitat"
+    end
+
+    -- Check interaction distance (25 studs)
+    local character = player.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then
+        return false, "Invalid character"
+    end
+
+    local distance = (character.HumanoidRootPart.Position - plotInstance.Position).Magnitude
+    if distance > 25 then
+        return false, "Too far away from plot"
+    end
+
+    -- Update plan with actual plot Instance for effects
+    plan.plotInstance = plotInstance
 
     if plan.action == "plant" then
         return plantSeed(player, data, plan)
