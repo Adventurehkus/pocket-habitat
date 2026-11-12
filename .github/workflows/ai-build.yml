@@ -1267,6 +1267,10 @@ jobs:
             echo
             echo "Quota exhaustion is detected from explicit provider/model errors. The workflow does not query live account balances. Provider-scoped pools group models that share an account-level quota; Google/Groq routes are treated as model-scoped. Transient rate limits, request-size errors, authentication failures, and unavailable models do not count as daily quota exhaustion."
             echo
+            echo "## Billing safety"
+            echo
+            echo "The total model-call cap limits request count, not monetary spend. Confirm each provider's free-tier/billing status and configure spending limits in provider dashboards before using a long quota-focused run."
+            echo
             echo "## Testing boundaries"
             echo
             echo "- Automated checks executed: Rojo build, StyLua check on src/, Selene on src/."
