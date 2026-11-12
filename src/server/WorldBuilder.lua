@@ -250,4 +250,8 @@ function WorldBuilder.buildHabitat(folder: Folder, owner: Player)
     print("[WorldBuilder] Habitat built for: " .. owner.Name)
 end
 
+function WorldBuilder.init()
+    print("[WorldBuilder] Initialized")
+end
+
 return WorldBuilder

@@ -33,6 +33,7 @@ function DataStoreManager.getDefaultData(userId: number)
             [1] = { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 },
             [2] = { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 },
         },
+        sessionLock = nil,
     }
 end
 

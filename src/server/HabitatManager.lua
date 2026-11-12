@@ -18,11 +18,10 @@ end
 function HabitatManager.allocateHabitat(player: Player): Folder
     local habitat = Instance.new("Folder")
     habitat.Name = "Habitat_" .. tostring(player.UserId)
-    -- Use a deterministic offset based on UserId for consistency
-    habitat:SetAttribute(
-        "BaseOffset",
-        Vector3.new((player.UserId % 1000) * 0.1, 0, (player.UserId % 1000) * 0.1)
-    )
+    -- Use a deterministic grid offset based on UserId for consistency
+    local gridX = player.UserId % 10
+    local gridZ = math.floor(player.UserId / 10) % 10
+    habitat:SetAttribute("BaseOffset", Vector3.new(gridX * 150, 0, gridZ * 150))
     habitat.Parent = habitatsFolder
 
     WorldBuilder.buildHabitat(habitat, player)
