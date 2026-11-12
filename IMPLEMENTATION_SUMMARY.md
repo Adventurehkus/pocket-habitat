@@ -1,41 +1,61 @@
 # Pocket Habitat — Implementation Summary
 
-## Latest verified gameplay checkpoint
+## Latest gameplay checkpoint — Run #32
 
-- Gameplay branch: ai/game-build
-- Checkpoint: 21386b54aa0432c1f5fdb796411c30a41d060350
-- Workflow run: #30 (ID 43098662842), completed successfully on 2026-11-11.
+- Gameplay branch: `ai/game-build`
+- Checkpoint: `1af27d2aade0922f57ec4333bf5d5331366d7b9b`
+- Workflow run: #32, ID `43119650837`, completed successfully on 2026-11-11.
+- Workflow: https://github.com/Adventurehkus/pocket-habitat/actions/runs/43119650837
+- Artifact: `pocket-habitat-pipeline-32` (77,705 bytes); includes `build/pocket-habitat.rbxl`, agent report, stage logs, and model usage TSV.
 
-## Work represented by this checkpoint
+## Work committed
 
-- Repaired ProximityPrompt interaction wiring and corrected client RemoteFunction arguments.
-- Consolidated plot interactions in PlantManager, including the harvest-or-plant action.
-- Added production PlantRules validation for planting, watering, and harvesting.
-- Added production EconomyRules validation for inventory capacity.
-- Expanded TestEZ specifications for plant/plot and inventory rules.
-- Expanded plant, creature, upgrade, and quest definitions and content.
-- Updated implementation documentation and static validation fixes.
+- Added `src/server/HabitatManager.lua` with a Workspace.Habitats root, per-UserId folder allocation/lookup/removal helpers, and BaseOffset metadata.
+- Changed WorldBuilder to build world geometry under a supplied habitat folder.
+- Updated ServerMain to allocate a player's habitat after successful data loading and remove its folder on PlayerRemoving.
+- Replaced global resource cooldown bookkeeping with an in-memory per-UserId/per-node cooldown table.
+- Updated ProximityHandler to discover habitat folders and wire prompts.
 
-## Verified results in Run #30
+These are a partial architectural foundation. They do not implement complete habitat lifecycle, correct non-overlapping placement, character spawn, saved-world restoration, or full ownership security.
 
-- Implementation, independent review, conditional repair, and QA stages: SUCCESS.
-- Rojo build: PASSED.
-- StyLua check src: PASSED.
-- Selene src: PASSED.
-- TestEZ execution: NOT EXECUTED.
-- Roblox Studio/gameplay, multiplayer, DataStore integration/stress: NOT EXECUTED.
-- Build/pipeline artifact upload: SUCCESS.
+## Verification actually completed
 
-A successful static pipeline run does not prove a playable game or multiplayer/persistence safety.
+- Implementation: SUCCESS — Cohere North Mini Code.
+- Independent review: SUCCESS — Google Gemini 3.5 Flash Lite.
+- Repair: SUCCESS — Cohere Command A+.
+- Validation repair: SUCCESS — GitHub Copilot Auto.
+- QA: SUCCESS — Google Gemini 3.1 Flash Lite; output began `QA_BLOCKER: NO`.
+- Rojo build: PASSED; .rbxl generated.
+- StyLua `--check src`: PASSED, 0 errors, 0 warnings, 0 parse errors.
+- Selene `src`: PASSED.
+- `git diff --check`: repair-agent log reports PASS.
+- Gameplay commit and artifact upload: SUCCESS.
 
-## Important remaining implementation gaps
+Not executed: TestEZ, Roblox server startup, Roblox Studio gameplay, two-client multiplayer, DataStore integration/contention, save/rejoin/shutdown, mobile/touch, or manual playtests.
 
-The source still needs a complete server-owned per-player habitat lifecycle. WorldBuilder, ResourceManager, and CreatureManager use shared runtime state in important areas. DataStoreManager's in-memory session table is not a cross-server session lock. Quest definitions and quest order/objective behavior are incomplete. Some upgrade definitions do not yet have complete effects in the actual world. See docs/PROJECT_STATE.md and docs/ROADMAP.md for the live details and next task.
+## Critical source defect discovered after QA
 
-## Workflow retry improvements after Run #30
+`ServerMain.server.lua` still calls `WorldBuilder.init()`, but Run #32's `WorldBuilder.lua` defines `buildHabitat(folder, owner)` and has no `init` function. The old version did define init(). The current startup script is expected to fail at that call before all subsequent system initialization and player lifecycle event connections. This was not detected by CI or the QA agent.
 
-The main branch workflow was subsequently updated with failure classification, per-model/provider cooldowns, Retry-After parsing, alternative model attempts, and automatic stage resumption for temporary provider limits. Its policy is bounded (four attempts per model per stage, up to 50 calls per stage, two hours waiting per stage and four hours overall). This workflow improvement is committed but awaits a fresh live CI run.
+Other verified issues:
+- BaseOffset uses only 0.1-stud diagonal increments with a 100×100 baseplate and repeats every 1,000 UserIds; habitat overlap is unavoidable.
+- Several child geometry positions add BaseOffset twice; paths use world origin instead of the local habitat origin.
+- No server-owned character spawn/respawn placement exists.
+- Loaded data is not passed into habitat construction; world state is not restored.
+- Plot interaction does not resolve/validate an actual plot Instance within the calling player's habitat or server-measured distance. Plant effect positions are not habitat-offset.
+- Resource remote accepts a nodeId and derives a template position rather than validating an exact node instance in the user's registered habitat. Its cooldown is set before reward grant, penalizing full-inventory failures.
+- ProximityHandler's habitat discovery can miss the local player's already-existing habitat and its ChildAdded path is not restricted to the local player's folder or robust to descendant-add timing.
+- DataStoreManager still uses GetAsync/SetAsync and process-local sessions, without a cross-server lease. removeSession clears in-memory state even if its final save failed.
+- Creature runtime is still not fully habitat-scoped.
 
-## Next development direction
+Full source findings and ordered repair plan: `project-state/run-32-audit.md`.
 
-Use docs/PROJECT_STATE.md and docs/ROADMAP.md as the source of truth. The current highest priority is a complete player-owned habitat lifecycle and safe cross-server persistence. Do not hard-code this or any future milestone into a reusable prompt.
+## Model usage interpretation
+
+The Run #32 artifact records 20 configured models, 3 daily/shared quota-exhaustion events, 4 classified temporary-limit events, and 0 seconds of automatic wait. Individual Google, Cloudflare, and OpenRouter routes were exhausted or limited; some Groq routes were skipped because the prompt was too large. Cohere, Google, Cohere, GitHub Copilot, and Google routes successfully completed the five required model stages.
+
+The workflow did **not** stop because all models ran out. All required stages completed using fallback routes. Remaining provider balances were not queried.
+
+## Next development objective
+
+Fix the WorldBuilder/ServerMain startup API mismatch first. Then implement collision-free habitat placement and consistent transforms, safe local-player prompt discovery, server-side ownership/distance validation, spawn/respawn, and save restoration. Follow the ordered plan in `project-state/run-32-audit.md`; do not mark Milestone 2 complete based on static CI.
