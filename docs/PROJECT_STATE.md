@@ -9,8 +9,8 @@
 - **Workflow URL:** https://github.com/Adventurehkus/pocket-habitat/actions/runs/43119650837
 - **Workflow configuration branch:** main
 - **Workflow head used by Run #32:** `b37935206db380e99731d4082c2f9f803954a76e`
-- **Latest workflow configuration commit on main:** `658bb50bad7060dc0ae99760ac673c748684cac4`
-- **Current workflow policy:** multi-cycle implementation/review/QA with round-robin model reuse, 75% explicit quota-pool exhaustion target, per-cycle checkpoint pushes, and hard call/time/no-progress caps.
+- **Latest workflow configuration commit on main:** `649d6137cb0221bccac914f337754b3db1bf59a8`.
+- **Current workflow policy:** multi-cycle implementation/review/QA with round-robin model reuse, 100% explicit exhaustion target across currently eligible quota pools, per-cycle checkpoint pushes, and hard call/time/no-progress caps.
 - **Verification boundary:** the new multi-cycle router is committed but has NOT yet been exercised by a new workflow run. Run #32 tested only the old one-pass stage orchestration.
 - **Run #32 artifact:** `pocket-habitat-pipeline-32` (77,705 bytes, includes Rojo .rbxl build and stage/usage logs)
 - **Run #32 result:** workflow completed successfully; implementation, review, repair, validation repair, QA, persistence, and artifact upload succeeded.
@@ -64,11 +64,11 @@ These items exist in source but are not equivalent to a verified end-to-end Robl
 
 The workflow on `main` now continues beyond the first successful implementation/review/QA pass. It repeats coherent implementation, independent review, conditional repair, deterministic validation, and QA cycles. Later cycles continue the original task if unfinished; otherwise they use the live project state and roadmap to advance to the next unfinished priority.
 
-The router rotates eligible models across cycles and allows previously successful models to be reused in later cycles. It aims to stop after explicit daily/monthly quota errors have exhausted at least 75% of eligible quota pools. Google/Groq routes are counted per model; Cohere, OpenRouter, Cloudflare, and Copilot routes are grouped by provider/account. Quota exhaustion is reactive to provider error messages, not a live balance measurement.
+The router rotates eligible models across cycles and allows previously successful models to be reused in later cycles. The quota target is now 100% of currently eligible pools: every pool still usable in this run must return an explicit daily/monthly quota-exhaustion error before quota-target completion. Google/Groq routes are counted per model; Cohere, OpenRouter, Cloudflare, and Copilot routes are grouped by provider/account. Permanently ineligible routes are excluded from the eligible denominator but are not counted as quota-exhausted. When no pools are measurable, the report shows 0% and does not claim the target. Quota exhaustion is reactive to provider error messages, not a live balance measurement.
 
 Safety limits are 8 calls per model, 120 calls total, 30 cycles, 2 hours of aggregate temporary-limit wait, two consecutive no-progress cycles, and the GitHub Actions 350-minute job timeout. Each reviewed and validated cycle is checkpointed to `ai/game-build` before another cycle begins. Review, QA, validation, or checkpoint-persistence failure stops the run rather than allowing unchecked work to accumulate.
 
-This behavior is documented in `docs/AUTONOMOUS_AGENT_GUIDE.md` and `docs/TESTING.md`. A new workflow dispatch is required to exercise it. Provider account billing cannot be inspected by CI; call-count caps are not dollar-spend caps. Check provider free-tier status and spending limits before long runs.
+This behavior is documented in `docs/AUTONOMOUS_AGENT_GUIDE.md` and `docs/TESTING.md`. A new workflow dispatch is required to exercise it. The 100% target and quota-accounting regression fixtures were committed to `main` in `649d6137cb0221bccac914f337754b3db1bf59a8`; they have not yet been exercised by a new workflow dispatch. Provider account billing cannot be inspected by CI; call-count caps are not dollar-spend caps. Check provider free-tier status and spending limits before long runs.
 
 ## Confirmed Run #32 blockers and gaps
 
