@@ -98,6 +98,8 @@ jobs:
           USAGE_LOG="$RUNNER_TEMP/pocket-habitat-model-usage.tsv"
           VALIDATION_LOG="$RUNNER_TEMP/pocket-habitat-validation.log"
           DIFF_FILE="$RUNNER_TEMP/pocket-habitat-implementation.diff"
+          RECOVERY_CONTEXT_FILE="$RUNNER_TEMP/pocket-habitat-recovery-context.md"
+          echo "safe_to_persist=false" >> "$GITHUB_OUTPUT"
           printf 'round\tstage\tprovider\tmodel\tattempt\tresult\tdetail\n' > "$USAGE_LOG"
 
           # A successful model is used once per cycle for role separation, then
@@ -127,7 +129,12 @@ jobs:
           RUN_COUNTER=0
           TOTAL_MODEL_CALLS=0
           PERSISTED_CYCLE_CHECKPOINTS=0
+          PERSISTED_RECOVERY_CHECKPOINTS=0
           AUTONOMOUS_ROUNDS_COMPLETED=0
+          AUTONOMOUS_RECOVERY_CYCLES=0
+          VALIDATION_RECOVERY_CYCLES=0
+          RECOVERY_CONTEXT_ACTIVE=false
+          SAFE_TO_PERSIST=false
           AUTONOMOUS_STOP_REASON=""
           NO_PROGRESS_ROUNDS=0
           PIPELINE_EXIT=0
@@ -140,6 +147,8 @@ jobs:
           MAX_TOTAL_MODEL_CALLS=120
           MAX_AUTONOMOUS_ROUNDS=30
           MAX_CONSECUTIVE_NO_PROGRESS_ROUNDS=2
+          MAX_VALIDATION_REPAIR_ROUNDS_PER_CYCLE=5
+          MAX_QA_REPAIR_ROUNDS_PER_CYCLE=3
           QUOTA_EXHAUSTION_TARGET_PERCENT=100
           STAGE_TEMP_WAIT_BUDGET_SECONDS=7200
           TOTAL_TEMP_WAIT_BUDGET_SECONDS=7200
@@ -709,6 +718,9 @@ jobs:
               repair) role_name="REPAIR_MODELS" ;;
               validation-repair) role_name="VALIDATION_REPAIR_MODELS" ;;
               qa) role_name="QA_MODELS" ;;
+              qa-fallback) role_name="QA_FALLBACK_MODELS" ;;
+              qa-recheck) role_name="QA_RECHECK_MODELS" ;;
+              qa-recheck-fallback) role_name="QA_RECHECK_FALLBACK_MODELS" ;;
               qa-repair) role_name="FINAL_REPAIR_MODELS" ;;
               *) role_name="" ;;
             esac
