@@ -14,7 +14,7 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 
 - src/server/ServerMain.server.lua — server startup and player lifecycle orchestration.
 - src/server/HabitatManager.lua — per-server UserId-to-habitat-folder registry and allocation/removal helpers (not yet a complete spawn/restore lifecycle).
-- src/server/WorldBuilder.lua — creates world instances beneath a supplied habitat folder; Run #32 removed the former init() API without updating ServerMain.
+- src/server/WorldBuilder.lua — provides `init()` for the ServerMain startup path and creates world instances beneath each supplied habitat folder.
 - src/server/ResourceManager.lua — resource node interactions and rewards.
 - src/server/PlantManager.lua — plot interactions, planting, watering, and harvesting.
 - src/server/EconomyManager.lua — inventory, Bells, spending, and upgrades.
