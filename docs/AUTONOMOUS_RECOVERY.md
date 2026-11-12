@@ -53,7 +53,7 @@ Roblox DataStore integration, real multi-server contention, PlayerRemoving/BindT
 - Fix Priority 1 first so the workflow's deterministic validation gate is green.
 - Then address Priority 2 without discarding correct work or changing save-key compatibility.
 - Obtain independent code review, run deterministic validation, and obtain independent QA after changes.
-- Keep this file until both priorities are fixed and their required verification is recorded. Remove it only as part of a reviewed, QA-inspected, deterministically validated checkpoint.
-- When all automation-resolvable items are genuinely fixed, update the first status line to exactly `RECOVERY_STATUS: RESOLVED` and append a dated/run-specific evidence section with the CI commands/results and review/QA evidence. Keep any engine/runtime gaps explicitly outstanding in the project state. Never mark RESOLVED merely because one validator turned green.
+- Keep this file as the durable recovery record. When all automation-resolvable items are genuinely fixed, update the first status line to exactly `RECOVERY_STATUS: RESOLVED` and append a dated/run-specific evidence section with CI commands/results and independent review/QA evidence. The workflow retains a resolved record in Git as audit evidence and ignores it on later starts. A new recovery event reopens the same record to `RECOVERY_STATUS: OPEN`.
+- Keep any engine/runtime gaps explicitly outstanding in the project state. Never mark RESOLVED merely because one validator turned green.
 - Do not start unrelated features, claim Milestone 2 persistence complete, or claim the experience release-ready while this note remains open.
 - Never modify vendored `DevPackages/`, publish to Roblox, alter secrets/provider configuration, or weaken safety/validation checks.
