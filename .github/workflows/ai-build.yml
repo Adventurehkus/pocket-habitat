@@ -98,8 +98,12 @@ jobs:
           USAGE_LOG="$RUNNER_TEMP/pocket-habitat-model-usage.tsv"
           VALIDATION_LOG="$RUNNER_TEMP/pocket-habitat-validation.log"
           DIFF_FILE="$RUNNER_TEMP/pocket-habitat-implementation.diff"
-          RECOVERY_CONTEXT_FILE="$RUNNER_TEMP/pocket-habitat-recovery-context.md"
+          RECOVERY_CONTEXT_FILE="$GITHUB_WORKSPACE/docs/AUTONOMOUS_RECOVERY.md"
           echo "safe_to_persist=false" >> "$GITHUB_OUTPUT"
+          if [[ -f "$RECOVERY_CONTEXT_FILE" ]]; then
+            RECOVERY_CONTEXT_ACTIVE=true
+            echo "::warning::Found persisted autonomous recovery debt from a previous run. The next implementation pass must resolve it first."
+          fi
           printf 'round\tstage\tprovider\tmodel\tattempt\tresult\tdetail\n' > "$USAGE_LOG"
 
           # A successful model is used once per cycle for role separation, then
@@ -1047,7 +1051,19 @@ jobs:
                   tail -n 120 "$report"
                 fi
               done
-            } > "$RECOVERY_CONTEXT_FILE"
+            } > "$RUNNER_TEMP/pocket-habitat-recovery-entry.md"
+            if [[ -f "$RECOVERY_CONTEXT_FILE" ]]; then
+              {
+                cat "$RECOVERY_CONTEXT_FILE"
+                echo
+                echo "---"
+                echo
+                cat "$RUNNER_TEMP/pocket-habitat-recovery-entry.md"
+              } > "$RECOVERY_CONTEXT_FILE.tmp"
+              mv "$RECOVERY_CONTEXT_FILE.tmp" "$RECOVERY_CONTEXT_FILE"
+            else
+              cp "$RUNNER_TEMP/pocket-habitat-recovery-entry.md" "$RECOVERY_CONTEXT_FILE"
+            fi
             RECOVERY_CONTEXT_ACTIVE=true
           }
           refresh_diff() {
@@ -1211,6 +1227,20 @@ jobs:
               NO_PROGRESS_ROUNDS=$((NO_PROGRESS_ROUNDS + 1))
               echo "::warning::Implementation cycle $round produced no repository diff ($NO_PROGRESS_ROUNDS consecutive no-progress cycles)."
               if [[ "$IMPLEMENT_RESULT" -ne 0 ]]; then
+                if [[ "$NO_PROGRESS_ROUNDS" -ge "$MAX_CONSECUTIVE_NO_PROGRESS_ROUNDS" ]]; then
+                  PIPELINE_EXIT=1
+                  AUTONOMOUS_STOP_REASON="no_implementation_progress"
+                  echo "::error::No implementation route produced safe changes in $NO_PROGRESS_ROUNDS consecutive cycles. Stopping under the no-capable-agent safety exception."
+                  echo "::endgroup::"
+                  break
+                fi
+                if ! persist_recovery_checkpoint; then
+                  PIPELINE_EXIT=1
+                  AUTONOMOUS_STOP_REASON="recovery_checkpoint_persistence_failed"
+                  echo "::error::Unable to persist the retry/recovery instruction for the next cycle."
+                  echo "::endgroup::"
+                  break
+                fi
                 if [[ "$NO_PROGRESS_ROUNDS" -ge "$MAX_CONSECUTIVE_NO_PROGRESS_ROUNDS" ]]; then
                   PIPELINE_EXIT=1
                   AUTONOMOUS_STOP_REASON="no_implementation_progress"
@@ -1473,6 +1503,14 @@ jobs:
               continue
             fi
 
+            # Clear any prior recovery debt only after the full review, QA and
+            # deterministic validation path is green. The deletion is included
+            # in the new validated checkpoint pushed immediately below.
+            if [[ "$RECOVERY_CONTEXT_ACTIVE" == "true" ]]; then
+              rm -f "$RECOVERY_CONTEXT_FILE"
+              RECOVERY_CONTEXT_ACTIVE=false
+            fi
+
             if ! persist_cycle_checkpoint; then
               PIPELINE_EXIT=1
               AUTONOMOUS_STOP_REASON="cycle_checkpoint_persistence_failed"
@@ -1616,7 +1654,7 @@ jobs:
             ${{ runner.temp }}/pocket-habitat-agent-report.md
             ${{ runner.temp }}/pocket-habitat-model-usage.tsv
             ${{ runner.temp }}/pocket-habitat-validation.log
-            ${{ runner.temp }}/pocket-habitat-recovery-context.md
+            docs/AUTONOMOUS_RECOVERY.md
             ${{ runner.temp }}/opencode-*.log
           if-no-files-found: warn
           retention-days: 14
