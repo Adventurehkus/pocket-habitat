@@ -110,11 +110,18 @@ The GitHub Actions workflow owns model selection, provider routing, implementati
 - Do not call provider APIs directly, create nested agents, or manually reproduce the pipeline's stages.
 - Do not change provider configuration, secrets, credentials, model routing, or the GitHub Actions workflow unless the user's current task explicitly authorizes that work.
 - Do not treat a temporary RPM/TPM limit, 429, transient 5xx, timeout, or capacity error as a code defect.
-- The workflow now classifies provider errors, applies per-model/provider cooldowns, honors retry hints, tries other routes, and automatically revisits temporary failures within bounded retry and job-time budgets.
-- Explicit daily/monthly/shared quota exhaustion, invalid credentials, unavailable models, and oversized requests are handled differently from temporary limits. Do not repeatedly call a route that the workflow has disabled.
+- The workflow classifies provider errors, applies per-model/provider cooldowns, honors retry hints, tries other routes, and automatically revisits temporary failures within bounded retry and job-time budgets.
+- Standard live runs execute repeated autonomous cycles: implementation, independent review, conditional repair, deterministic validation, and independent QA. After a validated cycle, the workflow pushes a checkpoint to `ai/game-build` before beginning the next cycle.
+- Candidate models rotate between cycles. A successful model is excluded from other roles during that same cycle so implementation, review, and QA remain independent, then becomes eligible again in later cycles unless its quota or run budget is exhausted.
+- The run continues beyond the first successful implementation/review/QA sequence. The default stop target is explicit daily/monthly quota errors across at least **75% of eligible quota pools**, subject to hard safety caps.
+- Quota pools are estimates based on current routing: Google/Groq models are counted separately; Cohere, OpenRouter, Cloudflare, and Copilot routes are grouped by provider/account. The workflow cannot query true provider balances; it only knows a pool is exhausted after receiving an explicit provider/model quota error. This is not an exact balance meter.
+- Temporary RPM/TPM limits are cooled down and revisited later. Explicit daily/monthly/shared quota exhaustion disables the affected scope for the rest of the run. Authentication failures, unavailable models, request-size failures, and unknown errors are excluded from eligible pools; they do not count as daily quota exhaustion.
+- Current hard limits: 8 calls per model per run, 120 total model calls, 30 autonomous cycles, at most 2 hours of aggregate temporary-limit waiting, and the GitHub Actions job's 350-minute timeout. The run also stops after two consecutive implementation cycles produce no repository changes, or if review, QA, deterministic validation, or checkpoint persistence cannot complete safely.
 - Never tell the user that a provider has remaining quota unless an authoritative account balance was actually queried. Configured models do not imply available quota.
 
-If the pipeline reports that its bounded retry/time budget was exhausted, continue only when a new run is explicitly started or the user asks for a workflow change. Do not pretend the agent can keep running after the GitHub Actions job has ended.
+A single pasted task is used for the first cycle. Later cycles continue that task if it remains incomplete; otherwise they choose the next highest-priority unfinished item from the live project state and roadmap. The workflow cannot continue after the GitHub Actions job has ended; if a hard budget is reached before the quota target, the report must state that stop reason.
+
+**Billing caution:** a quota-focused run makes substantially more API calls than the previous one-pass workflow. Whether an individual provider call is free depends on the connected account/project billing configuration, which the workflow cannot inspect. Confirm provider free-tier status and configure hard spending limits with providers before running. The workflow's call caps limit request count, not dollar spend.
 
 ## Repository and Git boundaries
 
