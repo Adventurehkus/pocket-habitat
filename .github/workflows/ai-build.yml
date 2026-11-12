@@ -1082,6 +1082,41 @@ jobs:
             return "$result"
           }
 
+          # Deterministic failures are repair tasks, not run-ending conditions.
+          # Give multiple distinct eligible models a chance in each cycle, then
+          # carry any remaining failure into the following recovery cycle.
+          repair_validation_until_pass() {
+            local repair_round=0
+            local repair_result before_repair_hash after_repair_hash
+            run_validation
+            while [[ "$VALIDATION_STATUS" -ne 0 && "$repair_round" -lt "$MAX_VALIDATION_REPAIR_ROUNDS_PER_CYCLE" && "$TOTAL_MODEL_CALLS" -lt "$MAX_TOTAL_MODEL_CALLS" ]]; do
+              repair_round=$((repair_round + 1))
+              echo "::warning::Validation still fails. Starting repair attempt $repair_round/$MAX_VALIDATION_REPAIR_ROUNDS_PER_CYCLE with the next eligible model."
+              VALIDATION_REPAIR_PROMPT="The attached deterministic validation report contains real failures. This is a required repair task, not a reason to stop. Fix actual root causes in project-owned files, including every reported StyLua/Selene/Rojo failure. Do not suppress warnings, weaken lint rules, skip checks, alter the toolchain to hide failures, or claim success without rerunning all checks. Preserve unrelated correct changes. Do not modify DevPackages, publish, commit, or push. Report exact files changed and test results."
+              COPILOT_STAGE_ALLOWED=true
+              prioritize_models VALIDATION_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
+              STAGE_FILES=("$VALIDATION_LOG")
+              if [[ "$RECOVERY_CONTEXT_ACTIVE" == "true" && -f "$RECOVERY_CONTEXT_FILE" ]]; then
+                STAGE_FILES+=("$RECOVERY_CONTEXT_FILE")
+              fi
+              refresh_diff
+              before_repair_hash="$(sha256sum "$DIFF_FILE" | awk '{print $1}')"
+              run_stage "validation-repair" "build" "$VALIDATION_REPAIR_PROMPT" "${VALIDATION_REPAIR_MODELS[@]}"
+              repair_result=$?
+              if [[ "$repair_result" -ne 0 ]]; then
+                echo "::warning::No additional validation-repair model completed; carrying the failure report forward."
+                break
+              fi
+              run_validation
+              refresh_diff
+              after_repair_hash="$(sha256sum "$DIFF_FILE" | awk '{print $1}')"
+              if [[ "$before_repair_hash" != "$after_repair_hash" ]]; then
+                NO_PROGRESS_ROUNDS=0
+              fi
+            done
+            [[ "$VALIDATION_STATUS" -eq 0 ]]
+          }
+
           IMPLEMENT_PROMPT="You are the Pocket Habitat implementation agent. Read AGENTS.md and the relevant project documentation before changing code. Complete the user's task below with working, integrated Luau gameplay rather than disconnected scaffolding. Inspect the current repository state first and preserve correct existing work. Keep gameplay server-authoritative; validate all remote requests, ownership, distance, rewards, inventory, purchases, quests, and persistence. Do not publish to Roblox, access publishing credentials, create/switch branches, commit, or push. Never modify or reformat DevPackages or other vendored dependencies. Format/lint only src/. Run the checks you can actually run and report exact results; never claim Roblox Studio, engine, multiplayer, or TestEZ execution unless it truly happened. Update docs/PROJECT_STATE.md, docs/ROADMAP.md, and docs/TESTING.md accurately. User task for the first cycle: ${TASK}"
 
           CONTINUATION_PROMPT="You are continuing Pocket Habitat autonomous development in a multi-cycle run. The user's original request was: ${TASK}. The first implementation pass and its review/QA have already happened. Do NOT repeat completed changes or restart the project. Re-read AGENTS.md, docs/PROJECT_STATE.md, docs/ROADMAP.md, docs/TECHNICAL_ARCHITECTURE.md and docs/TESTING.md, inspect the current source and working tree, and identify the highest-priority unfinished task. Continue the original request if it remains incomplete; otherwise advance to the next highest-value incomplete roadmap task. Fix verified blockers before adding features. Implement one meaningful, integrated vertical slice, run checks, and accurately update the living docs so the following cycle can continue. Do not stop merely because the original request is complete; continue to the next documented task. Do not invent work or make unrelated changes. Never publish, commit, push, modify secrets/provider configuration, or touch DevPackages."
