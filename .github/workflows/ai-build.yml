@@ -135,9 +135,11 @@ jobs:
           VALIDATION_RECOVERY_CYCLES=0
           RECOVERY_CONTEXT_ACTIVE=false
           SAFE_TO_PERSIST=false
-          if [[ -f "$RECOVERY_CONTEXT_FILE" ]]; then
+          if [[ -f "$RECOVERY_CONTEXT_FILE" ]] && ! grep -Eq '^RECOVERY_STATUS:[[:space:]]*RESOLVED[[:space:]]*$' "$RECOVERY_CONTEXT_FILE"; then
             RECOVERY_CONTEXT_ACTIVE=true
             echo "::warning::Found persisted autonomous recovery debt from a previous run. The next implementation pass must resolve it first."
+          elif [[ -f "$RECOVERY_CONTEXT_FILE" ]]; then
+            echo "::notice::Found a previously resolved recovery record. It is retained as audit evidence and will not block new tasks."
           fi
           AUTONOMOUS_STOP_REASON=""
           NO_PROGRESS_ROUNDS=0
@@ -1556,8 +1558,9 @@ jobs:
                 continue
               fi
 
-              # Delete a resolved note only as part of the validated checkpoint.
-              rm -f "$RECOVERY_CONTEXT_FILE"
+              # Keep the resolved record as durable audit evidence. The
+              # validated checkpoint below commits the RESOLVED marker and its
+              # evidence alongside the source fixes. A future failure reopens it.
               RECOVERY_CONTEXT_ACTIVE=false
             fi
 
@@ -1571,7 +1574,6 @@ jobs:
 
             AUTONOMOUS_ROUNDS_COMPLETED=$((AUTONOMOUS_ROUNDS_COMPLETED + 1))
             RECOVERY_CONTEXT_ACTIVE=false
-            rm -f "$RECOVERY_CONTEXT_FILE"
             echo "Cycle $round completed: implementation, independent review, deterministic validation, and QA succeeded."
             refresh_quota_counts
             echo "Quota status: $DAILY_QUOTA_POOL_EXHAUSTED_COUNT exhausted / $((DAILY_QUOTA_POOL_EXHAUSTED_COUNT + ELIGIBLE_QUOTA_POOL_COUNT)) eligible pools (${QUOTA_EXHAUSTION_PERCENT}%; target ${QUOTA_EXHAUSTION_TARGET_PERCENT}%)."
