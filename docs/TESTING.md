@@ -133,19 +133,20 @@ The original one-pass retry policy used four temporary failures per model/stage,
 ## Multi-cycle quota-focused workflow policy — committed, not yet live-tested
 
 The workflow on `main` was changed after Run #32:
-- Workflow changes: multi-cycle router commit `d5e4a14b3d433f40fbb16e233533b98ee1dd9858`, followed by regression/checkpoint commit `519de8cea3df3fdf3e719399ec7d7e804c01a4e3` and wait-budget commit `658bb50bad7060dc0ae99760ac673c748684cac4`.
+- Workflow changes: multi-cycle router commit `d5e4a14b3d433f40fbb16e233533b98ee1dd9858`, followed by regression/checkpoint commit `519de8cea3df3fdf3e719399ec7d7e804c01a4e3`, wait-budget commit `658bb50bad7060dc0ae99760ac673c748684cac4`, and 100% quota-target commit `649d6137cb0221bccac914f337754b3db1bf59a8`.
 - Run mode: first cycle implements the supplied task; subsequent cycles continue it if incomplete, otherwise choose the next highest-priority unfinished roadmap task.
 - Each cycle runs implementation, independent review, conditional repair, deterministic validation, and independent QA.
 - Model candidates rotate by role and a successful model becomes eligible again in later cycles. A model is used at most once per cycle, preserving separation between implementation/review/QA.
 - Every reviewed and validated cycle is committed and pushed to `ai/game-build` before the next cycle, protecting work from a later job timeout.
-- Stop target: at least 75% of eligible quota pools explicitly reported daily/monthly exhaustion.
+- The target is evaluated against confirmed-exhausted plus still-eligible pools. Pools disabled for authentication, model availability, or request-size incompatibility are tracked separately; they are not quota exhaustion. Reaching 100% means every pool still eligible for this run has emitted an explicit exhaustion error.
+- Stop target: 100% of currently eligible quota pools explicitly report daily/monthly exhaustion.
 - Pool accounting: Google/Groq model routes are counted per model; Cohere/OpenRouter/Cloudflare/Copilot routes are grouped by provider/account. Request-size errors, invalid credentials, unavailable models, and unknown errors are excluded from eligible pools and do not count as quota exhaustion.
 - Hard caps: 8 calls per model per run, 120 total model calls, 30 cycles, 2 hours aggregate temporary-limit waiting, two consecutive no-progress cycles, and the GitHub Actions 350-minute job timeout.
 - The run stops earlier if independent review, repair, QA, deterministic validation, or checkpoint persistence cannot complete safely.
 
-**Important limitation:** quota status is inferred from explicit provider/model errors, not from a live balance API. The 75% target is a percentage of quota scopes estimated by the workflow, not 75% of exact remaining requests or tokens. A temporary RPM/TPM limit is cooled down and revisited; it is not counted as daily exhaustion.
+**Important limitation:** quota status is inferred from explicit provider/model errors, not from a live balance API. The 100% target is a percentage of quota scopes estimated by the workflow, not 100% of exact remaining requests or tokens or every configured model. Permanently ineligible routes are excluded from the eligible denominator and are not counted as exhausted. A temporary RPM/TPM limit is cooled down and revisited; it is not counted as daily exhaustion. If no pools are measurable, the report shows 0% and does not declare the target reached.
 
-**Verification status:** this multi-cycle policy and its local regression fixtures are committed, but no new workflow run has yet executed them. Run #32 tested the older one-pass fallback system only. The next dispatched run will test multi-cycle behavior, quota-pool math, model rotation, per-cycle checkpoint pushes, and the configured safety limits.
+**Verification status:** the multi-cycle policy and local regression fixtures are committed, but no new workflow run has yet executed them. The 100% target update adds fixtures for partial exhaustion, all remaining eligible pools exhausted, permanently ineligible routes, and a zero denominator. Run #32 tested the older one-pass fallback system only. The next dispatched run will test multi-cycle behavior, the updated quota-pool math, model rotation, per-cycle checkpoint pushes, and the configured safety limits.
 
 **Billing warning:** the 120-call cap is a request-count limit, not a dollar-spend limit. Some API keys can be attached to billable provider accounts. Verify free-tier status and configure spending caps in provider dashboards before dispatching a long quota-focused run.
 
