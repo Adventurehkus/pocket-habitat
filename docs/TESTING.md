@@ -151,7 +151,7 @@ The workflow on `main` has evolved through these changes:
 - Regression/checkpoint and wait-budget fixes: `519de8cea3df3fdf3e719399ec7d7e804c01a4e3`, `658bb50bad7060dc0ae99760ac673c748684cac4`.
 - 100% eligible-pool exhaustion target: `649d6137cb0221bccac914f337754b3db1bf59a8`.
 - Cross-cycle validation/QA recovery, recovery checkpoints, durable recovery state, per-cycle temporary-route reset, and unknown-error retries: `a84e1e48a323b649f380930bc9f72ba6588fb1f2`.
-- Bounded checkpoint-push retries, ambiguous-push verification, concurrent-branch rebase handling, and local regression fixtures: current main workflow head `dd35d65d52f2139bad5bde2f6afad4b409b3b8ab`.
+- Bounded checkpoint-push retries, ambiguous-push verification, concurrent-branch rebase handling, and inline regression fixtures: current main workflow head `3490233f6af9084dbc518d8b06936dff5190cfc0`.
 
 ### Current behavior
 
@@ -180,7 +180,7 @@ The workflow on `main` has evolved through these changes:
 - The `ai/game-build` branch remained at `5535a31b19897e17877cceae03b745678669ce66`. Run #37's local source changes must be reapplied/reverified; do not represent them as part of the durable source.
 - The model/provider annotations were not the root cause: Google received temporary rate limits, OpenRouter's shared daily free quota was exhausted, and Groq requests were too large for three models. The workflow classified and skipped/cooled down those routes as designed.
 
-### Checkpoint-push retry regression coverage — locally passed; Actions test pending
+### Checkpoint-push retry regression coverage — local reproduction passed; inline Actions test pending
 
 The new `push_checkpoint_with_retry` helper was added after Run #37:
 - transient GitHub/server push failures are retried up to five attempts using bounded exponential backoff;
@@ -189,7 +189,7 @@ The new `push_checkpoint_with_retry` helper was added after Run #37:
 - no force-push is used; authentication/permission/policy failures, unrelated histories, and conflicts stop safely;
 - validated checkpoints, recovery checkpoints, and the final persistence safety net use the same helper.
 
-Local bare-repository regression tests passed for both a deliberately rejected first push and concurrent branch advancement. A fresh Actions run is still needed to execute the inline regression tests in GitHub's runner and verify the new workflow integration.
+A local shell reproduction using the committed helper logic passed three bare-repository scenarios: a deliberately rejected first push, an accepted push whose client received an error (verified by fetching the remote ref), and concurrent branch advancement (rebased without losing either commit). The equivalent inline regression test is also committed in the workflow, but has not yet run in GitHub Actions. A fresh workflow dispatch is still needed to validate that test plus the full YAML/embedded shell integration.
 ### Run #34 evidence
 
 - Run #34: https://github.com/Adventurehkus/pocket-habitat/actions/runs/43131314450
@@ -199,7 +199,7 @@ Local bare-repository regression tests passed for both a deliberately rejected f
 - The run had only one completed autonomous cycle and 24/120 model calls. It did not verify the new cross-cycle recovery behavior because that behavior was added afterward.
 - Push-triggered runs #35 and #36 refer to intermediate workflow-file commits and returned no job records through the available GitHub job listing. They do not establish that the current recovery implementation was executed.
 
-**Verification status:** Run #37 exercised the cross-cycle recovery path. Its temporary worktree passed Rojo, StyLua, Selene, and `git diff --check`; independent review/QA completed and QA returned `QA_BLOCKER: NO`. However, the validated local commit was rejected by GitHub with an HTTP 500, so those source edits were never persisted to `ai/game-build`. The checkpoint-push retry/rebase fix is now committed on `main` and its core behavior passed local bare-repository regression tests, but the updated workflow YAML/embedded shell and GitHub Actions integration still require a fresh dispatch. Do not call the new GitHub push-retry path live-tested until that run completes and its logs/artifacts are inspected.
+**Verification status:** Run #37 exercised the cross-cycle recovery path. Its temporary worktree passed Rojo, StyLua, Selene, and `git diff --check`; independent review/QA completed and QA returned `QA_BLOCKER: NO`. However, the validated local commit was rejected by GitHub with an HTTP 500, so those source edits were never persisted to `ai/game-build`. The checkpoint-push retry/rebase fix is now committed on `main` and its core behavior passed local bare-repository regression tests, and the equivalent local helper scenarios passed; however, the inline regression function, updated workflow YAML/embedded shell, and GitHub Actions integration still require a fresh dispatch. Do not call the new GitHub push-retry path live-tested until that run completes and its logs/artifacts are inspected.
 
 **Billing warning:** the 120-call cap is a request-count limit, not a dollar-spend limit. Some API keys can be attached to billable provider accounts. Verify free-tier status and configure spending caps in provider dashboards before dispatching a long quota-focused run.
 
