@@ -70,6 +70,20 @@ Checks actually run:
 
 The requested `/home/runner/work/_temp/opencode-qa-14.log` and `/home/runner/work/_temp/pocket-habitat-validation.log` could not be read with the available tools (permission denied); their claims were not independently inspected.
 
+## Deterministic validation repair — 2026-11-12
+
+The attached report's Rojo build passed, while StyLua and Selene failed. The reported formatting and lint issues were repaired; the RemoteEvents module and DataStoreManager's named DataStore initialization were also restored.
+
+Checks actually run after the repairs:
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ, Roblox engine/Studio, multiplayer, DataStore integration, and manual tests: NOT RUN.
+
+Independent review and QA have not been performed; `docs/AUTONOMOUS_RECOVERY.md` remains OPEN.
+
 ## Latest verified gameplay pipeline run
 
 ### Run #32 — 2026-11-11

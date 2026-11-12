@@ -56,6 +56,7 @@ function HabitatManager.allocateHabitat(player: Player): Folder
     local habitat = Instance.new("Folder")
     habitat.Name = "Habitat_" .. tostring(userId)
     habitat:SetAttribute("BaseOffset", Vector3.new(offsetX, 0, offsetZ))
+    habitat:SetAttribute("SpawnPosition", Vector3.new(offsetX, 5, offsetZ))
     habitat:SetAttribute("OwnerUserId", userId)
     habitat.Parent = habitatsFolder
 

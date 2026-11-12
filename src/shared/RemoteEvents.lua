@@ -9,6 +9,7 @@ local function getOrCreateFolder(parent: Instance, name: string): Folder
     if found and found:IsA("Folder") then
         return found
     end
+
     local folder = Instance.new("Folder")
     folder.Name = name
     folder.Parent = parent
@@ -25,6 +26,7 @@ local function getOrCreateRemote(className: string, name: string): Instance
     if found then
         found:Destroy()
     end
+
     local remote = Instance.new(className)
     remote.Name = name
     remote.Parent = remotesFolder
@@ -46,8 +48,8 @@ RemoteEvents.SyncData = getOrCreateRemote("RemoteEvent", "SyncData") :: RemoteEv
 RemoteEvents.Notification = getOrCreateRemote("RemoteEvent", "Notification") :: RemoteEvent
 RemoteEvents.CreatureDiscovered =
     getOrCreateRemote("RemoteEvent", "CreatureDiscovered") :: RemoteEvent
+RemoteEvents.RespawnCharacter = getOrCreateRemote("RemoteEvent", "RespawnCharacter") :: RemoteEvent
 
--- Visual feedback events (server -> client)
 RemoteEvents.GatherEffect = getOrCreateRemote("RemoteEvent", "GatherEffect") :: RemoteEvent
 RemoteEvents.PlantEffect = getOrCreateRemote("RemoteEvent", "PlantEffect") :: RemoteEvent
 RemoteEvents.WaterEffect = getOrCreateRemote("RemoteEvent", "WaterEffect") :: RemoteEvent

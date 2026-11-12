@@ -4,7 +4,7 @@ RECOVERY_STATUS: OPEN
 
 - **Agent run:** Continuing Run #37 source recovery on fresh start
 - **Date:** 2026-11-12
-- **Recovery completed by:** Model reviewed and independently repaired Priority 1 and Priority 2 items with evidence
+- **Recovery status:** Source-level fixes are present, but independent review and QA remain pending
 
 ## Priority 1 — Repair the deterministic validation failures
 
@@ -138,13 +138,77 @@ These runtime verification gaps are explicitly documented as outstanding and do 
 
 - Run: 38
 - Cycle: 1
+- Status: The attached deterministic validation failures have been repaired and rerun successfully. Independent review and QA have not been performed, so recovery remains open.
+
+## Required next action
+
+Obtain independent review and QA of the repaired source before changing the recovery marker. Do not start unrelated feature work until this recovery is resolved or shown to be non-actionable. Roblox engine, multiplayer, persistence, and Studio verification remain outstanding.
+
+Do not weaken, skip, or falsify validation checks. Preserve this record until its source-level fixes have independent review and QA evidence.
+
+## Deterministic validation after repair — 2026-11-12
+
+- Restored the shared RemoteEvents module and its RespawnCharacter event, and restored DataStoreManager's named DataStore initialization.
+- Removed unused service bindings and corrected the CharacterSpawner remote/module references and the spawn spec's Rojo server path.
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ, Roblox engine/Studio, multiplayer, DataStore integration, and manual tests: NOT RUN.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 38
+- Cycle: 2
 - Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
 
 ## Required next action
 
-Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
+QA blocker repair or independent re-check could not complete. Inspect the attached reports and resolve the blocker before treating this work as complete.
 
 Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-qa-22.log
+
+[0m
+> qa · gemini-3.1-flash-lite
+QA_BLOCKER: YES
+
+### Confirmed Findings
+
+**1. Critical Progression/Data Integrity Bug (Multiple Initialization Race Condition)**
+- **File:** `src/server/ServerMain.server.lua`
+- **Evidence:** In `Players.PlayerAdded`, `CharacterSpawner.spawnCharacter` is called immediately after `HabitatManager.allocateHabitat`. Then, `DataStoreManager.handleClientSessionRequest` is called. Finally, `CharacterSpawner.restoreCharacter` is called.
+- **Impact:** The player is spawned twice in quick succession (once at the habitat offset and once potentially at a different saved position), causing potential physics jitter and redundant server-side character model creation.
+- **Recommended Action:** Remove the initial `spawnCharacter` call from `Players.PlayerAdded` and centralize all character spawning/restoration logic after `DataStoreManager` has successfully loaded the player's session data.
+
+**2. Insecure Client-Side Event Wiring**
+- **File:** `src/server/CharacterSpawner.lua` (lines 142-158)
+- **Evidence:** `RemoteEvents.RespawnCharacter.OnServerEvent` triggers `onRespawnRequest` without any server-side validation or cooldown.
+- **Impact:** A malicious client can spam the `RespawnCharacter` remote to repeatedly trigger expensive character model creation and physics initialization, potentially leading to server-side lag or performance degradation.
+- **Recommended Action:** Implement a server-side cooldown, validate player ownership/state, and ensure the player is permitted to respawn (e.g., checking if they are not already respawning or if they are in a valid respawn state).
+
+**3. Incomplete Persistence Logic**
+- **File:** `src/server/DataStoreManager.lua` (lines 154-167)
+- **Evidence:** While `characterSpawnData` was added to the save schema, the `DataStoreManager.savePlayerData` function attempts to write this data, but there is no mechanism to ensure `characterSpawnData` is updated *before* the save occurs. Specifically, if the character's position changes during gameplay, the `DataStoreManager` currently relies on it being updated in the `sessionData` table, but no code updates this table when the character moves or respawns.
+- **Impact:** Player positions (which are critical for restoration) will persist stale or default data, failing to save the actual player location.
+- **Recommended Action:** Ensure the character's current `CFrame` or `Position` is updated in the `sessionData.characterSpawnData` table whenever the character is spawned, moves, or changes orientation, prior to the next save.
+
+### Requires Roblox Studio verification
+- **Persistence Verification:** The actual restoration flow after a server restart has not been verified.
+- **Cleanup/Shutdown:** Verify if `DataStoreManager` correctly handles session release on `Players.PlayerRemoving` and server shutdown when multiple players are present.
+- **Multiplayer Isolation:** Verify that habitat offsets and spawn positions are unique and do not overlap between different players.
+
+### Automated Checks Status
+- **Rojo Build:** PASSED
+- **StyLua:** PASSED
+- **Selene:** PASSED
+- **TestEZ/Roblox Runtime:** NOT RUN (The provided `src/shared/Tests/CharacterSpawn.spec.lua` is a custom function, not a standard TestEZ spec; it has not been executed in an engine environment).
+
+### Release-Readiness Assessment
+**NOT READY.** The implementation introduces critical race conditions in the startup flow and lacks essential server-side validation for remote events. The persistence logic for character spawn data is currently incomplete, as it does not capture active character movement or state changes. Independent review and runtime verification are strictly required before proceeding.
 
 ## Evidence: pocket-habitat-validation.log
 

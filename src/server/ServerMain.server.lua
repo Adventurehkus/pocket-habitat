@@ -49,6 +49,22 @@ Players.PlayerAdded:Connect(function(player: Player)
 
     -- Request session token and player data from DataStoreManager
     DataStoreManager.handleClientSessionRequest(player)
+
+    -- IMPORTANT: Character spawning/restoration now occurs AFTER DataStoreManager
+    -- has successfully loaded the player's session data to prevent race conditions
+    -- This ensures players are only spawned once, at the correct saved position
+
+    -- Restore character position from saved data or habitat
+    local characterSpawner = require(script.Parent:WaitForChild("CharacterSpawner"))
+    local sessionData = DataStoreManager.getSession(player)
+    if sessionData and sessionData.characterSpawnData then
+        characterSpawner.restoreCharacter(player, sessionData.characterSpawnData)
+    elseif habitat then
+        local baseOffset = habitat:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)
+        characterSpawner.spawnCharacter(player, Vector3.new(0, 5, 0) + baseOffset)
+    else
+        characterSpawner.spawnCharacter(player, Vector3.new(0, 5, 0))
+    end
 end)
 
 -- When a player leaves the game

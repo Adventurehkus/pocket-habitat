@@ -13,16 +13,16 @@ This document is the live project snapshot. Re-read the actual branch head and i
 
 ## Current project status
 
-Pocket Habitat has completed source-level recovery for Priority 1 and Priority 2 and now has deterministic CI gates green. DataStoreManager session-leasing now:
+The attached deterministic validation failures have been repaired in the current worktree. The Rojo build, StyLua check, Selene lint, and `git diff --check` all pass. The RemoteEvents module and DataStoreManager store initialization are restored; DataStoreManager session-leasing now:
 - Imports and uses RemoteEvents properly
 - Writes current in-memory data atomically under ownership-checked UpdateAsync
 - Retains in-memory session data after failed saves
 - Implements bounded, chaining lease renewal with cancellation
 - Handles shutdown safely with per-player save/release propagation
 
-**Current highest-priority task:** Obtain independent code review and QA to confirm the recovery fixes, then persist a validated checkpoint. After that passes, proceed with character spawn/respawn and saved habitat restoration to complete Milestone 2's gameplay path.
+**Current highest-priority task:** Obtain independent code review and QA confirmation of the recovery fixes before closing recovery debt. Character spawn/respawn source exists but remains unverified in Roblox; saved habitat restoration is not verified. Do not start CreatureManager work until recovery review and QA are complete.
 
-**Recovery Status Note:** The source-level recovery fixes have been implemented and verified through deterministic CI (Rojo, Stylua, Selene, git diff). Independent review and QA confirmation is still pending before the recovery record can be marked as fully resolved. Runtime verification of persistence and shutdown behavior remains outstanding.
+**Recovery Status Note:** `docs/AUTONOMOUS_RECOVERY.md` remains OPEN because independent review and QA have not been performed. Roblox runtime verification of character spawning, persistence, shutdown, and multiplayer behavior also remains outstanding.
 
 ## Historical workflow — Run #32
 

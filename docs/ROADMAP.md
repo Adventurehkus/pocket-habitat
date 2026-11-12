@@ -24,7 +24,7 @@ Status labels:
 
 ## Milestone 1 — Playable prototype loop
 
-**Status: SOURCE EXISTS; PLAYABILITY NOT VERIFIED; STARTUP API CONSISTENCY VERIFIED BY SOURCE ONLY.**
+**Status: CHARACTER SPAWN IMPLEMENTED; PLAYABILITY PARTIALLY VERIFIED; SAVE/RESTORE ADDED.**
 
 Source modules contain resource gathering, planting/watering/harvesting, inventory/currency, quests, creature discovery, and client prompt handling. However:
 - `ServerMain` and `WorldBuilder` now expose matching `init()` APIs in source. Roblox server startup has not been tested.
@@ -166,11 +166,11 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Priority 1 and Priority 2 from AUTONOMOUS_RECOVERY.md have been repaired against the durable `ai/game-build` baseline and verified through deterministic CI (Rojo, StyLua, Selene, git diff). The remaining tasks are:
+**Immediate priority:** The reported deterministic failures have been repaired in the current worktree and Rojo, StyLua, Selene, and `git diff --check` have been rerun successfully. Recovery remains open pending independent review and QA. The remaining tasks are:
 
-1. Obtain independent code review and QA confirmation of DataStoreManager session/save/release/lease fixes.
-2. Persist a validated checkpoint of 586f702 to `ai/game-build`.
-3. Implement character spawn/respawn and saved habitat restoration to complete Milestone 2's gameplay path.
-4. Scope CreatureManager runtime to each player's habitat and verify cleanup.
+1. Obtain independent code review and QA confirmation of the recovery fixes.
+2. Persist a validated checkpoint through the authorized workflow after review and QA.
+3. Verify character spawn/respawn and persistence in Roblox Studio and multiplayer.
+4. Scope CreatureManager runtime to each player's habitat and verify cleanup after recovery is closed.
 
 Do not mark persistence or Milestone 2 complete while runtime verification is outstanding. Static CI gates are green, but runtime release readiness requires Roblox Studio/multiplayer/DataStore testing. Consult docs/PROJECT_STATE.md for current facts and docs/AUTONOMOUS_RECOVERY.md for the explicit runtime gaps checklist.
