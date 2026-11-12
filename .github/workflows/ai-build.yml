@@ -1086,6 +1086,9 @@ jobs:
             return 1
           }
 
+          # Reuse the exact same persistence policy in the final safety-net step.
+          declare -f push_checkpoint_with_retry > "$RUNNER_TEMP/pocket-habitat-push-checkpoint.sh"
+
           # Exercise the retry and remote-ref confirmation behavior against a
           # local bare repository. The first push is deliberately rejected with
           # a server-side error; the same commit must persist on the next try.
@@ -1150,12 +1153,61 @@ jobs:
 
             expected_head="$(git -C "$test_root/clone" rev-parse HEAD)"
             actual_head="$(git --git-dir="$test_root/remote.git" rev-parse refs/heads/main)"
-            rm -rf "$test_root"
             if [[ "$actual_head" != "$expected_head" ]]; then
               echo "::error::Checkpoint push retry regression did not persist the expected commit."
+              rm -rf "$test_root"
               return 1
             fi
-            echo "Checkpoint push retry regression test passed (transient server rejection recovered)."
+
+            # Exercise the non-fast-forward path: a second writer advances the
+            # remote after this clone has created its own checkpoint.
+            git clone -q "$test_root/remote.git" "$test_root/stale" || {
+              rm -rf "$test_root"
+              return 1
+            }
+            git clone -q "$test_root/remote.git" "$test_root/concurrent" || {
+              rm -rf "$test_root"
+              return 1
+            }
+            for clone_dir in "$test_root/stale" "$test_root/concurrent"; do
+              git -C "$clone_dir" config user.name "Pocket Habitat Push Test"
+              git -C "$clone_dir" config user.email "push-test@example.invalid"
+            done
+            printf 'ours\n' > "$test_root/stale/ours.txt"
+            git -C "$test_root/stale" add ours.txt
+            git -C "$test_root/stale" commit -m "stale checkpoint" >/dev/null 2>&1 || {
+              rm -rf "$test_root"
+              return 1
+            }
+            printf 'concurrent\n' > "$test_root/concurrent/concurrent.txt"
+            git -C "$test_root/concurrent" add concurrent.txt
+            git -C "$test_root/concurrent" commit -m "concurrent update" >/dev/null 2>&1 || {
+              rm -rf "$test_root"
+              return 1
+            }
+            git -C "$test_root/concurrent" push origin HEAD:refs/heads/main >/dev/null 2>&1 || {
+              rm -rf "$test_root"
+              return 1
+            }
+
+            if ! (
+              cd "$test_root/stale"
+              RUNNER_TEMP="$test_root" GITHUB_RUN_ID="push-rebase-regression" ACTIVE_ROUND=0 CHECKPOINT_PUSH_QUIET=true CHECKPOINT_PUSH_MAX_ATTEMPTS=3 CHECKPOINT_PUSH_RETRY_DELAY_SECONDS=0 push_checkpoint_with_retry origin refs/heads/main
+            ); then
+              rm -rf "$test_root"
+              return 1
+            fi
+
+            expected_head="$(git -C "$test_root/stale" rev-parse HEAD)"
+            actual_head="$(git --git-dir="$test_root/remote.git" rev-parse refs/heads/main)"
+            if [[ "$actual_head" != "$expected_head" || ! -f "$test_root/stale/concurrent.txt" ]]; then
+              echo "::error::Checkpoint push rebase regression failed to preserve both writers' commits."
+              rm -rf "$test_root"
+              return 1
+            fi
+
+            rm -rf "$test_root"
+            echo "Checkpoint push retry regression tests passed (transient server rejection and concurrent branch update)."
           }
 
           if ! checkpoint_push_retry_regression_test; then
@@ -1872,7 +1924,9 @@ jobs:
           git add -A
           if ! git diff --cached --quiet; then
             git commit -m "AI staged development checkpoint ${GITHUB_RUN_NUMBER}"
-            git push origin HEAD:ai/game-build
+            source "$RUNNER_TEMP/pocket-habitat-push-checkpoint.sh"
+            ACTIVE_ROUND=0
+            push_checkpoint_with_retry origin refs/heads/ai/game-build
           else
             echo "No repository changes to persist."
           fi
