@@ -13,7 +13,8 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 ### Server modules
 
 - src/server/ServerMain.server.lua — server startup and player lifecycle orchestration.
-- src/server/WorldBuilder.lua — current shared world/habitat construction.
+- src/server/HabitatManager.lua — per-server UserId-to-habitat-folder registry and allocation/removal helpers (not yet a complete spawn/restore lifecycle).
+- src/server/WorldBuilder.lua — creates world instances beneath a supplied habitat folder; Run #32 removed the former init() API without updating ServerMain.
 - src/server/ResourceManager.lua — resource node interactions and rewards.
 - src/server/PlantManager.lua — plot interactions, planting, watering, and harvesting.
 - src/server/EconomyManager.lua — inventory, Bells, spending, and upgrades.
@@ -41,18 +42,24 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 
 ## Current runtime architecture and known limitations
 
-The current prototype has functional source paths for resource gathering, planting/watering/harvesting, inventory/economy operations, quest definitions, creature discoveries, and client prompt interactions. Run #30 passed Rojo, StyLua, and Selene. Roblox runtime, TestEZ execution, Studio, and multiplayer are not verified.
+Run #32 committed checkpoint `1af27d2aade0922f57ec4333bf5d5331366d7b9b`. Its static checks passed, but no Roblox runtime/Studio test ran. The current source is not verified playable and has a source-confirmed server-startup blocker. See `project-state/run-32-audit.md` for the complete issue register.
 
-At the inspected gameplay checkpoint:
+Current source facts:
 
-- WorldBuilder creates one shared Workspace.HabitatWorld and uses fixed world positions for the existing starter plots/resources. A full per-player habitat allocation/restore/cleanup lifecycle is not implemented.
-- ResourceManager has shared module-level node/cooldown state rather than independently allocated resource state per habitat.
-- CreatureManager uses shared runtime storage and a global creature registry keyed by creature type/ID. Discovery data is player-aware, but instance lifecycle and movement bounds are not fully scoped to an owner.
-- DataStoreManager uses GetAsync/SetAsync and an in-memory activeSessions table. An in-memory table does not prevent the same user from loading/saving from another Roblox server; atomic cross-server session ownership is still required.
-- Quest definitions and quest sequencing are not fully aligned. Some objective types do not have complete server-side action tracking.
-- Some upgrade definitions do not yet have corresponding complete world/gameplay effects.
+- `HabitatManager` creates a Workspace.Habitats folder and tracks `Habitat_<UserId>` folders in a per-server table. It sets a BaseOffset attribute and exposes allocate/get/remove functions. It does not spawn characters, handle CharacterAdded, restore saved plot/world state, or use a collision-free slot allocator.
+- `ServerMain.server.lua` still invokes `WorldBuilder.init()`, but the current `WorldBuilder.lua` defines only `buildHabitat(folder, owner)`. This is a P0 startup API mismatch: execution is expected to fail at that call before subsequent system initialization and player lifecycle connections. The old WorldBuilder version had init(); Run #32 removed it and failed to update the caller.
+- The current BaseOffset formula advances by 0.1 studs along the X=Z diagonal for UserId modulo 1000. Each baseplate is 100×100 studs, so habitats overlap heavily and positions repeat. Some geometry adds offsets twice (tree leaves, berries, plot borders); paths use world origin inconsistently.
+- `ServerMain` allocates a habitat after data load and calls `HabitatManager.removeHabitat` on PlayerRemoving. The allocation does not receive the loaded data. There is no character spawn/respawn placement.
+- `ResourceManager` now stores cooldowns by UserId and node ID, which removes the old single global cooldown table. However, the remote accepts a nodeId and derives a static template position instead of validating an exact resource Instance in the caller's registered habitat. Missing habitat lookup falls back to zero offset. The cooldown is set before the reward is granted, so an inventory-full failure still starts the cooldown.
+- `PlantManager` validates player data and numeric plot interaction rules, but does not resolve the actual plot Instance beneath the caller's habitat or check server-measured distance. Client calls can invoke remotes directly. Effect positions use fixed unoffset coordinates.
+- `ProximityHandler.client.lua` listens for habitat folders and scans prompts. The global ChildAdded path is not filtered to the LocalPlayer's own habitat and may scan before descendant prompts are added. The separate LocalPlayer helper is only called from a Players.PlayerAdded listener; there is no unconditional initial lookup when the LocalScript starts after the local Player exists.
+- `CreatureManager` runtime state and movement are still not fully player/habitat-scoped; inspect the current module before modifying it.
+- `DataStoreManager` still uses GetAsync/SetAsync and an in-memory activeSessions table. There is no atomic cross-server UpdateAsync lease/token. Its removeSession path clears activeSessions after calling save even when save retries fail, so the only in-memory copy can be discarded after a failed final save.
+- Run #32 changed source, but did not execute TestEZ, Roblox engine/Studio, multiplayer, DataStore integration/stress, or manual tests. A generated .rbxl file is not runtime verification.
 
-Re-check all findings against current source before making changes. Update this section as the architecture evolves.
+Run #32 QA reported QA_BLOCKER: NO but missed the startup API mismatch and asserted that offset placement and spawning were complete. Those claims are contradicted by source. Its review also reported some stale findings: final ServerMain does include PlayerRemoving habitat-folder cleanup and final ProximityHandler uses Players.PlayerAdded (not LocalPlayer.PlayerAdded). The real remaining prompt issue is the startup/ownership/descendant race described above.
+
+Re-check all facts against the current source before making changes. The canonical source audit and ordered repair plan are in `project-state/run-32-audit.md`.
 
 ## Target player-owned habitat architecture
 
@@ -128,4 +135,4 @@ Only the first case may initialize default player data. Add explicit schema vali
 
 Pure shared rules should be tested directly through their production modules. External Roblox services and engine Instances should be isolated behind narrow adapters so service boundaries can be mocked without mocking the gameplay rules themselves.
 
-TestEZ specifications exist for PlantRules and EconomyRules, but they have not been executed by a compatible Roblox/TestEZ runner. Run #30 did not run Roblox engine, Studio, multiplayer, or DataStore integration tests. Never report those as passing without actual evidence.
+TestEZ specifications exist for PlantRules and EconomyRules, but they have not been executed by a compatible Roblox/TestEZ runner. Run #32 passed Rojo, StyLua, and Selene only; it did not run Roblox engine, Studio, multiplayer, or DataStore integration tests. Never report those as passing without actual evidence.
