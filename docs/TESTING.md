@@ -144,13 +144,14 @@ The adaptive fallback behavior was exercised in a real workflow run and complete
 
 The original one-pass retry policy used four temporary failures per model/stage, up to 50 calls per stage, 2 hours of waiting per stage, and 4 hours of aggregate waiting. That was the policy exercised by Run #32. The current main-branch policy is documented below and supersedes those limits for new runs.
 
-## 100% quota policy and cross-cycle error recovery — committed; recovery live test pending
+## 100% quota policy, recovery verification, and checkpoint persistence
 
 The workflow on `main` has evolved through these changes:
 - Multi-cycle router, model rotation, and checkpointing: `d5e4a14b3d433f40fbb16e233533b98ee1dd9858`.
 - Regression/checkpoint and wait-budget fixes: `519de8cea3df3fdf3e719399ec7d7e804c01a4e3`, `658bb50bad7060dc0ae99760ac673c748684cac4`.
 - 100% eligible-pool exhaustion target: `649d6137cb0221bccac914f337754b3db1bf59a8`.
-- Cross-cycle validation/QA recovery, recovery checkpoints, durable recovery state, per-cycle temporary-route reset, and unknown-error retries: current main head `a84e1e48a323b649f380930bc9f72ba6588fb1f2`.
+- Cross-cycle validation/QA recovery, recovery checkpoints, durable recovery state, per-cycle temporary-route reset, and unknown-error retries: `a84e1e48a323b649f380930bc9f72ba6588fb1f2`.
+- Bounded checkpoint-push retries, ambiguous-push verification, concurrent-branch rebase handling, and local regression fixtures: current main workflow head `dd35d65d52f2139bad5bde2f6afad4b409b3b8ab`.
 
 ### Current behavior
 
@@ -161,9 +162,34 @@ The workflow on `main` has evolved through these changes:
 - Deterministic validation can receive up to 5 repair-model attempts per cycle. QA blockers can receive up to 3 repair/re-check attempts per cycle. If a failure remains, the next cycle must prioritize the exact recovery report instead of abandoning the run.
 - If implementation cannot complete, the pipeline retries eligible routes in a later cycle. If review or QA is unavailable or malformed after fallback, it saves an explicitly unreviewed or QA-pending recovery checkpoint. Deterministic validation failures are also saved as recovery work after independent review/QA have inspected the diff.
 - Recovery debt is persisted in `docs/AUTONOMOUS_RECOVERY.md` on `ai/game-build`. A later workflow run loads it automatically and must resolve it before unrelated features. Recovery commits are explicitly labelled as needing follow-up; they are never counted as validated checkpoints. The recovery record must be explicitly marked `RECOVERY_STATUS: RESOLVED` with evidence after independent review, QA, and deterministic validation pass. It is retained in Git as audit evidence and automatically re-opened if a future recovery event occurs.
-- A successful review/QA/validation cycle is pushed as a validated checkpoint. Recovery work is pushed separately and visibly labelled. If GitHub persistence itself fails, the pipeline stops rather than pretending the changes were saved.
+- A successful review/QA/validation cycle is pushed as a validated checkpoint. Recovery work is pushed separately and visibly labelled. Both use `push_checkpoint_with_retry`: up to five push attempts with exponential backoff, fetch-based verification when a push response is ambiguous, and safe rebase/retry when another run advances `ai/game-build`. The helper never force-pushes; authentication/permission/branch-policy failures, unrelated history, and rebase conflicts stop safely. A final persistence safety-net step uses the same helper.
+- The workflow runs local bare-Git regression tests before model work. They simulate a transient server-side rejection on the first push and a concurrent branch update; both must recover without losing either commit. If persistence still fails after bounded attempts, the pipeline stops rather than pretending the changes were saved or proceeding with uncheckpointed work.
 - Hard limits remain 8 calls per model per run, 120 total model calls, 30 cycles, 2 hours aggregate temporary-limit waiting, two consecutive no-progress cycles, and the 350-minute GitHub Actions timeout. The pipeline also stops if all quota pools are exhausted while recovery debt remains, if there is no safe/meaningful work or eligible route, or if required runner/toolchain setup or repository persistence is unavailable.
 
+### Run #37 — 2026-11-12 (validation passed; GitHub checkpoint push failed)
+
+- Run ID: `43315643648`.
+- Workflow URL: https://github.com/Adventurehkus/pocket-habitat/actions/runs/43315643648
+- Workflow source head: `a84e1e48a323b649f380930bc9f72ba6588fb1f2`.
+- Gameplay branch head checked out: `5535a31b19897e17877cceae03b745678669ce66`.
+- The run detected and loaded the existing open recovery note, then ran implementation, independent review, repair, validation repair, and QA. The job created local commit `2fb9074` (four files changed), but it never reached the durable gameplay branch.
+- Final automated checks after recovery repair: Rojo build PASS; `stylua --check src` PASS; Selene PASS (0 errors, 0 warnings, 0 parse errors); `git diff --check` PASS.
+- Independent QA returned `QA_BLOCKER: NO`. TestEZ, Roblox runtime, Studio, multiplayer, and DataStore integration were NOT EXECUTED.
+- GitHub rejected the only checkpoint push with `remote: Internal Server Error` (request ID `B048:5D7CD:249E93:542A2E:6AF63AF8`). The workflow stopped with `cycle_checkpoint_persistence_failed` and correctly did not continue to another cycle or mark the checkpoint safe.
+- The final `Persist work to GitHub` step was skipped because the pipeline had not confirmed persistence. The artifact `pocket-habitat-pipeline-37` uploaded successfully (artifact ID `13988817790`).
+- The `ai/game-build` branch remained at `5535a31b19897e17877cceae03b745678669ce66`. Run #37's local source changes must be reapplied/reverified; do not represent them as part of the durable source.
+- The model/provider annotations were not the root cause: Google received temporary rate limits, OpenRouter's shared daily free quota was exhausted, and Groq requests were too large for three models. The workflow classified and skipped/cooled down those routes as designed.
+
+### Checkpoint-push retry regression coverage — locally passed; Actions test pending
+
+The new `push_checkpoint_with_retry` helper was added after Run #37:
+- transient GitHub/server push failures are retried up to five attempts using bounded exponential backoff;
+- after an ambiguous push, the helper fetches the remote ref and treats the checkpoint as persisted if the remote already contains it;
+- if another run advanced the same branch, the helper rebases the local checkpoint onto that branch and retries;
+- no force-push is used; authentication/permission/policy failures, unrelated histories, and conflicts stop safely;
+- validated checkpoints, recovery checkpoints, and the final persistence safety net use the same helper.
+
+Local bare-repository regression tests passed for both a deliberately rejected first push and concurrent branch advancement. A fresh Actions run is still needed to execute the inline regression tests in GitHub's runner and verify the new workflow integration.
 ### Run #34 evidence
 
 - Run #34: https://github.com/Adventurehkus/pocket-habitat/actions/runs/43131314450
@@ -173,7 +199,7 @@ The workflow on `main` has evolved through these changes:
 - The run had only one completed autonomous cycle and 24/120 model calls. It did not verify the new cross-cycle recovery behavior because that behavior was added afterward.
 - Push-triggered runs #35 and #36 refer to intermediate workflow-file commits and returned no job records through the available GitHub job listing. They do not establish that the current recovery implementation was executed.
 
-**Verification status:** the 100% quota accounting has preflight evidence from Run #34. The newer retry/recovery implementation is committed but still needs a fresh workflow dispatch to verify its YAML, embedded Bash, fallback loops, durable recovery file, and stop conditions. Do not call it live-tested until that run completes and its artifacts/logs are inspected.
+**Verification status:** Run #37 exercised the cross-cycle recovery path. Its temporary worktree passed Rojo, StyLua, Selene, and `git diff --check`; independent review/QA completed and QA returned `QA_BLOCKER: NO`. However, the validated local commit was rejected by GitHub with an HTTP 500, so those source edits were never persisted to `ai/game-build`. The checkpoint-push retry/rebase fix is now committed on `main` and its core behavior passed local bare-repository regression tests, but the updated workflow YAML/embedded shell and GitHub Actions integration still require a fresh dispatch. Do not call the new GitHub push-retry path live-tested until that run completes and its logs/artifacts are inspected.
 
 **Billing warning:** the 120-call cap is a request-count limit, not a dollar-spend limit. Some API keys can be attached to billable provider accounts. Verify free-tier status and configure spending caps in provider dashboards before dispatching a long quota-focused run.
 
