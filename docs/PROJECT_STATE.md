@@ -96,9 +96,9 @@ Do not mark checklist items complete based on a folder, helper module, static bu
 1. Repair Run #34's remaining ServerMain validation failures: use `game:BindToClose(onBindToClose)`, remove unused `Workspace`/`Constants`, and format with StyLua.
 2. Correct `DataStoreManager.lua`: require `RemoteEvents`, atomically save current in-memory session data only while the server owns the token, retain memory on failed saves, recur lease renewal, and release safely.
 3. Add character spawn/respawn routing and reconstruct saved habitat state before interactions are enabled.
-3. Scope CreatureManager runtime to each player's habitat and clean it up with the player session.
-4. Add and execute production-rule/integration tests; run Roblox Studio with at least two clients and test persistence/rejoin.
-5. Reassess milestone acceptance only after these checks.
+4. Scope CreatureManager runtime to each player's habitat and clean it up with the player session.
+5. Add and execute production-rule/integration tests; run Roblox Studio with at least two clients and test persistence/rejoin.
+6. Reassess milestone acceptance only after these checks.
 
 ## Workflow and model/provider routing status
 
