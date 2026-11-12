@@ -221,3 +221,78 @@ Results:
 0 warnings
 0 parse errors
 PASS: Selene src
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 38
+- Cycle: 3
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+QA blocker repair or independent re-check could not complete. Inspect the attached reports and resolve the blocker before treating this work as complete.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-qa-recheck-38.log
+
+[0m
+> qa · gemini-3.1-flash-lite
+QA_BLOCKER: YES
+
+## Confirmed Findings
+
+**1. Critical Recovery Policy Violation (HIGH - CORRECTNESS)**
+- **File:** `docs/AUTONOMOUS_RECOVERY.md`
+- **Evidence:** The project status indicates `RECOVERY_STATUS: OPEN` and explicitly states that "independent review and QA have not been performed."
+- **Impact:** Project policy dictates that recovery debt cannot be cleared until independent review and QA confirm the fixes.
+- **Recommended Action:** Cease all progress on new features (such as `CreatureManager`) and complete the required independent verification of the current fixes.
+
+**2. Runtime Verification Gaps (HIGH - PROGRESSION)**
+- **Files:** `docs/PROJECT_STATE.md`, `docs/ROADMAP.md`
+- **Evidence:** Core systems including character spawn/respawn, saved habitat restoration, and session-state persistence remain "runtime-unverified."
+- **Impact:** The game’s core loop is potentially broken; code-level fixes have not been validated against the actual Roblox engine runtime.
+- **Recommended Action:** Perform manual studio playtesting and multi-client testing to verify character spawning and habitat persistence.
+
+**3. Missing Test Execution (MEDIUM - PROGRESSION)**
+- **Evidence:** `docs/TESTING.md` confirms that TestEZ, Roblox engine/Studio, multiplayer, DataStore integration, and manual tests have not been run.
+- **Impact:** While the code passes static analysis, there is no evidence that the logic behaves correctly under simulation or runtime load.
+- **Recommended Action:** Run the existing TestEZ suites (`src/shared/PocketHabitat.spec.lua` and `src/shared/Tests/CharacterSpawn.spec.lua`) and perform a two-client multiplayer session test.
+
+## Requires Roblox Studio Verification
+
+- **Character Lifecycle:** Verify `ServerMain` → `DataStoreManager.loadPlayerData` → `CharacterSpawner.spawnOrRestoreCharacter` integration. Ensure multiple characters do not spawn at the same location or during races.
+- **DataStore Persistence:** Validate that habitat data and spawn positions correctly persist through a server restart/join-rejoin cycle.
+- **Session Safety:** Ensure session lease acquisition and release in `DataStoreManager.lua` function correctly when players leave or the server binds to close.
+
+## Automated Checks Status
+
+**Passed:**
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`
+- `stylua --check src`
+- `selene src`
+- `git diff --check`
+
+**Not Executed:**
+- TestEZ suite execution
+- Roblox Studio engine simulation
+- Multiplayer (multi-client) testing
+- DataStore integration testing (actual API interactions)
+- Manual playtesting
+
+## Release-Readiness Assessment
+**NOT READY.** The current checkpoint has satisfied deterministic CI requirements but fails to meet the project's own mandatory policy for independent QA and runtime verification. The checkpoint is fundamentally unverified against real-world engine behavior and multiplayer conditions. Do not proceed to the next milestone until the recovery note is formally closed.
+
+## Evidence: pocket-habitat-validation.log
+
+Building project 'Pocket Habitat'
+Built project to pocket-habitat.rbxl
+PASS: Rojo build -> build/pocket-habitat.rbxl
+PASS: StyLua check src
+Results:
+0 errors
+0 warnings
+0 parse errors
+PASS: Selene src

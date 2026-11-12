@@ -166,7 +166,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** The reported deterministic failures have been repaired in the current worktree and Rojo, StyLua, Selene, and `git diff --check` have been rerun successfully. Recovery remains open pending independent review and QA. The remaining tasks are:
+**Immediate priority:** The current source-level fixes for the startup race, respawn validation, and persistence/session safety have passed the deterministic gates. Independent review and QA remain outstanding before the recovery note can be cleared. The remaining tasks are:
 
 1. Obtain independent code review and QA confirmation of the recovery fixes.
 2. Persist a validated checkpoint through the authorized workflow after review and QA.

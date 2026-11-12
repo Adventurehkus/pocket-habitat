@@ -13,16 +13,17 @@ This document is the live project snapshot. Re-read the actual branch head and i
 
 ## Current project status
 
-The attached deterministic validation failures have been repaired in the current worktree. The Rojo build, StyLua check, Selene lint, and `git diff --check` all pass. The RemoteEvents module and DataStoreManager store initialization are restored; DataStoreManager session-leasing now:
-- Imports and uses RemoteEvents properly
-- Writes current in-memory data atomically under ownership-checked UpdateAsync
-- Retains in-memory session data after failed saves
-- Implements bounded, chaining lease renewal with cancellation
-- Handles shutdown safely with per-player save/release propagation
+The deterministic validation failures in the current worktree have been repaired and revalidated. The current source now:
+- prevents duplicate character initialization by spawing from a single server-side flow after data load;
+- validates and cooldowns `RespawnCharacter` requests on the server before respawning;
+- keeps DataStore session state safe by using current in-memory data, ownership-checked saves, and failure-safe release behavior;
+- restores the shared RemoteEvents wiring and `WorldBuilder.init()` startup path.
 
-**Current highest-priority task:** Obtain independent code review and QA confirmation of the recovery fixes before closing recovery debt. Character spawn/respawn source exists but remains unverified in Roblox; saved habitat restoration is not verified. Do not start CreatureManager work until recovery review and QA are complete.
+The Rojo build, StyLua check, Selene lint, and `git diff --check` all pass for the current source. Roblox engine, Studio, multiplayer, DataStore contention, and manual playtests remain unexecuted.
 
-**Recovery Status Note:** `docs/AUTONOMOUS_RECOVERY.md` remains OPEN because independent review and QA have not been performed. Roblox runtime verification of character spawning, persistence, shutdown, and multiplayer behavior also remains outstanding.
+**Current highest-priority task:** Obtain independent code review and QA confirmation of the source-level fixes before closing recovery debt. Character spawn/respawn and saved habitat restoration remain runtime-unverified; do not start CreatureManager scoping work until review and QA clear the recovery note.
+
+**Recovery Status Note:** `docs/AUTONOMOUS_RECOVERY.md` remains OPEN because independent review and QA have not been performed. Roblox runtime verification of character spawning, persistence, shutdown, and multiplayer behavior remains outstanding.
 
 ## Historical workflow — Run #32
 
