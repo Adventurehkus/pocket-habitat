@@ -982,7 +982,61 @@ jobs:
             git commit -m "AI autonomous checkpoint ${GITHUB_RUN_NUMBER} cycle ${ACTIVE_ROUND}" || return 1
             git push origin HEAD:ai/game-build || return 1
             PERSISTED_CYCLE_CHECKPOINTS=$((PERSISTED_CYCLE_CHECKPOINTS + 1))
-            echo "Persisted reviewed cycle checkpoint $PERSISTED_CYCLE_CHECKPOINTS."
+            SAFE_TO_PERSIST=true
+            echo "safe_to_persist=true" >> "$GITHUB_OUTPUT"
+            echo "Persisted reviewed and validated cycle checkpoint $PERSISTED_CYCLE_CHECKPOINTS."
+          }
+
+          # Recovery checkpoints preserve reviewed work after a validation/QA
+          # blocker. They are explicitly not counted as validated checkpoints.
+          persist_recovery_checkpoint() {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            if [[ -n "$(git status --porcelain -- DevPackages)" ]]; then
+              echo "::warning::Restoring unexpected edits under vendored DevPackages before recovery checkpoint."
+              git restore --source=HEAD --staged --worktree -- DevPackages
+              git clean -fd -- DevPackages
+            fi
+            git add -A
+            if git diff --cached --quiet; then
+              echo "No repository changes to save in this recovery checkpoint."
+              SAFE_TO_PERSIST=true
+              echo "safe_to_persist=true" >> "$GITHUB_OUTPUT"
+              return 0
+            fi
+            git commit -m "AI recovery checkpoint ${GITHUB_RUN_NUMBER} cycle ${ACTIVE_ROUND} (follow-up required)" || return 1
+            git push origin HEAD:ai/game-build || return 1
+            PERSISTED_RECOVERY_CHECKPOINTS=$((PERSISTED_RECOVERY_CHECKPOINTS + 1))
+            SAFE_TO_PERSIST=true
+            echo "safe_to_persist=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Persisted recovery checkpoint $PERSISTED_RECOVERY_CHECKPOINTS. Validation/QA follow-up remains; this is not a validated release checkpoint."
+          }
+
+          write_recovery_context() {
+            local reason="$1"
+            shift
+            {
+              echo "# Pocket Habitat — unresolved autonomous recovery work"
+              echo
+              echo "- Run: ${GITHUB_RUN_NUMBER}"
+              echo "- Cycle: ${ACTIVE_ROUND}"
+              echo "- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed."
+              echo
+              echo "## Required next action"
+              echo
+              echo "$reason"
+              echo
+              echo "Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts."
+              for report in "$@"; do
+                if [[ -f "$report" ]]; then
+                  echo
+                  echo "## Evidence: $(basename "$report")"
+                  echo
+                  tail -n 120 "$report"
+                fi
+              done
+            } > "$RECOVERY_CONTEXT_FILE"
+            RECOVERY_CONTEXT_ACTIVE=true
           }
 
           refresh_diff() {
