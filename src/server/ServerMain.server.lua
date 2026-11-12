@@ -4,11 +4,6 @@
 -- Initializes all managers and event handlers for Pocket Habitat
 
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-
-local Shared = ReplicatedStorage:WaitForChild("Shared")
-local Constants = require(Shared:WaitForChild("Constants"))
 
 -- Require all managers
 local DataStoreManager = require(script.Parent:WaitForChild("DataStoreManager"))
@@ -40,7 +35,9 @@ print("[ServerMain] All managers initialized successfully")
 
 -- When a player joins the game
 Players.PlayerAdded:Connect(function(player: Player)
-    print("[ServerMain] Player added: " .. player.Name .. " (ID: " .. tostring(player.UserId) .. ")")
+    print(
+        "[ServerMain] Player added: " .. player.Name .. " (ID: " .. tostring(player.UserId) .. ")"
+    )
 
     -- Allocate a habitat for the player
     local habitat = HabitatManager.allocateHabitat(player)
@@ -56,13 +53,23 @@ end)
 
 -- When a player leaves the game
 Players.PlayerRemoving:Connect(function(player: Player)
-    print("[ServerMain] Player removing: " .. player.Name .. " (ID: " .. tostring(player.UserId) .. ")")
+    print(
+        "[ServerMain] Player removing: "
+            .. player.Name
+            .. " (ID: "
+            .. tostring(player.UserId)
+            .. ")"
+    )
 
     -- Release the player's session to save data
     local sessionData = DataStoreManager.getSession(player)
     if sessionData and sessionData.sessionLock then
-        DataStoreManager.releaseSession(player, sessionData.sessionLock)
-        print("[ServerMain] Session released for player: " .. player.Name)
+        local success = DataStoreManager.releaseSession(player, sessionData.sessionLock)
+        if success then
+            print("[ServerMain] Session released for player: " .. player.Name)
+        else
+            warn("[ServerMain] Failed to release session for player: " .. player.Name)
+        end
     end
 
     -- Clean up player's habitat
@@ -82,8 +89,15 @@ local function onBindToClose()
     for _, player in ipairs(Players:GetPlayers()) do
         local sessionData = DataStoreManager.getSession(player)
         if sessionData and sessionData.sessionLock then
-            DataStoreManager.releaseSession(player, sessionData.sessionLock)
-            print("[ServerMain] Released session for player during shutdown: " .. player.Name)
+            local success = DataStoreManager.releaseSession(player, sessionData.sessionLock)
+            if success then
+                print("[ServerMain] Released session for player during shutdown: " .. player.Name)
+            else
+                warn(
+                    "[ServerMain] Failed to release session for player during shutdown: "
+                        .. player.Name
+                )
+            end
         end
     end
 
@@ -92,6 +106,6 @@ local function onBindToClose()
 end
 
 -- Connect the shutdown handler
-game.BindToClose(onBindToClose)
+game:BindToClose(onBindToClose)
 
 print("[ServerMain] Server initialization complete - ready for players!")

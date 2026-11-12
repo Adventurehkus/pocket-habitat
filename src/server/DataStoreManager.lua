@@ -1,8 +1,9 @@
 --!strict
 local DataStoreService = game:GetService("DataStoreService")
-
-local Constants =
-    require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Constants"))
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Constants = Shared:WaitForChild("Constants")
+local RemoteEvents = require(Shared:WaitForChild("RemoteEvents"))
 
 local DataStoreManager = {}
 
@@ -38,6 +39,26 @@ function DataStoreManager.getDefaultData(userId: number)
         },
         sessionLock = nil,
     }
+end
+
+local function scheduleRenewal(player: Player, sessionToken: string)
+    local userId = player.UserId
+    local sessionData = activeSessions[userId]
+    if not sessionData then
+        return
+    end
+
+    if sessionData.sessionLock ~= sessionToken then
+        return
+    end
+
+    if sessionData.renewalTask then
+        task.cancel(sessionData.renewalTask)
+    end
+
+    sessionData.renewalTask = task.delay(RENEWAL_INTERVAL, function()
+        DataStoreManager.renewSession(player, sessionToken)
+    end)
 end
 
 function DataStoreManager.acquireSession(player: Player): string?
@@ -98,11 +119,7 @@ function DataStoreManager.acquireSession(player: Player): string?
     sessionData.sessionLock = sessionToken
     activeSessions[userId] = sessionData
 
-    task.delay(RENEWAL_INTERVAL, function()
-        if activeSessions[userId] and activeSessions[userId].sessionLock == sessionToken then
-            DataStoreManager.renewSession(player, sessionToken)
-        end
-    end)
+    scheduleRenewal(player, sessionToken)
 
     return sessionToken
 end
@@ -112,16 +129,16 @@ function DataStoreManager.getSession(player: Player): any
     return activeSessions[userId] or nil
 end
 
-function DataStoreManager.savePlayerData(player: Player, sessionToken: string?)
+function DataStoreManager.savePlayerData(player: Player, sessionToken: string?): boolean
     local userId = player.UserId
     local data = activeSessions[userId]
     if not data then
-        return
+        return true
     end
 
     if sessionToken and data.sessionLock ~= sessionToken then
         warn("Session token mismatch during save for user " .. tostring(userId))
-        return
+        return false
     end
 
     local dataKey = "User_" .. tostring(userId)
@@ -129,24 +146,45 @@ function DataStoreManager.savePlayerData(player: Player, sessionToken: string?)
     for attempt = 1, 3 do
         success, err = pcall(function()
             if sessionToken then
-                local record = playerDataStore:GetAsync(dataKey)
-                local current = record and record.data
-                local lockOwner = record and record.lockOwner
-                if not current or lockOwner ~= sessionToken then
-                    error("Session lock lost or stale")
-                end
+                playerDataStore:UpdateAsync(dataKey, function(oldValue)
+                    if not oldValue then
+                        error("No existing session data")
+                    end
+                    if oldValue.lockOwner ~= sessionToken then
+                        -- This is expected during contention - don't treat as fatal error
+                        error("Session ownership changed during save")
+                    end
+                    return {
+                        data = data,
+                        lockOwner = sessionToken,
+                        lastModified = os.time(),
+                    }
+                end)
+            else
                 playerDataStore:SetAsync(dataKey, {
-                    data = current,
-                    lockOwner = sessionToken,
+                    data = data,
+                    lockOwner = nil,
                     lastModified = os.time(),
                 })
-            else
-                playerDataStore:SetAsync(dataKey, data)
             end
         end)
         if success then
             break
         else
+            -- Check if this was a session lock contention error
+            if
+                type(err) == "string"
+                and (err:find("Session ownership") or err:find("Session lock"))
+            then
+                -- This is expected during contention, don't retry this specific error type
+                warn(
+                    "Session lock contention during save for user "
+                        .. tostring(userId)
+                        .. ": "
+                        .. tostring(err)
+                )
+                return false
+            end
             task.wait(2 * attempt)
         end
     end
@@ -158,32 +196,44 @@ function DataStoreManager.savePlayerData(player: Player, sessionToken: string?)
                 .. ": "
                 .. tostring(err)
         )
-        return
+        return false
     end
 
-    if sessionToken then
-        data.sessionLock = nil
-    end
+    return true
 end
 
-function DataStoreManager.releaseSession(player: Player, sessionToken: string?)
+function DataStoreManager.releaseSession(player: Player, sessionToken: string?): boolean
     local userId = player.UserId
     local data = activeSessions[userId]
     if not data then
-        return
+        return true
     end
 
     if sessionToken and data.sessionLock ~= sessionToken then
         warn("Session token mismatch during release for user " .. tostring(userId))
-        return
+        return false
     end
 
-    DataStoreManager.savePlayerData(player, sessionToken)
+    local saved = DataStoreManager.savePlayerData(player, sessionToken)
+    if not saved then
+        -- Do not clear in-memory state when the final save fails
+        warn("Failed to persist player data during session release for user " .. tostring(userId))
+        return false
+    end
+
+    if data.renewalTask then
+        task.cancel(data.renewalTask)
+        data.renewalTask = nil
+    end
 
     data.sessionLock = nil
     activeSessions[userId] = nil
 
-    RemoteEvents.SyncData:FireClient(player, { sessionEnded = true })
+    pcall(function()
+        RemoteEvents.SyncData:FireClient(player, { sessionEnded = true })
+    end)
+
+    return true
 end
 
 function DataStoreManager.renewSession(player: Player, sessionToken: string)
@@ -203,21 +253,28 @@ function DataStoreManager.renewSession(player: Player, sessionToken: string)
                 error("Session ownership changed")
             end
             return {
-                data = oldValue.data,
+                data = data,
                 lockOwner = sessionToken,
                 lastModified = os.time(),
             }
         end)
     end)
 
-    if not success then
+    if success then
+        -- Refresh the session data with the fresh store state to ensure time accuracy
+        -- before scheduling the next renewal
+        local freshStore = result
+        if freshStore.data then
+            data = freshStore.data
+        end
+        scheduleRenewal(player, sessionToken)
+    else
         warn(
             "Failed to renew session lease for user "
                 .. tostring(userId)
                 .. ": "
                 .. tostring(result)
         )
-        DataStoreManager.releaseSession(player, sessionToken)
     end
 end
 
@@ -228,22 +285,22 @@ function DataStoreManager.handleClientSessionRequest(player: Player)
     local sessionToken = DataStoreManager.acquireSession(player)
     if not sessionToken then
         if existingSession and existingSession.sessionLock then
-            RemoteEvents.SyncData:FireClient(player, { sessionContested = true })
+            pcall(function()
+                RemoteEvents.SyncData:FireClient(player, { sessionContested = true })
+            end)
             return
         end
-        RemoteEvents.SyncData:FireClient(player, { sessionUnavailable = true })
+        pcall(function()
+            RemoteEvents.SyncData:FireClient(player, { sessionUnavailable = true })
+        end)
         return
     end
 
-    RemoteEvents.SyncData:FireClient(player, {
-        sessionToken = sessionToken,
-        playerData = activeSessions[userId],
-    })
-
-    task.delay(RENEWAL_INTERVAL, function()
-        if activeSessions[userId] and activeSessions[userId].sessionLock == sessionToken then
-            DataStoreManager.renewSession(player, sessionToken)
-        end
+    pcall(function()
+        RemoteEvents.SyncData:FireClient(player, {
+            sessionToken = sessionToken,
+            playerData = activeSessions[userId],
+        })
     end)
 end
 
