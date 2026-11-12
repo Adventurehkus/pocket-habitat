@@ -57,3 +57,19 @@ Roblox DataStore integration, real multi-server contention, PlayerRemoving/BindT
 - Keep any engine/runtime gaps explicitly outstanding in the project state. Never mark RESOLVED merely because one validator turned green.
 - Do not start unrelated features, claim Milestone 2 persistence complete, or claim the experience release-ready while this note remains open.
 - Never modify vendored `DevPackages/`, publish to Roblox, alter secrets/provider configuration, or weaken safety/validation checks.
+
+
+## Run #37 — source recovery attempted, but checkpoint was not persisted
+
+- Run: #37, GitHub Actions run ID `43315643648`
+- Workflow URL: https://github.com/Adventurehkus/pocket-habitat/actions/runs/43315643648
+- Workflow configuration head used by the run: `a84e1e48a323b649f380930bc9f72ba6588fb1f2`
+- Durable gameplay branch head checked out by the run: `5535a31b19897e17877cceae03b745678669ce66`
+- The recovery record was loaded and the agent attempted Priority 1/2 repairs. Its local report says it adjusted DataStoreManager formatting and changed `releaseSession` to retain in-memory data when the final save fails. The run also reported that ServerMain's BindToClose call/import cleanup and the RemoteEvents import were already corrected in that temporary worktree.
+- After targeted validation repair, the job log reports Rojo build PASS, `stylua --check src` PASS, Selene PASS (0 errors, 0 warnings, 0 parse errors), and `git diff --check` PASS. The independent QA response was `QA_BLOCKER: NO` and recorded the remaining Roblox Studio/runtime tests as unexecuted.
+- A local validated commit was created (short SHA shown in the log: `2fb9074`; four files changed). The push to `ai/game-build` was rejected by GitHub with `remote: Internal Server Error` (request ID `B048:5D7CD:249E93:542A2E:6AF63AF8`). The pipeline correctly refused to continue without a durable checkpoint.
+- GitHub still reports `ai/game-build` at `5535a31b19897e17877cceae03b745678669ce66`. Therefore the Run #37 local source edits are **not part of the durable branch** and must not be treated as implemented. Reinspect the current source and reapply/reverify the outstanding fixes.
+
+The Run #37 route warnings (temporary Google rate limits, OpenRouter shared quota exhaustion, and Groq request-size incompatibilities) were handled by the existing route cooldown/exclusion logic; they were not the cause of the failed job. Static validation and QA had completed before GitHub rejected the checkpoint push.
+
+The workflow's push handling was subsequently updated on `main` (commits `9fa4a470fbf138be51fb1f4dcf2be510dd1c3c55` and `dd35d65d52f2139bad5bde2f6afad4b409b3b8ab)) to retry transient push failures, confirm ambiguous accepted pushes, and rebase over concurrent branch advancement without force-pushing. That change has not yet been exercised by a fresh GitHub Actions run. Keep this recovery record OPEN until the source-level items are genuinely fixed, verified, QA-reviewed, and durably persisted.
