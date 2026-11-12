@@ -9,7 +9,7 @@
 - **Workflow URL:** https://github.com/Adventurehkus/pocket-habitat/actions/runs/43131314450
 - **Workflow configuration branch:** `main`.
 - **Workflow head used by Run #34:** `8b3deb6716370644c4167557f2bc3e9ffca25965`.
-- **Latest workflow configuration commit on main:** `d3240908cfb2e3e89e816c97e084b9e750e5236e`.
+- **Latest workflow configuration commit on main:** `a84e1e48a323b649f380930bc9f72ba6588fb1f2`.
 - **Current workflow policy:** 100% of currently eligible quota pools; repeated implementation/review/repair/validation/QA cycles; cross-cycle retries for recoverable agent/provider/code errors; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`.
 - **Verification boundary:** Run #34 executed and passed the 100% quota-accounting preflight fixtures, but stopped at 33% quota exhaustion because final StyLua/Selene validation still failed. The newer cross-cycle error-recovery changes on `main` are committed but have NOT yet been live-tested.
 - **Run #32 artifact:** `pocket-habitat-pipeline-32` (77,705 bytes, includes Rojo .rbxl build and stage/usage logs)
