@@ -1158,10 +1158,14 @@ jobs:
               break
             fi
 
-            # Reset only per-cycle role exclusion. Daily quota blocks, temporary
-            # cooldowns, failure counts, and run-wide call budgets remain intact.
-            unset MODEL_ATTEMPTED
+            # Reset per-cycle route/stage exclusions so temporary-limited models
+            # can be revisited after cooldown in later cycles. Daily quota blocks,
+            # permanent ineligibility, cooldown timestamps, and run-wide budgets
+            # remain intact. MAX_MODEL_TEMP_ATTEMPTS is therefore per stage/cycle.
+            unset MODEL_ATTEMPTED MODEL_STAGE_EXHAUSTED MODEL_STAGE_TEMP_FAILURES
             declare -A MODEL_ATTEMPTED=()
+            declare -A MODEL_STAGE_EXHAUSTED=()
+            declare -A MODEL_STAGE_TEMP_FAILURES=()
             IMPLEMENT_PROVIDER=""
             REVIEW_PROVIDER=""
             REPAIR_PROVIDER=""
@@ -1189,13 +1193,16 @@ jobs:
             IMPLEMENT_PROVIDER="${STAGE_PROVIDER[implementation]:-}"
 
             if [[ "$IMPLEMENT_RESULT" -ne 0 ]]; then
-              PIPELINE_EXIT=1
-              if [[ -z "$AUTONOMOUS_STOP_REASON" ]]; then
-                AUTONOMOUS_STOP_REASON="no_implementation_route_completed"
+              echo "::warning::No implementation route completed this attempt. Retaining the current recovery task and retrying eligible routes in a later cycle."
+              if [[ "$TOTAL_MODEL_CALLS" -ge "$MAX_TOTAL_MODEL_CALLS" ]]; then
+                PIPELINE_EXIT=1
+                AUTONOMOUS_STOP_REASON="total_model_call_budget"
+                echo "::endgroup::"
+                break
               fi
-              echo "::error::No eligible model completed implementation cycle $round; stopping safely."
-              echo "::endgroup::"
-              break
+              if [[ "$RECOVERY_CONTEXT_ACTIVE" != "true" ]]; then
+                write_recovery_context "No configured implementation route completed cycle $round. Revisit temporarily limited routes after cooldown, try every still-eligible model, and inspect the route-attempt log. Do not abandon the original task."
+              fi
             fi
 
             refresh_diff
@@ -1203,6 +1210,17 @@ jobs:
             if [[ "$before_diff_hash" == "$after_diff_hash" ]]; then
               NO_PROGRESS_ROUNDS=$((NO_PROGRESS_ROUNDS + 1))
               echo "::warning::Implementation cycle $round produced no repository diff ($NO_PROGRESS_ROUNDS consecutive no-progress cycles)."
+              if [[ "$IMPLEMENT_RESULT" -ne 0 ]]; then
+                if [[ "$NO_PROGRESS_ROUNDS" -ge "$MAX_CONSECUTIVE_NO_PROGRESS_ROUNDS" ]]; then
+                  PIPELINE_EXIT=1
+                  AUTONOMOUS_STOP_REASON="no_implementation_progress"
+                  echo "::error::No implementation route produced safe changes in $NO_PROGRESS_ROUNDS consecutive cycles. Stopping under the no-capable-agent safety exception."
+                  echo "::endgroup::"
+                  break
+                fi
+                echo "::endgroup::"
+                continue
+              fi
             else
               NO_PROGRESS_ROUNDS=0
             fi
@@ -1218,32 +1236,56 @@ jobs:
             REVIEW_LOG_PATH="${STAGE_LOG[review]:-}"
             REVIEW_DECISION="INVALID"
 
-            if [[ "$REVIEW_RESULT" -eq 0 ]]; then
+            if [[ "$REVIEW_RESULT" -eq 0 && -f "$REVIEW_LOG_PATH" ]]; then
               REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
-              if [[ "$REVIEW_DECISION" == "INVALID" ]]; then
-                STAGE_STATUS["review"]="SUCCESS (invalid response format)"
-                echo "::warning::Reviewer response lacked REVIEW_FINDINGS; requesting an independent format-correction review."
-                REVIEW_FALLBACK_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Inspect the attached current diff and relevant source. Verify findings against source, especially startup initialization and module API call sites. Do not edit files or run shell commands. Your FIRST output line MUST be exactly REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Use YES only for confirmed actionable defects. Report severity, file/line, evidence, impact, and correction. Never claim tests ran unless evidence proves it."
-                prioritize_models REVIEW_FALLBACK_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
-                STAGE_FILES=("$DIFF_FILE")
-                run_stage "review-fallback" "reviewer" "$REVIEW_FALLBACK_PROMPT" "${REVIEW_FALLBACK_MODELS[@]}"
-                REVIEW_FALLBACK_RESULT=$?
-                if [[ "$REVIEW_FALLBACK_RESULT" -eq 0 ]]; then
-                  REVIEW_LOG_PATH="${STAGE_LOG[review-fallback]:-}"
-                  REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
-                  if [[ "$REVIEW_DECISION" != "INVALID" ]]; then
-                    REVIEW_PROVIDER="${STAGE_PROVIDER[review-fallback]:-}"
-                  fi
+            fi
+
+            if [[ "$REVIEW_RESULT" -ne 0 || "$REVIEW_DECISION" == "INVALID" ]]; then
+              echo "::warning::Independent review did not produce a valid decision. Trying the remaining independent review routes."
+              REVIEW_FALLBACK_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Inspect the attached current diff and relevant source. Verify findings against source, especially startup initialization and module API call sites. Do not edit files or run shell commands. Your FIRST output line MUST be exactly REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Use YES only for confirmed actionable defects. Report severity, file/line, evidence, impact, and correction. Never claim tests ran unless evidence proves it."
+              prioritize_models REVIEW_FALLBACK_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
+              STAGE_FILES=("$DIFF_FILE")
+              run_stage "review-fallback" "reviewer" "$REVIEW_FALLBACK_PROMPT" "${REVIEW_FALLBACK_MODELS[@]}"
+              REVIEW_FALLBACK_RESULT=$?
+              if [[ "$REVIEW_FALLBACK_RESULT" -eq 0 ]]; then
+                REVIEW_LOG_PATH="${STAGE_LOG[review-fallback]:-}"
+                REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
+                if [[ "$REVIEW_DECISION" != "INVALID" ]]; then
+                  REVIEW_RESULT=0
+                  REVIEW_PROVIDER="${STAGE_PROVIDER[review-fallback]:-}"
                 fi
               fi
             fi
 
             if [[ "$REVIEW_RESULT" -ne 0 || "$REVIEW_DECISION" == "INVALID" ]]; then
-              PIPELINE_EXIT=1
-              AUTONOMOUS_STOP_REASON="independent_review_unavailable_or_invalid"
-              echo "::error::Independent review did not produce a valid decision; stopping rather than accepting unreviewed work."
+              write_recovery_context "No trustworthy independent review decision was available in cycle $round after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work." "$REVIEW_LOG_PATH" "$DIFF_FILE"
+              if ! persist_recovery_checkpoint; then
+                PIPELINE_EXIT=1
+                AUTONOMOUS_STOP_REASON="recovery_checkpoint_persistence_failed"
+                echo "::error::Unable to preserve the unreviewed recovery task."
+                echo "::endgroup::"
+                break
+              fi
+              AUTONOMOUS_RECOVERY_CYCLES=$((AUTONOMOUS_RECOVERY_CYCLES + 1))
+              echo "::warning::Review unavailable/invalid. Preserved an explicitly unreviewed recovery checkpoint and will retry in the next cycle."
               echo "::endgroup::"
-              break
+              refresh_quota_counts
+              if [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
+                AUTONOMOUS_STOP_REASON="daily_quota_target_reached_with_recovery_debt"
+                PIPELINE_EXIT=1
+                break
+              fi
+              if [[ "$TOTAL_MODEL_CALLS" -ge "$MAX_TOTAL_MODEL_CALLS" ]]; then
+                AUTONOMOUS_STOP_REASON="total_model_call_budget"
+                PIPELINE_EXIT=1
+                break
+              fi
+              if [[ "$NO_PROGRESS_ROUNDS" -ge "$MAX_CONSECUTIVE_NO_PROGRESS_ROUNDS" ]]; then
+                AUTONOMOUS_STOP_REASON="no_implementation_progress"
+                PIPELINE_EXIT=1
+                break
+              fi
+              continue
             fi
 
             if [[ "$REVIEW_DECISION" == "YES" ]]; then
@@ -1301,25 +1343,48 @@ jobs:
             QA_DECISION="INVALID"
             if [[ "$QA_RESULT" -eq 0 && -f "$QA_LOG" ]]; then
               QA_DECISION="$(qa_decision "$QA_LOG")"
-              if [[ "$QA_DECISION" == "INVALID" ]]; then
-                echo "::warning::Malformed QA response; requesting a format-correction response from another eligible model."
-                QA_FALLBACK_PROMPT="Independently inspect the attached current diff and validation log. Do not edit files or run commands. Your FIRST output line MUST be exactly QA_BLOCKER: YES or QA_BLOCKER: NO. YES requires a concrete critical/high correctness, security, progression, or player-data issue. Report evidence and missing runtime tests; never claim unrun tests passed."
-                prioritize_models QA_FALLBACK_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "${STAGE_PROVIDER[qa]:-}"
-                STAGE_FILES=("$DIFF_FILE" "$VALIDATION_LOG")
-                run_stage "qa-fallback" "qa" "$QA_FALLBACK_PROMPT" "${QA_FALLBACK_MODELS[@]}"
-                QA_RESULT=$?
-                if [[ "$QA_RESULT" -eq 0 ]]; then
-                  QA_LOG="${STAGE_LOG[qa-fallback]:-}"
-                  QA_DECISION="$(qa_decision "$QA_LOG")"
-                fi
+            fi
+            if [[ "$QA_RESULT" -ne 0 || "$QA_DECISION" == "INVALID" ]]; then
+              echo "::warning::QA failed or returned an invalid decision. Trying the remaining independent QA routes."
+              QA_FALLBACK_PROMPT="Independently inspect the attached current diff and validation log. Do not edit files or run commands. Your FIRST output line MUST be exactly QA_BLOCKER: YES or QA_BLOCKER: NO. YES requires a concrete critical/high correctness, security, progression, or player-data issue. Report evidence and missing runtime tests; never claim unrun tests passed."
+              prioritize_models QA_FALLBACK_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "${STAGE_PROVIDER[qa]:-}"
+              STAGE_FILES=("$DIFF_FILE" "$VALIDATION_LOG")
+              run_stage "qa-fallback" "qa" "$QA_FALLBACK_PROMPT" "${QA_FALLBACK_MODELS[@]}"
+              QA_RESULT=$?
+              if [[ "$QA_RESULT" -eq 0 ]]; then
+                QA_LOG="${STAGE_LOG[qa-fallback]:-}"
+                QA_DECISION="$(qa_decision "$QA_LOG")"
               fi
             fi
             if [[ "$QA_RESULT" -ne 0 || "$QA_DECISION" == "INVALID" ]]; then
-              PIPELINE_EXIT=1
-              AUTONOMOUS_STOP_REASON="qa_unavailable_or_invalid"
-              echo "::error::No trustworthy independent QA decision available after fallback; stopping rather than accepting unchecked work."
+              write_recovery_context "No trustworthy QA decision was available in cycle $round after trying the QA and fallback routes. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work." "$REVIEW_LOG_PATH" "$DIFF_FILE" "$VALIDATION_LOG"
+              if ! persist_recovery_checkpoint; then
+                PIPELINE_EXIT=1
+                AUTONOMOUS_STOP_REASON="recovery_checkpoint_persistence_failed"
+                echo "::error::Unable to preserve the QA-recovery task."
+                echo "::endgroup::"
+                break
+              fi
+              AUTONOMOUS_RECOVERY_CYCLES=$((AUTONOMOUS_RECOVERY_CYCLES + 1))
+              echo "::warning::QA unavailable/invalid. Preserved a reviewed but QA-unverified recovery checkpoint and will retry in the next cycle."
               echo "::endgroup::"
-              break
+              refresh_quota_counts
+              if [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
+                AUTONOMOUS_STOP_REASON="daily_quota_target_reached_with_recovery_debt"
+                PIPELINE_EXIT=1
+                break
+              fi
+              if [[ "$TOTAL_MODEL_CALLS" -ge "$MAX_TOTAL_MODEL_CALLS" ]]; then
+                AUTONOMOUS_STOP_REASON="total_model_call_budget"
+                PIPELINE_EXIT=1
+                break
+              fi
+              if [[ "$NO_PROGRESS_ROUNDS" -ge "$MAX_CONSECUTIVE_NO_PROGRESS_ROUNDS" ]]; then
+                AUTONOMOUS_STOP_REASON="no_implementation_progress"
+                PIPELINE_EXIT=1
+                break
+              fi
+              continue
             fi
 
             QA_REPAIR_ROUNDS=0
@@ -1469,7 +1534,11 @@ jobs:
             echo "- Quota target reached: ${QUOTA_TARGET_REACHED}"
             echo "- Autonomous cycles completed: ${AUTONOMOUS_ROUNDS_COMPLETED}/${MAX_AUTONOMOUS_ROUNDS}"
             echo "- Total model calls: ${TOTAL_MODEL_CALLS}/${MAX_TOTAL_MODEL_CALLS}"
-            echo "- Reviewed cycle checkpoints pushed: ${PERSISTED_CYCLE_CHECKPOINTS}"
+            echo "- Reviewed and validated cycle checkpoints pushed: ${PERSISTED_CYCLE_CHECKPOINTS}"
+            echo "- Recovery checkpoints pushed (review/QA/validation follow-up required): ${PERSISTED_RECOVERY_CHECKPOINTS}"
+            echo "- Autonomous recovery cycles: ${AUTONOMOUS_RECOVERY_CYCLES}"
+            echo "- Validation recovery cycles: ${VALIDATION_RECOVERY_CYCLES}"
+            echo "- Unresolved recovery context at stop: ${RECOVERY_CONTEXT_ACTIVE}"
             echo "- Models at per-run call cap: ${#MODEL_RUN_CAP_REACHED[@]}"
             echo "- Stop reason: ${AUTONOMOUS_STOP_REASON}"
             echo "- Automatic temporary-limit wait: ${TOTAL_TEMP_WAIT_SECONDS}s across ${TEMP_LIMIT_EVENTS} classified events"
@@ -1479,7 +1548,7 @@ jobs:
             echo
             echo "| Latest stage | Result | Model | Provider |"
             echo "|---|---|---|---|"
-            for stage in implementation review review-fallback repair validation-repair qa qa-repair; do
+            for stage in implementation review review-fallback repair validation-repair qa qa-fallback qa-repair qa-recheck; do
               printf '| %s | %s | %s | %s |\n' "$stage" "${STAGE_STATUS[$stage]:-NOT RUN}" "${STAGE_MODEL[$stage]:-—}" "${STAGE_PROVIDER[$stage]:-—}"
             done
             printf '| deterministic-validation | %s | — | CI tools |\n' "${VALIDATION_STATUS:-NOT RUN}"
