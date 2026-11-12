@@ -7,7 +7,7 @@ on:
         description: Task for the autonomous development pipeline
         required: true
         type: string
-        default: "Read AGENTS.md and continue the next incomplete milestone."
+        default: "Read the project state and roadmap. Complete the highest-priority unfinished task, then keep advancing through meaningful reviewed vertical slices until the workflow's daily-quota target or a hard safety budget is reached."
 
 permissions:
   contents: write
@@ -126,6 +126,7 @@ jobs:
           STAGE_FILES=()
           RUN_COUNTER=0
           TOTAL_MODEL_CALLS=0
+          PERSISTED_CYCLE_CHECKPOINTS=0
           AUTONOMOUS_ROUNDS_COMPLETED=0
           AUTONOMOUS_STOP_REASON=""
           NO_PROGRESS_ROUNDS=0
@@ -598,6 +599,56 @@ jobs:
             output_ref=("${preferred[@]}" "${deferred[@]}")
           }
 
+          # Local-only regression fixtures for quota-scope accounting and model rotation.
+          test_rotation=(alpha beta gamma)
+          rotate_array_after test_rotation beta
+          if [[ "${test_rotation[*]}" != "gamma alpha beta" ]]; then
+            echo "::error::Model round-robin rotation regression test failed."
+            exit 1
+          fi
+
+          test_quota_models=(
+            "google/gemini-a" "google/gemini-b"
+            "groq/model-a" "groq/model-b"
+            "cohere/model-a" "cohere/model-b"
+            "openrouter/model-a" "openrouter/model-b"
+            "cloudflare-workers-ai/model-a"
+            "github-copilot/auto"
+          )
+          declare -A test_quota_pools=()
+          for test_model in "${test_quota_models[@]}"; do
+            test_pool="$(quota_pool_for_model "$test_model")"
+            test_quota_pools["$test_pool"]="1"
+          done
+          if [[ "${#test_quota_pools[@]}" -ne 8 ]]; then
+            echo "::error::Quota-scope grouping regression test failed; expected 8 pools, got ${#test_quota_pools[@]}."
+            exit 1
+          fi
+          (
+            MODEL_CHAIN=("google/gemini-a" "google/gemini-b" "cohere/model-a")
+            declare -A QUOTA_POOL_KEYS=()
+            QUOTA_POOL_KEYS["model:google/gemini-a"]="1"
+            QUOTA_POOL_KEYS["model:google/gemini-b"]="1"
+            QUOTA_POOL_KEYS["provider:cohere"]="1"
+            declare -A DAILY_QUOTA_POOLS=()
+            DAILY_QUOTA_POOLS["model:google/gemini-a"]="1"
+            DAILY_QUOTA_POOLS["provider:cohere"]="1"
+            declare -A MODEL_PERMANENTLY_INELIGIBLE=()
+            declare -A PROVIDER_PERMANENTLY_INELIGIBLE=()
+            refresh_quota_counts
+            if [[ "$DAILY_QUOTA_POOL_EXHAUSTED_COUNT" -ne 2 || "$ELIGIBLE_QUOTA_POOL_COUNT" -ne 1 || "$QUOTA_EXHAUSTION_PERCENT" -ne 66 || "$QUOTA_TARGET_REACHED" != "false" ]]; then
+              echo "::error::Quota target regression test failed for 2/3 exhausted pools."
+              exit 1
+            fi
+            DAILY_QUOTA_POOLS["model:google/gemini-b"]="1"
+            refresh_quota_counts
+            if [[ "$QUOTA_TARGET_REACHED" != "true" || "$QUOTA_EXHAUSTION_PERCENT" -ne 100 ]]; then
+              echo "::error::Quota target regression test failed after all quota pools were exhausted."
+              exit 1
+            fi
+          ) || exit 1
+          echo "Autonomous router regression tests passed: round-robin, shared/model pool grouping, and quota target math."
+
           # run_stage <stage> <agent> <prompt> <candidate-model...>
           # Temporary limits cool down the affected model/provider, allow other
           # routes to run, and then automatically revisit the original prompt.
@@ -866,6 +917,30 @@ jobs:
             return 1
           }
 
+          # Persist each reviewed cycle so a GitHub Actions timeout cannot
+          # discard several hours of already-validated development work.
+          persist_cycle_checkpoint() {
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            if [[ -n "$(git status --porcelain -- DevPackages)" ]]; then
+              echo "::warning::Restoring unexpected edits under vendored DevPackages before checkpoint."
+              git restore --source=HEAD --staged --worktree -- DevPackages
+              git clean -fd -- DevPackages
+            fi
+
+            git add -A
+            if git diff --cached --quiet; then
+              echo "Cycle $ACTIVE_ROUND has no repository changes to checkpoint."
+              return 0
+            fi
+
+            git commit -m "AI autonomous checkpoint ${GITHUB_RUN_NUMBER} cycle ${ACTIVE_ROUND}" || return 1
+            git push origin HEAD:ai/game-build || return 1
+            PERSISTED_CYCLE_CHECKPOINTS=$((PERSISTED_CYCLE_CHECKPOINTS + 1))
+            echo "Persisted reviewed cycle checkpoint $PERSISTED_CYCLE_CHECKPOINTS."
+          }
+
           refresh_diff() {
             # Intent-to-add makes new project files visible to git diff without
             # staging their content. Third-party DevPackages are excluded.
@@ -1110,6 +1185,14 @@ jobs:
               break
             fi
 
+            if ! persist_cycle_checkpoint; then
+              PIPELINE_EXIT=1
+              AUTONOMOUS_STOP_REASON="cycle_checkpoint_persistence_failed"
+              echo "::error::Unable to persist the validated cycle; stopping to avoid continuing with uncheckpointed work."
+              echo "::endgroup::"
+              break
+            fi
+
             AUTONOMOUS_ROUNDS_COMPLETED=$round
             echo "Cycle $round completed: implementation, independent review, deterministic validation, and QA succeeded."
             refresh_quota_counts
@@ -1161,6 +1244,8 @@ jobs:
             echo "- Quota target reached: ${QUOTA_TARGET_REACHED}"
             echo "- Autonomous cycles completed: ${AUTONOMOUS_ROUNDS_COMPLETED}/${MAX_AUTONOMOUS_ROUNDS}"
             echo "- Total model calls: ${TOTAL_MODEL_CALLS}/${MAX_TOTAL_MODEL_CALLS}"
+            echo "- Reviewed cycle checkpoints pushed: ${PERSISTED_CYCLE_CHECKPOINTS}"
+            echo "- Models at per-run call cap: ${#MODEL_RUN_CAP_REACHED[@]}"
             echo "- Stop reason: ${AUTONOMOUS_STOP_REASON}"
             echo "- Automatic temporary-limit wait: ${TOTAL_TEMP_WAIT_SECONDS}s across ${TEMP_LIMIT_EVENTS} classified events"
             echo "- Daily/shared quota exhaustion events: ${DAILY_QUOTA_EVENTS}"
