@@ -79,12 +79,12 @@ The 100% quota target and accounting fixtures were exercised in Run #34 and pass
 
 The historical source audit is `project-state/run-32-audit.md`; its findings describe the Run #32 checkpoint and are not all current source facts. In the current worktree, the startup API mismatch and stale quest-handler override are resolved, active habitat slots do not repeat, resource IDs are present on the server-owned Parts searched by `ResourceManager`, and prompt discovery watches existing and subsequently added prompts under only the local player's habitat. These fixes have not been exercised in Roblox.
 
-DataStore session leases and failure-safe save/release semantics are now implemented. Character spawn/respawn placement and saved-world restoration remain to be completed. Per-habitat creature runtime isolation still needs work. Plot state/schema count consistency and concurrent interaction behavior also need dedicated verification.
+DataStore session-lease code exists but is not yet safe or complete: it needs an atomic ownership-checked save of current in-memory data, failed-save retention, recurring lease renewal, and its missing `RemoteEvents` dependency. Character spawn/respawn placement and saved-world restoration remain to be completed. Per-habitat creature runtime isolation still needs work. Plot state/schema count consistency and concurrent interaction behavior also need dedicated verification.
 
 Current remaining risks and gaps:
 
 1. Character spawn/respawn placement and saved-world restoration are not implemented.
-2. DataStore sessions now have cross-server leases and failure-safe save/release semantics.
+2. Correct DataStore session ownership/save/release semantics and recurring lease renewal; then verify failure/rejoin/lease behavior.
 3. Creature runtime is not fully scoped to each player's habitat.
 4. Plot state/schema count consistency and concurrent interaction behavior need dedicated verification.
 5. Roblox startup, multiplayer isolation, persistence, and manual gameplay remain untested.
@@ -93,8 +93,9 @@ Do not mark checklist items complete based on a folder, helper module, static bu
 
 ## Current next-task sequence
 
-✅ COMPLETED: Atomic cross-server DataStore session leases and failure-safe save/release semantics implemented
-2. Add character spawn/respawn routing and reconstruct saved habitat state before interactions are enabled.
+1. Repair Run #34's remaining ServerMain validation failures: use `game:BindToClose(onBindToClose)`, remove unused `Workspace`/`Constants`, and format with StyLua.
+2. Correct `DataStoreManager.lua`: require `RemoteEvents`, atomically save current in-memory session data only while the server owns the token, retain memory on failed saves, recur lease renewal, and release safely.
+3. Add character spawn/respawn routing and reconstruct saved habitat state before interactions are enabled.
 3. Scope CreatureManager runtime to each player's habitat and clean it up with the player session.
 4. Add and execute production-rule/integration tests; run Roblox Studio with at least two clients and test persistence/rejoin.
 5. Reassess milestone acceptance only after these checks.
