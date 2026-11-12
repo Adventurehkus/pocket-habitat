@@ -1046,6 +1046,10 @@ jobs:
             fi
 
             {
+              if [[ ! -f "$RECOVERY_CONTEXT_FILE" ]]; then
+                echo "RECOVERY_STATUS: OPEN"
+                echo
+              fi
               echo "# Pocket Habitat — unresolved autonomous recovery work"
               echo
               echo "- Run: ${GITHUB_RUN_NUMBER}"
