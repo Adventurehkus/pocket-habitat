@@ -128,12 +128,26 @@ The adaptive fallback behavior was exercised in a real workflow run and complete
 
 **Conclusion:** Run #32 did not terminate because all configured models were exhausted. Several model/provider routes were exhausted or unavailable, but fallback routes completed all stages. This does not mean all 20 models were attempted, and it does not reveal remaining account balances after the run. Provider dashboards remain authoritative for balances.
 
-Committed retry policy at the time of Run #32:
-- Four attempts per model per stage.
-- At most 50 model calls per stage.
-- Up to two hours of automatic waiting per stage.
-- Up to four hours of automatic waiting across the workflow.
-- Workflow job timeout: 350 minutes.
+The original one-pass retry policy used four temporary failures per model/stage, up to 50 calls per stage, 2 hours of waiting per stage, and 4 hours of aggregate waiting. That was the policy exercised by Run #32. The current main-branch policy is documented below and supersedes those limits for new runs.
+
+## Multi-cycle quota-focused workflow policy — committed, not yet live-tested
+
+The workflow on `main` was changed after Run #32:
+- Workflow changes: multi-cycle router commit `d5e4a14b3d433f40fbb16e233533b98ee1dd9858`, followed by regression/checkpoint commit `519de8cea3df3fdf3e719399ec7d7e804c01a4e3` and wait-budget commit `658bb50bad7060dc0ae99760ac673c748684cac4`.
+- Run mode: first cycle implements the supplied task; subsequent cycles continue it if incomplete, otherwise choose the next highest-priority unfinished roadmap task.
+- Each cycle runs implementation, independent review, conditional repair, deterministic validation, and independent QA.
+- Model candidates rotate by role and a successful model becomes eligible again in later cycles. A model is used at most once per cycle, preserving separation between implementation/review/QA.
+- Every reviewed and validated cycle is committed and pushed to `ai/game-build` before the next cycle, protecting work from a later job timeout.
+- Stop target: at least 75% of eligible quota pools explicitly reported daily/monthly exhaustion.
+- Pool accounting: Google/Groq model routes are counted per model; Cohere/OpenRouter/Cloudflare/Copilot routes are grouped by provider/account. Request-size errors, invalid credentials, unavailable models, and unknown errors are excluded from eligible pools and do not count as quota exhaustion.
+- Hard caps: 8 calls per model per run, 120 total model calls, 30 cycles, 2 hours aggregate temporary-limit waiting, two consecutive no-progress cycles, and the GitHub Actions 350-minute job timeout.
+- The run stops earlier if independent review, repair, QA, deterministic validation, or checkpoint persistence cannot complete safely.
+
+**Important limitation:** quota status is inferred from explicit provider/model errors, not from a live balance API. The 75% target is a percentage of quota scopes estimated by the workflow, not 75% of exact remaining requests or tokens. A temporary RPM/TPM limit is cooled down and revisited; it is not counted as daily exhaustion.
+
+**Verification status:** this multi-cycle policy and its local regression fixtures are committed, but no new workflow run has yet executed them. Run #32 tested the older one-pass fallback system only. The next dispatched run will test multi-cycle behavior, quota-pool math, model rotation, per-cycle checkpoint pushes, and the configured safety limits.
+
+**Billing warning:** the 120-call cap is a request-count limit, not a dollar-spend limit. Some API keys can be attached to billable provider accounts. Verify free-tier status and configure spending caps in provider dashboards before dispatching a long quota-focused run.
 
 ## Running the autonomous development workflow
 
@@ -143,7 +157,7 @@ Committed retry policy at the time of Run #32:
 4. Enter either a specific task or the reusable generic continuation handoff.
 5. Review the run summary and uploaded artifact.
 
-The workflow checks out ai/game-build. It runs implementation, independent review, conditional repair, Rojo/StyLua/Selene validation, independent QA, conditional final repair, and persistence to the gameplay branch.
+The workflow checks out ai/game-build and, under the current main-branch version, repeats implementation/review/repair/validation/QA cycles until the quota target or a hard stop is reached. Each successful cycle is checkpointed to the gameplay branch.
 
 A configured model is only a possible route; it is not proof of available quota or successful invocation. The workflow's bounded retry/time budgets can still be exhausted if all candidates are unavailable or daily quotas are gone.
 
