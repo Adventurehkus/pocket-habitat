@@ -1031,6 +1031,20 @@ jobs:
           write_recovery_context() {
             local reason="$1"
             shift
+
+            # Any new failure re-opens a previously resolved recovery note.
+            if [[ -f "$RECOVERY_CONTEXT_FILE" ]]; then
+              if grep -q '^RECOVERY_STATUS:' "$RECOVERY_CONTEXT_FILE"; then
+                sed -i 's/^RECOVERY_STATUS:.*/RECOVERY_STATUS: OPEN/' "$RECOVERY_CONTEXT_FILE"
+              else
+                {
+                  echo "RECOVERY_STATUS: OPEN"
+                  cat "$RECOVERY_CONTEXT_FILE"
+                } > "$RECOVERY_CONTEXT_FILE.tmp"
+                mv "$RECOVERY_CONTEXT_FILE.tmp" "$RECOVERY_CONTEXT_FILE"
+              fi
+            fi
+
             {
               echo "# Pocket Habitat — unresolved autonomous recovery work"
               echo
@@ -1197,7 +1211,7 @@ jobs:
             else
               CURRENT_IMPLEMENT_PROMPT="$CONTINUATION_PROMPT"
               if [[ "$RECOVERY_CONTEXT_ACTIVE" == "true" && -f "$RECOVERY_CONTEXT_FILE" ]]; then
-                CURRENT_IMPLEMENT_PROMPT+=$'\n\nPRIORITY RECOVERY INSTRUCTION: Read the attached recovery report first. Fix its unresolved validation/QA issue before unrelated feature work. Do not repeat a patch that failed validation and do not weaken any check.'
+                CURRENT_IMPLEMENT_PROMPT+=$'\n\nPRIORITY RECOVERY INSTRUCTION: Read the attached recovery report first. Fix every automation-resolvable open item before unrelated feature work. Do not repeat a patch that failed validation and do not weaken any check. When every listed source-level item is genuinely fixed and independently verified, update docs/AUTONOMOUS_RECOVERY.md to RECOVERY_STATUS: RESOLVED and append concrete evidence. Leave the status OPEN if any source-level item remains unresolved. Keep Roblox Studio/multiplayer/DataStore runtime gaps explicitly marked unverified when the current runner cannot execute them; never claim they passed.'
                 STAGE_FILES+=("$RECOVERY_CONTEXT_FILE")
               fi
             fi
