@@ -146,3 +146,25 @@ The artifact's `_temp/pocket-habitat-model-usage.tsv` and agent report record:
 8. Only then reassess Milestone 2 acceptance.
 
 Do not mark Milestone 2 complete or call the game playable until its acceptance criteria are implemented and verified. No Roblox runtime or Studio test was executed in Run #32.
+
+## Follow-up: why Run #32 stopped and the workflow fix
+
+The Run #32 usage TSV showed the old pipeline's short-circuit behavior:
+- Each required stage returned immediately after its first successful model.
+- A model that had only hit a temporary RPM/TPM limit was placed on cooldown, but once another model succeeded the stage returned and the cooldowned model was never revisited later in the run.
+- Successful models were globally marked attempted, so they could not be reused in a later implementation pass.
+- The pipeline had one implementation/review/repair/validation/QA sequence, not a repeated work loop.
+- Result: the workflow completed all stages even though additional model routes and quota pools had not been used or exhausted. Some OpenRouter routes were correctly skipped because OpenRouter's shared pool was already exhausted; that is different from an unused provider pool.
+
+The workflow on `main` was subsequently changed:
+- Multi-cycle router commit: `d5e4a14b3d433f40fbb16e233533b98ee1dd9858`.
+- Round-robin and router fixtures/checkpoint persistence: `519de8cea3df3fdf3e719399ec7d7e804c01a4e3`.
+- Aggregate temporary-wait cap set to 2 hours: `658bb50bad7060dc0ae99760ac673c748684cac4` (latest workflow configuration commit at this audit update).
+- Later cycles reuse successful models after resetting same-cycle role exclusion, rotate candidates, re-attempt cooled-down routes, and continue meaningful roadmap work.
+- The configured stop target is 75% of eligible quota pools confirmed exhausted by explicit daily/monthly quota errors.
+- Current hard limits: 8 calls/model, 120 total model calls, 30 cycles, 2 hours aggregate temporary wait, 2 consecutive no-progress cycles, and the 350-minute job timeout.
+- Each reviewed and validated cycle is pushed to `ai/game-build` before the next cycle, protecting progress if the run later times out.
+
+**Important limits:** quota-pool count is a routing heuristic, not a precise API balance. Google/Groq are treated as model-scoped; Cohere/OpenRouter/Cloudflare/Copilot are treated as provider/account-scoped. The workflow cannot query providers' real remaining balance. A transient per-minute limit does not count as daily exhaustion. The 120-call cap is a request-count cap, not a money cap; verify provider billing/free-tier settings and spending limits before a long run.
+
+**Verification status:** this new multi-cycle behavior is committed but has not yet been live-tested. Run #32 only tested the previous one-pass implementation/review/repair/QA orchestration. A new dispatch is needed to exercise the loop and its regression fixtures. No new model-consuming run was triggered during this workflow/documentation update.
