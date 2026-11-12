@@ -1159,6 +1159,54 @@ jobs:
               return 1
             fi
 
+            # Simulate the ambiguous-response case: the remote accepts the
+            # commit, but the client wrapper reports a server error afterward.
+            git clone -q "$test_root/remote.git" "$test_root/ambiguous" || {
+              rm -rf "$test_root"
+              return 1
+            }
+            git -C "$test_root/ambiguous" config user.name "Pocket Habitat Push Test"
+            git -C "$test_root/ambiguous" config user.email "push-test@example.invalid"
+            printf 'ambiguous\n' > "$test_root/ambiguous/ambiguous.txt"
+            git -C "$test_root/ambiguous" add ambiguous.txt
+            git -C "$test_root/ambiguous" commit -m "accepted but response lost" >/dev/null 2>&1 || {
+              rm -rf "$test_root"
+              return 1
+            }
+            mkdir -p "$test_root/wrapper"
+            real_git="$(command -v git)"
+            cat > "$test_root/wrapper/git" <<EOF
+          #!/usr/bin/env bash
+          if [[ "${1:-}" == "push" && ! -f "$test_root/ambiguous-response-sent" ]]; then
+            "$real_git" "\$@"
+            status=\$?
+            if [[ "\$status" -eq 0 ]]; then
+              touch "$test_root/ambiguous-response-sent"
+              echo "remote: Internal Server Error" >&2
+              exit 1
+            fi
+            exit "\$status"
+          fi
+          exec "$real_git" "\$@"
+          EOF
+            chmod +x "$test_root/wrapper/git"
+
+            if ! (
+              cd "$test_root/ambiguous"
+              PATH="$test_root/wrapper:$PATH" RUNNER_TEMP="$test_root" GITHUB_RUN_ID="push-ambiguous-regression" ACTIVE_ROUND=0 CHECKPOINT_PUSH_QUIET=true CHECKPOINT_PUSH_MAX_ATTEMPTS=3 CHECKPOINT_PUSH_RETRY_DELAY_SECONDS=0 push_checkpoint_with_retry origin refs/heads/main
+            ); then
+              rm -rf "$test_root"
+              return 1
+            fi
+
+            expected_head="$(git -C "$test_root/ambiguous" rev-parse HEAD)"
+            actual_head="$(git --git-dir="$test_root/remote.git" rev-parse refs/heads/main)"
+            if [[ "$actual_head" != "$expected_head" ]]; then
+              echo "::error::Ambiguous push regression failed to confirm the already-accepted checkpoint."
+              rm -rf "$test_root"
+              return 1
+            fi
+
             # Exercise the non-fast-forward path: a second writer advances the
             # remote after this clone has created its own checkpoint.
             git clone -q "$test_root/remote.git" "$test_root/stale" || {
