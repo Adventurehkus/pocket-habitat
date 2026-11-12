@@ -1,90 +1,97 @@
 --!strict
 
+-- Server main entry point and lifecycle management
+-- Initializes all managers and event handlers for Pocket Habitat
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Constants = require(Shared:WaitForChild("Constants"))
+
+-- Require all managers
 local DataStoreManager = require(script.Parent:WaitForChild("DataStoreManager"))
-local ResourceManager = require(script.Parent:WaitForChild("ResourceManager"))
-local PlantManager = require(script.Parent:WaitForChild("PlantManager"))
-local QuestManager = require(script.Parent:WaitForChild("QuestManager"))
-local EconomyManager = require(script.Parent:WaitForChild("EconomyManager"))
 local WorldBuilder = require(script.Parent:WaitForChild("WorldBuilder"))
+local ResourceManager = require(script.Parent:WaitForChild("ResourceManager"))
+local QuestManager = require(script.Parent:WaitForChild("QuestManager"))
+local PlantManager = require(script.Parent:WaitForChild("PlantManager"))
+local EconomyManager = require(script.Parent:WaitForChild("EconomyManager"))
 local HabitatManager = require(script.Parent:WaitForChild("HabitatManager"))
-local RemoteEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RemoteEvents"))
+local CreatureManager = require(script.Parent:WaitForChild("CreatureManager"))
 
-print("[ServerMain] Starting Pocket Habitat Server...")
+-- Initialize all managers in correct order
+print("[ServerMain] Initializing Pocket Habitat Server...")
 
+-- WorldBuilder must initialize first to set up global workspace structures
 WorldBuilder.init()
+
+-- Initialize remaining managers (DataStoreManager doesn't require init)
 ResourceManager.init()
 QuestManager.init()
 PlantManager.init()
+EconomyManager.init()
 HabitatManager.init()
+CreatureManager.init()
 
-RemoteEvents.PurchaseUpgrade.OnServerInvoke = function(player: Player, upgradeId: any)
-    return EconomyManager.purchaseUpgrade(player, upgradeId)
-end
+print("[ServerMain] All managers initialized successfully")
 
-local loadingPlayers: { [number]: boolean } = {}
-local removingPlayers: { [number]: boolean } = {}
+-- Player lifecycle event handlers
 
-local function initializePlayer(player: Player)
-    local userId = player.UserId
-    if loadingPlayers[userId] or removingPlayers[userId] then
-        return
-    end
-    loadingPlayers[userId] = true
+-- When a player joins the game
+Players.PlayerAdded:Connect(function(player: Player)
+    print("[ServerMain] Player added: " .. player.Name .. " (ID: " .. tostring(player.UserId) .. ")")
 
-    print("[ServerMain] Player added: " .. player.Name)
-    local data = DataStoreManager.loadPlayerData(player)
-    local currentPlayer = Players:GetPlayerByUserId(userId)
-    if currentPlayer ~= player then
-        loadingPlayers[userId] = nil
-        if currentPlayer then
-            task.spawn(initializePlayer, currentPlayer)
-        elseif data then
-            DataStoreManager.removeSession(player)
-        end
-        return
+    -- Allocate a habitat for the player
+    local habitat = HabitatManager.allocateHabitat(player)
+    if habitat then
+        print("[ServerMain] Habitat allocated for player: " .. player.Name)
+    else
+        warn("[ServerMain] Failed to allocate habitat for player: " .. player.Name)
     end
 
-    if not data then
-        loadingPlayers[userId] = nil
-        return
-    end
-
-    HabitatManager.allocateHabitat(player)
-    RemoteEvents.SyncData:FireClient(player, data)
-    loadingPlayers[userId] = nil
-end
-
-Players.PlayerAdded:Connect(function(player)
-    task.spawn(initializePlayer, player)
+    -- Request session token and player data from DataStoreManager
+    DataStoreManager.handleClientSessionRequest(player)
 end)
 
-Players.PlayerRemoving:Connect(function(player)
-    local userId = player.UserId
-    removingPlayers[userId] = true
-    print("[ServerMain] Player removing: " .. player.Name)
-    ResourceManager.removePlayer(player)
-    -- Clean up habitat folder when player leaves
+-- When a player leaves the game
+Players.PlayerRemoving:Connect(function(player: Player)
+    print("[ServerMain] Player removing: " .. player.Name .. " (ID: " .. tostring(player.UserId) .. ")")
+
+    -- Release the player's session to save data
+    local sessionData = DataStoreManager.getSession(player)
+    if sessionData and sessionData.sessionLock then
+        DataStoreManager.releaseSession(player, sessionData.sessionLock)
+        print("[ServerMain] Session released for player: " .. player.Name)
+    end
+
+    -- Clean up player's habitat
     HabitatManager.removeHabitat(player)
-    DataStoreManager.removeSession(player)
-    removingPlayers[userId] = nil
+    print("[ServerMain] Habitat removed for player: " .. player.Name)
 
-    local currentPlayer = Players:GetPlayerByUserId(userId)
-    if currentPlayer and currentPlayer ~= player then
-        task.spawn(initializePlayer, currentPlayer)
-    end
+    -- Clean up resource cooldowns
+    ResourceManager.removePlayer(player)
+    print("[ServerMain] Resource cooldowns cleared for player: " .. player.Name)
 end)
 
-for _, player in ipairs(Players:GetPlayers()) do
-    task.spawn(initializePlayer, player)
+-- When the server is shutting down
+local function onBindToClose()
+    print("[ServerMain] Server shutting down - cleaning up all active sessions...")
+
+    -- Iterate through all connected players and release their sessions
+    for _, player in ipairs(Players:GetPlayers()) do
+        local sessionData = DataStoreManager.getSession(player)
+        if sessionData and sessionData.sessionLock then
+            DataStoreManager.releaseSession(player, sessionData.sessionLock)
+            print("[ServerMain] Released session for player during shutdown: " .. player.Name)
+        end
+    end
+
+    -- Note: Habitats will be automatically cleaned up when players disconnect
+    print("[ServerMain] All sessions cleaned up during shutdown")
 end
 
-game:BindToClose(function()
-    for _, player in ipairs(Players:GetPlayers()) do
-        DataStoreManager.removeSession(player)
-    end
-end)
+-- Connect the shutdown handler
+game.BindToClose(onBindToClose)
 
-print("[ServerMain] Pocket Habitat Server initialized successfully.")
+print("[ServerMain] Server initialization complete - ready for players!")

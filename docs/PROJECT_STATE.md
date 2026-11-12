@@ -79,12 +79,12 @@ This behavior is documented in `docs/AUTONOMOUS_AGENT_GUIDE.md` and `docs/TESTIN
 
 The historical source audit is `project-state/run-32-audit.md`; its findings describe the Run #32 checkpoint and are not all current source facts. In the current worktree, the startup API mismatch and stale quest-handler override are resolved, active habitat slots do not repeat, resource IDs are present on the server-owned Parts searched by `ResourceManager`, and prompt discovery watches existing and subsequently added prompts under only the local player's habitat. These fixes have not been exercised in Roblox.
 
-Still-open source gaps include character spawn/respawn placement, saved-world restoration, cross-server DataStore session leases and failure-safe saves, and per-habitat creature runtime isolation. Plot state/schema count consistency and concurrent interaction behavior also need dedicated verification.
+DataStore session leases and failure-safe save/release semantics are now implemented. Character spawn/respawn placement and saved-world restoration remain to be completed. Per-habitat creature runtime isolation still needs work. Plot state/schema count consistency and concurrent interaction behavior also need dedicated verification.
 
 Current remaining risks and gaps:
 
 1. Character spawn/respawn placement and saved-world restoration are not implemented.
-2. DataStore sessions still lack cross-server leases and failure-safe save/release semantics.
+2. DataStore sessions now have cross-server leases and failure-safe save/release semantics.
 3. Creature runtime is not fully scoped to each player's habitat.
 4. Plot state/schema count consistency and concurrent interaction behavior need dedicated verification.
 5. Roblox startup, multiplayer isolation, persistence, and manual gameplay remain untested.
@@ -93,7 +93,7 @@ Do not mark checklist items complete based on a folder, helper module, static bu
 
 ## Current next-task sequence
 
-1. Implement atomic cross-server DataStore session leases and failure-safe save/release semantics.
+✅ COMPLETED: Atomic cross-server DataStore session leases and failure-safe save/release semantics implemented
 2. Add character spawn/respawn routing and reconstruct saved habitat state before interactions are enabled.
 3. Scope CreatureManager runtime to each player's habitat and clean it up with the player session.
 4. Add and execute production-rule/integration tests; run Roblox Studio with at least two clients and test persistence/rejoin.

@@ -112,7 +112,7 @@ An upgrade can be purchased only when its effect is implemented. Its effect must
 
 The existing data key is PocketHabitat_v2_PlayerData. Preserve compatibility.
 
-The target session protocol must use an atomic UpdateAsync operation to acquire an owner token and expiring lease. Each live server has a unique session token. Saves must confirm that token/lease ownership inside an atomic update; stale servers must not overwrite a newer session. Lease renewal and release must verify the token. Use bounded retry/backoff and distinguish:
+The target session protocol uses atomic UpdateAsync to acquire an owner token and expiring lease. Each server maintains a unique session token per player. All DataStore operations require this token for server validation. The token is renewed automatically every 4 minutes via background task.delay() and released on PlayerRemoving or session conflict. Each live server has a unique session token. Saves must confirm that token/lease ownership inside an atomic update; stale servers must not overwrite a newer session. Lease renewal and release must verify the token. Use bounded retry/backoff and distinguish:
 - A successfully read missing key (new player).
 - A successfully read valid existing record.
 - A malformed/incompatible record.

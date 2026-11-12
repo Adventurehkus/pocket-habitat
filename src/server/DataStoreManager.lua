@@ -1,5 +1,4 @@
 --!strict
-
 local DataStoreService = game:GetService("DataStoreService")
 
 local Constants =
@@ -9,6 +8,10 @@ local DataStoreManager = {}
 
 local DATA_STORE_KEY = "PocketHabitat_v2_PlayerData"
 local playerDataStore = DataStoreService:GetDataStore(DATA_STORE_KEY)
+
+-- Session lease constants
+local SESSION_LEASE_DURATION = 300 -- 5 minutes
+local RENEWAL_INTERVAL = 240 -- 4 minutes
 
 local activeSessions: { [number]: any } = {}
 
@@ -37,60 +40,87 @@ function DataStoreManager.getDefaultData(userId: number)
     }
 end
 
-function DataStoreManager.loadPlayerData(player: Player): any
+function DataStoreManager.acquireSession(player: Player): string?
     local userId = player.UserId
-    if activeSessions[userId] then
-        return activeSessions[userId]
+    local existingSession = activeSessions[userId]
+    if existingSession then
+        if existingSession.sessionLock then
+            return existingSession.sessionLock
+        end
+        return nil
     end
 
     local dataKey = "User_" .. tostring(userId)
-    local success, result
-    for attempt = 1, 3 do
-        success, result = pcall(function()
-            return playerDataStore:GetAsync(dataKey)
-        end)
-        if success then
-            break
-        else
-            task.wait(2 * attempt)
-        end
-    end
+    local sessionToken = tostring(userId)
+        .. "_"
+        .. tostring(os.time())
+        .. "_"
+        .. tostring(math.random(1000000))
 
-    local data
-    if success then
-        if result ~= nil then
-            data = result
-            -- Ensure all default keys exist
-            local default = DataStoreManager.getDefaultData(userId)
-            for k, v in pairs(default) do
-                if data[k] == nil then
-                    data[k] = v
+    local success, result = pcall(function()
+        return playerDataStore:UpdateAsync(dataKey, function(oldValue)
+            if oldValue then
+                local lastModified = oldValue.lastModified or 0
+                local timeSince = os.time() - lastModified
+                if timeSince < SESSION_LEASE_DURATION then
+                    error("Session already owned by another server")
                 end
+                return {
+                    data = oldValue.data,
+                    lockOwner = sessionToken,
+                    lastModified = os.time(),
+                }
+            else
+                local defaultData = DataStoreManager.getDefaultData(userId)
+                return {
+                    data = defaultData,
+                    lockOwner = sessionToken,
+                    lastModified = os.time(),
+                }
             end
-        else
-            data = DataStoreManager.getDefaultData(userId)
+        end)
+    end)
+
+    if not success then
+        if result and result:find("Session already owned") then
+            return nil
         end
-    else
         warn(
-            "Failed to load DataStore after retries for user "
+            "Failed to acquire session lease for user "
                 .. tostring(userId)
                 .. ": "
                 .. tostring(result)
         )
-        player:Kick(
-            "Failed to load your save data due to a temporary DataStore service error. Please rejoin to protect your progress."
-        )
         return nil
     end
 
-    activeSessions[userId] = data
-    return data
+    local sessionData = result.data
+    sessionData.sessionLock = sessionToken
+    activeSessions[userId] = sessionData
+
+    task.delay(RENEWAL_INTERVAL, function()
+        if activeSessions[userId] and activeSessions[userId].sessionLock == sessionToken then
+            DataStoreManager.renewSession(player, sessionToken)
+        end
+    end)
+
+    return sessionToken
 end
 
-function DataStoreManager.savePlayerData(player: Player)
+function DataStoreManager.getSession(player: Player): any
+    local userId = player.UserId
+    return activeSessions[userId] or nil
+end
+
+function DataStoreManager.savePlayerData(player: Player, sessionToken: string?)
     local userId = player.UserId
     local data = activeSessions[userId]
     if not data then
+        return
+    end
+
+    if sessionToken and data.sessionLock ~= sessionToken then
+        warn("Session token mismatch during save for user " .. tostring(userId))
         return
     end
 
@@ -98,7 +128,21 @@ function DataStoreManager.savePlayerData(player: Player)
     local success, err
     for attempt = 1, 3 do
         success, err = pcall(function()
-            playerDataStore:SetAsync(dataKey, data)
+            if sessionToken then
+                local record = playerDataStore:GetAsync(dataKey)
+                local current = record and record.data
+                local lockOwner = record and record.lockOwner
+                if not current or lockOwner ~= sessionToken then
+                    error("Session lock lost or stale")
+                end
+                playerDataStore:SetAsync(dataKey, {
+                    data = current,
+                    lockOwner = sessionToken,
+                    lastModified = os.time(),
+                })
+            else
+                playerDataStore:SetAsync(dataKey, data)
+            end
         end)
         if success then
             break
@@ -114,17 +158,93 @@ function DataStoreManager.savePlayerData(player: Player)
                 .. ": "
                 .. tostring(err)
         )
+        return
+    end
+
+    if sessionToken then
+        data.sessionLock = nil
     end
 end
 
-function DataStoreManager.removeSession(player: Player)
+function DataStoreManager.releaseSession(player: Player, sessionToken: string?)
     local userId = player.UserId
-    DataStoreManager.savePlayerData(player)
+    local data = activeSessions[userId]
+    if not data then
+        return
+    end
+
+    if sessionToken and data.sessionLock ~= sessionToken then
+        warn("Session token mismatch during release for user " .. tostring(userId))
+        return
+    end
+
+    DataStoreManager.savePlayerData(player, sessionToken)
+
+    data.sessionLock = nil
     activeSessions[userId] = nil
+
+    RemoteEvents.SyncData:FireClient(player, { sessionEnded = true })
 end
 
-function DataStoreManager.getSession(player: Player)
-    return activeSessions[player.UserId]
+function DataStoreManager.renewSession(player: Player, sessionToken: string)
+    local userId = player.UserId
+    local data = activeSessions[userId]
+    if not data or data.sessionLock ~= sessionToken then
+        return
+    end
+
+    local dataKey = "User_" .. tostring(userId)
+    local success, result = pcall(function()
+        return playerDataStore:UpdateAsync(dataKey, function(oldValue)
+            if not oldValue then
+                error("No existing session data")
+            end
+            if oldValue.lockOwner ~= sessionToken then
+                error("Session ownership changed")
+            end
+            return {
+                data = oldValue.data,
+                lockOwner = sessionToken,
+                lastModified = os.time(),
+            }
+        end)
+    end)
+
+    if not success then
+        warn(
+            "Failed to renew session lease for user "
+                .. tostring(userId)
+                .. ": "
+                .. tostring(result)
+        )
+        DataStoreManager.releaseSession(player, sessionToken)
+    end
+end
+
+function DataStoreManager.handleClientSessionRequest(player: Player)
+    local userId = player.UserId
+    local existingSession = activeSessions[userId]
+
+    local sessionToken = DataStoreManager.acquireSession(player)
+    if not sessionToken then
+        if existingSession and existingSession.sessionLock then
+            RemoteEvents.SyncData:FireClient(player, { sessionContested = true })
+            return
+        end
+        RemoteEvents.SyncData:FireClient(player, { sessionUnavailable = true })
+        return
+    end
+
+    RemoteEvents.SyncData:FireClient(player, {
+        sessionToken = sessionToken,
+        playerData = activeSessions[userId],
+    })
+
+    task.delay(RENEWAL_INTERVAL, function()
+        if activeSessions[userId] and activeSessions[userId].sessionLock == sessionToken then
+            DataStoreManager.renewSession(player, sessionToken)
+        end
+    end)
 end
 
 return DataStoreManager
