@@ -59,3 +59,17 @@ The workflow did **not** stop because all models ran out. All required stages co
 ## Next development objective
 
 Fix the WorldBuilder/ServerMain startup API mismatch first. Then implement collision-free habitat placement and consistent transforms, safe local-player prompt discovery, server-side ownership/distance validation, spawn/respawn, and save restoration. Follow the ordered plan in `project-state/run-32-audit.md`; do not mark Milestone 2 complete based on static CI.
+
+## Workflow improvement after Run #32 — multi-cycle quota-focused execution
+
+Workflow branch `main` now has an autonomous multi-cycle loop (latest commit `658bb50bad7060dc0ae99760ac673c748684cac4`). The previous pipeline stopped once one model succeeded at each required stage. The new policy:
+- Repeats implementation → independent review → conditional repair → deterministic validation → QA cycles instead of ending after the first successful pass.
+- Rotates model candidates between cycles and allows a successful model to be reused in later cycles; same-cycle role separation remains enforced.
+- Uses the original user task in cycle 1, then continues it if incomplete or advances to the next highest-priority task in the live roadmap.
+- Targets explicit daily/monthly exhaustion across at least 75% of eligible quota pools. Google/Groq are counted per model; Cohere/OpenRouter/Cloudflare/Copilot are counted per provider/account pool.
+- Pushes every reviewed and validated cycle checkpoint before continuing.
+- Uses hard caps: 8 calls per model, 120 total calls, 30 cycles, 2 hours aggregate temporary waiting, 2 no-progress cycles, and the 350-minute GitHub Actions job timeout.
+
+**Verification status:** committed, but not yet live-tested. Run #32 exercised the old one-pass orchestration only. No new model-consuming workflow run was started as part of this documentation/workflow change. The next workflow dispatch must verify router rotation, quota-pool accounting, checkpoint persistence, and stop conditions.
+
+**Billing limitation:** quota-pool exhaustion is detected from provider errors; CI cannot read real account balances. Call caps limit request counts, not charges. Check provider free-tier and spending settings before a long run.
