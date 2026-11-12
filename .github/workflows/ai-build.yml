@@ -1521,10 +1521,38 @@ jobs:
               continue
             fi
 
-            # Clear any prior recovery debt only after the full review, QA and
-            # deterministic validation path is green. The deletion is included
-            # in the new validated checkpoint pushed immediately below.
+            # Green review/QA/CI is necessary but not sufficient to close an
+            # existing recovery task. The implementing agent must explicitly
+            # mark every automation-resolvable item RECOVERY_STATUS: RESOLVED
+            # and provide evidence. Missing/deleted/open notes are never success.
             if [[ "$RECOVERY_CONTEXT_ACTIVE" == "true" ]]; then
+              if [[ ! -f "$RECOVERY_CONTEXT_FILE" ]] || ! grep -Eq '^RECOVERY_STATUS:[[:space:]]*RESOLVED[[:space:]]*$' "$RECOVERY_CONTEXT_FILE"; then
+                write_recovery_context "Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate." "$VALIDATION_LOG"
+                if ! persist_recovery_checkpoint; then
+                  PIPELINE_EXIT=1
+                  AUTONOMOUS_STOP_REASON="recovery_checkpoint_persistence_failed"
+                  echo "::error::Unable to preserve the still-open recovery checklist."
+                  echo "::endgroup::"
+                  break
+                fi
+                AUTONOMOUS_RECOVERY_CYCLES=$((AUTONOMOUS_RECOVERY_CYCLES + 1))
+                echo "::warning::Recovery checklist remains open. Green checks alone do not close it; continuing with another recovery cycle."
+                echo "::endgroup::"
+                refresh_quota_counts
+                if [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
+                  AUTONOMOUS_STOP_REASON="daily_quota_target_reached_with_recovery_debt"
+                  PIPELINE_EXIT=1
+                  break
+                fi
+                if [[ "$NO_PROGRESS_ROUNDS" -ge "$MAX_CONSECUTIVE_NO_PROGRESS_ROUNDS" ]]; then
+                  AUTONOMOUS_STOP_REASON="no_meaningful_progress"
+                  PIPELINE_EXIT=1
+                  break
+                fi
+                continue
+              fi
+
+              # Delete a resolved note only as part of the validated checkpoint.
               rm -f "$RECOVERY_CONTEXT_FILE"
               RECOVERY_CONTEXT_ACTIVE=false
             fi
