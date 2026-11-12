@@ -98,18 +98,26 @@ jobs:
           USAGE_LOG="$RUNNER_TEMP/pocket-habitat-model-usage.tsv"
           VALIDATION_LOG="$RUNNER_TEMP/pocket-habitat-validation.log"
           DIFF_FILE="$RUNNER_TEMP/pocket-habitat-implementation.diff"
-          printf 'stage\tprovider\tmodel\tattempt\tresult\tdetail\n' > "$USAGE_LOG"
+          printf 'round\tstage\tprovider\tmodel\tattempt\tresult\tdetail\n' > "$USAGE_LOG"
 
-          # MODEL_ATTEMPTED means a model already completed a stage successfully.
-          # Temporary failures are tracked separately so cooled-down routes can
-          # be retried without asking the user to dispatch the workflow again.
+          # A successful model is used once per cycle for role separation, then
+          # becomes eligible again in later cycles. Quota/cooldown state persists
+          # across the entire workflow run.
           declare -A MODEL_ATTEMPTED=()
           declare -A MODEL_BLOCKED=()
           declare -A PROVIDER_BLOCKED=()
+          declare -A MODEL_PERMANENTLY_INELIGIBLE=()
+          declare -A PROVIDER_PERMANENTLY_INELIGIBLE=()
+          declare -A MODEL_RUN_CALLS=()
           declare -A MODEL_STAGE_RETRIES=()
+          declare -A MODEL_STAGE_TEMP_FAILURES=()
           declare -A MODEL_STAGE_EXHAUSTED=()
           declare -A MODEL_COOLDOWN_UNTIL=()
           declare -A PROVIDER_COOLDOWN_UNTIL=()
+          declare -A DAILY_QUOTA_POOLS=()
+          declare -A QUOTA_POOL_KEYS=()
+          declare -A ROLE_LAST_MODEL=()
+          declare -A MODEL_RUN_CAP_REACHED=()
           declare -A STAGE_STATUS=()
           declare -A STAGE_MODEL=()
           declare -A STAGE_PROVIDER=()
@@ -117,17 +125,31 @@ jobs:
           MODEL_CHAIN=()
           STAGE_FILES=()
           RUN_COUNTER=0
+          TOTAL_MODEL_CALLS=0
+          AUTONOMOUS_ROUNDS_COMPLETED=0
+          AUTONOMOUS_STOP_REASON=""
+          NO_PROGRESS_ROUNDS=0
           PIPELINE_EXIT=0
-          # Each stage may automatically wait for transient limits for up to
-          # 2 hours; total workflow sleep is capped at 4 hours, below the
-          # 350-minute job timeout. Explicit daily/shared quotas are skipped.
+          # Each run continues through coherent implementation/review/QA
+          # cycles until most eligible daily quota pools are confirmed exhausted.
+          # These hard caps protect the 350-minute Actions job from unbounded use.
           MAX_MODEL_TEMP_ATTEMPTS=4
           MAX_STAGE_MODEL_CALLS=50
+          MAX_MODEL_CALLS_PER_MODEL=8
+          MAX_TOTAL_MODEL_CALLS=120
+          MAX_AUTONOMOUS_ROUNDS=30
+          MAX_CONSECUTIVE_NO_PROGRESS_ROUNDS=2
+          QUOTA_EXHAUSTION_TARGET_PERCENT=75
           STAGE_TEMP_WAIT_BUDGET_SECONDS=7200
           TOTAL_TEMP_WAIT_BUDGET_SECONDS=14400
           TOTAL_TEMP_WAIT_SECONDS=0
           TEMP_LIMIT_EVENTS=0
           DAILY_QUOTA_EVENTS=0
+          DAILY_QUOTA_POOL_EXHAUSTED_COUNT=0
+          ELIGIBLE_QUOTA_POOL_COUNT=0
+          INELIGIBLE_QUOTA_POOL_COUNT=0
+          QUOTA_EXHAUSTION_PERCENT=0
+          QUOTA_TARGET_REACHED=false
           IMPLEMENT_PROVIDER=""
           REVIEW_PROVIDER=""
           REPAIR_PROVIDER=""
@@ -193,8 +215,81 @@ jobs:
             exit 1
           fi
 
+
+          # Daily quota accounting uses actual quota scopes, not model count:
+          # Google/Groq routes are treated as model-scoped; Cohere, OpenRouter,
+          # Cloudflare and Copilot are treated as provider/account-scoped.
+          # Provider balance APIs are not queried, so exhaustion is recognized
+          # only after the provider returns an explicit quota error.
+          quota_pool_for_model() {
+            local model="$1"
+            local provider
+            provider="$(provider_for_model "$model")"
+            case "$provider" in
+              cohere|openrouter|cloudflare-workers-ai|github-copilot)
+                echo "provider:$provider"
+                ;;
+              *)
+                echo "model:$model"
+                ;;
+            esac
+          }
+
+          for model in "${MODEL_CHAIN[@]}"; do
+            pool_key="$(quota_pool_for_model "$model")"
+            QUOTA_POOL_KEYS["$pool_key"]="1"
+          done
+
+          refresh_quota_counts() {
+            local pool_key model provider available
+            DAILY_QUOTA_POOL_EXHAUSTED_COUNT=0
+            ELIGIBLE_QUOTA_POOL_COUNT=0
+            INELIGIBLE_QUOTA_POOL_COUNT=0
+
+            for pool_key in "${!QUOTA_POOL_KEYS[@]}"; do
+              if [[ -n "${DAILY_QUOTA_POOLS[$pool_key]:-}" ]]; then
+                DAILY_QUOTA_POOL_EXHAUSTED_COUNT=$((DAILY_QUOTA_POOL_EXHAUSTED_COUNT + 1))
+                continue
+              fi
+
+              available=false
+              for model in "${MODEL_CHAIN[@]}"; do
+                [[ "$(quota_pool_for_model "$model")" == "$pool_key" ]] || continue
+                provider="$(provider_for_model "$model")"
+                if [[ -n "${MODEL_PERMANENTLY_INELIGIBLE[$model]:-}" || -n "${PROVIDER_PERMANENTLY_INELIGIBLE[$provider]:-}" ]]; then
+                  continue
+                fi
+                available=true
+                break
+              done
+
+              if [[ "$available" == "true" ]]; then
+                ELIGIBLE_QUOTA_POOL_COUNT=$((ELIGIBLE_QUOTA_POOL_COUNT + 1))
+              else
+                INELIGIBLE_QUOTA_POOL_COUNT=$((INELIGIBLE_QUOTA_POOL_COUNT + 1))
+              fi
+            done
+
+            local denominator=$((DAILY_QUOTA_POOL_EXHAUSTED_COUNT + ELIGIBLE_QUOTA_POOL_COUNT))
+            if [[ "$denominator" -gt 0 ]]; then
+              QUOTA_EXHAUSTION_PERCENT=$((DAILY_QUOTA_POOL_EXHAUSTED_COUNT * 100 / denominator))
+            else
+              QUOTA_EXHAUSTION_PERCENT=100
+            fi
+            if [[ "$denominator" -gt 0 && "$QUOTA_EXHAUSTION_PERCENT" -ge "$QUOTA_EXHAUSTION_TARGET_PERCENT" ]]; then
+              QUOTA_TARGET_REACHED=true
+            else
+              QUOTA_TARGET_REACHED=false
+            fi
+          }
+
+          quota_target_reached() {
+            refresh_quota_counts
+            [[ "$QUOTA_TARGET_REACHED" == "true" ]]
+          }
+
           record_attempt() {
-            printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$5" "${6:-}" >> "$USAGE_LOG"
+            printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${ACTIVE_ROUND:-0}" "$1" "$2" "$3" "$4" "$5" "${6:-}" >> "$USAGE_LOG"
           }
 
           # Cloudflare Workers AI Free uses account-wide daily Neurons
@@ -439,15 +534,43 @@ jobs:
           rm -f "$review_classifier_test_file"
           echo "Reviewer response classifier regression tests passed."
 
-          # Keep models from already-used providers later in the list. They
-          # remain eligible as a last resort if independent providers are out.
+          # Rotate each role's candidate order after its last successful model.
+          # This prevents the same still-healthy route from winning every cycle.
+          rotate_array_after() {
+            local array_name="$1"
+            local after_model="$2"
+            local -n array_ref="$array_name"
+            local count="${#array_ref[@]}"
+            local found=-1
+            local i
+            for ((i=0; i<count; i++)); do
+              if [[ "${array_ref[$i]}" == "$after_model" ]]; then
+                found="$i"
+                break
+              fi
+            done
+            [[ "$found" -ge 0 && "$count" -gt 1 ]] || return 0
+
+            local -a rotated=()
+            local index
+            for ((i=1; i<=count; i++)); do
+              index=$(((found + i) % count))
+              rotated+=("${array_ref[$index]}")
+            done
+            array_ref=("${rotated[@]}")
+          }
+
+          # Keep models from already-used providers later in the list, but
+          # round-robin within both preferred and deferred groups.
           prioritize_models() {
             local -n output_ref="$1"
+            local role_name="$1"
             shift
             local -a avoid_providers=("$@")
             local -a preferred=()
             local -a deferred=()
             local model provider avoid
+            local last_model="${ROLE_LAST_MODEL[$role_name]:-}"
 
             for model in "${MODEL_CHAIN[@]}"; do
               provider="$(provider_for_model "$model")"
@@ -467,6 +590,11 @@ jobs:
                 preferred+=("$model")
               fi
             done
+
+            if [[ -n "$last_model" ]]; then
+              rotate_array_after preferred "$last_model"
+              rotate_array_after deferred "$last_model"
+            fi
             output_ref=("${preferred[@]}" "${deferred[@]}")
           }
 
@@ -483,13 +611,24 @@ jobs:
             local model provider status retry_count delay log_file
             local attempt_key cooldown_until provider_cooldown earliest_cooldown now wait_seconds
             local remaining_stage remaining_total failure_class stage_deadline
-            local stage_calls stage_temp_events
+            local stage_calls stage_temp_events temp_failure_count pool_key role_name
             local -a command_args=()
 
             STAGE_STATUS["$stage"]="EXHAUSTED"
             STAGE_MODEL["$stage"]=""
             STAGE_PROVIDER["$stage"]=""
             STAGE_LOG["$stage"]=""
+
+            case "$stage" in
+              implementation) role_name="IMPLEMENT_MODELS" ;;
+              review) role_name="REVIEW_MODELS" ;;
+              review-fallback) role_name="REVIEW_FALLBACK_MODELS" ;;
+              repair) role_name="REPAIR_MODELS" ;;
+              validation-repair) role_name="VALIDATION_REPAIR_MODELS" ;;
+              qa) role_name="QA_MODELS" ;;
+              qa-repair) role_name="FINAL_REPAIR_MODELS" ;;
+              *) role_name="" ;;
+            esac
 
             stage_deadline=$(( $(date +%s) + STAGE_TEMP_WAIT_BUDGET_SECONDS ))
             stage_calls=0
@@ -502,6 +641,9 @@ jobs:
                 provider="$(provider_for_model "$model")"
                 attempt_key="$stage|$model"
 
+                # A model is used at most once per cycle so implementation,
+                # review and QA remain independent. It can be selected again
+                # in a later cycle unless its actual quota is exhausted.
                 if [[ -n "${MODEL_ATTEMPTED[$model]:-}" ]]; then
                   continue
                 fi
@@ -510,6 +652,14 @@ jobs:
                 fi
                 if [[ -n "${MODEL_STAGE_EXHAUSTED[$attempt_key]:-}" ]]; then
                   continue
+                fi
+                if [[ "${MODEL_RUN_CALLS[$model]:-0}" -ge "$MAX_MODEL_CALLS_PER_MODEL" ]]; then
+                  MODEL_RUN_CAP_REACHED["$model"]="per-model run call budget reached"
+                  continue
+                fi
+                if [[ "$TOTAL_MODEL_CALLS" -ge "$MAX_TOTAL_MODEL_CALLS" ]]; then
+                  AUTONOMOUS_STOP_REASON="total_model_call_budget"
+                  break
                 fi
 
                 retry_count="${MODEL_STAGE_RETRIES[$attempt_key]:-0}"
@@ -534,9 +684,12 @@ jobs:
                 retry_count=$((retry_count + 1))
                 MODEL_STAGE_RETRIES["$attempt_key"]="$retry_count"
                 stage_calls=$((stage_calls + 1))
+                TOTAL_MODEL_CALLS=$((TOTAL_MODEL_CALLS + 1))
+                MODEL_RUN_CALLS["$model"]=$((${MODEL_RUN_CALLS[$model]:-0} + 1))
                 RUN_COUNTER=$((RUN_COUNTER + 1))
                 log_file="$RUNNER_TEMP/opencode-${stage}-$RUN_COUNTER.log"
-                echo "::group::${stage}: $model (attempt $retry_count)"
+                echo "::group::round $ACTIVE_ROUND / ${stage}: $model (attempt $retry_count; run calls ${MODEL_RUN_CALLS[$model]}/$MAX_MODEL_CALLS_PER_MODEL)"
+                echo "Total model calls: $TOTAL_MODEL_CALLS/$MAX_TOTAL_MODEL_CALLS"
 
                 command_args=(env -i "PATH=$PATH" "HOME=$HOME" "NO_COLOR=1" "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" "RUNNER_TEMP=$RUNNER_TEMP")
                 case "$provider" in
@@ -575,7 +728,7 @@ jobs:
                   command_args+=(
                     opencode run --standalone --auto
                     --model "$model" --agent "$agent"
-                    --title "Pocket Habitat $stage run $GITHUB_RUN_NUMBER"
+                    --title "Pocket Habitat $stage run $GITHUB_RUN_NUMBER cycle $ACTIVE_ROUND"
                   )
                   for attachment in "${STAGE_FILES[@]}"; do
                     if [[ -f "$attachment" ]]; then
@@ -598,7 +751,8 @@ jobs:
                   STAGE_STATUS["$stage"]="SUCCESS"
                   STAGE_MODEL["$stage"]="$model"
                   STAGE_PROVIDER["$stage"]="$provider"
-                  record_attempt "$stage" "$provider" "$model" "$retry_count" "SUCCESS" ""
+                  ROLE_LAST_MODEL["$role_name"]="$model"
+                  record_attempt "$stage" "$provider" "$model" "$retry_count" "SUCCESS" "cycle $ACTIVE_ROUND; run calls ${MODEL_RUN_CALLS[$model]}"
                   echo "Stage $stage completed using $model."
                   return 0
                 fi
@@ -610,40 +764,49 @@ jobs:
                   SHARED_DAILY_QUOTA)
                     MODEL_BLOCKED["$model"]="shared daily/monthly quota exhausted"
                     PROVIDER_BLOCKED["$provider"]="shared daily/monthly quota exhausted"
+                    pool_key="$(quota_pool_for_model "$model")"
+                    DAILY_QUOTA_POOLS["$pool_key"]="1"
                     DAILY_QUOTA_EVENTS=$((DAILY_QUOTA_EVENTS + 1))
-                    record_attempt "$stage" "$provider" "$model" "$retry_count" "PROVIDER_DISABLED" "shared daily/monthly quota exhausted; no retry"
-                    echo "::warning::$provider shared quota is exhausted; disabling that provider for the remainder of this run."
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "PROVIDER_DISABLED" "shared daily/monthly quota exhausted; pool $pool_key disabled"
+                    echo "::warning::$provider shared quota is exhausted; disabling that provider pool for the remainder of this run."
                     ;;
                   MODEL_DAILY_QUOTA)
                     MODEL_BLOCKED["$model"]="model-specific daily/monthly quota exhausted"
+                    pool_key="$(quota_pool_for_model "$model")"
+                    DAILY_QUOTA_POOLS["$pool_key"]="1"
                     DAILY_QUOTA_EVENTS=$((DAILY_QUOTA_EVENTS + 1))
-                    record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_DISABLED" "model-specific daily/monthly quota exhausted; other provider models remain eligible"
-                    echo "::warning::$model has exhausted its model-specific daily quota; other models from $provider remain eligible."
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_DISABLED" "model-specific daily/monthly quota exhausted; pool $pool_key disabled"
+                    echo "::warning::$model has exhausted its model-specific daily quota; its quota pool is disabled for the remainder of this run."
                     ;;
                   REQUEST_TOO_LARGE)
                     MODEL_BLOCKED["$model"]="request exceeds model token/rate limit"
+                    MODEL_PERMANENTLY_INELIGIBLE["$model"]="request too large for this task"
                     record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_SKIPPED" "request too large for this model; no pointless retry"
-                    echo "::warning::$model cannot accept this request size; moving to another model without waiting."
+                    echo "::warning::$model cannot accept this request size; excluding it for this run."
                     ;;
                   AUTH_FAILURE)
                     PROVIDER_BLOCKED["$provider"]="authentication or provider configuration failure"
+                    PROVIDER_PERMANENTLY_INELIGIBLE["$provider"]="authentication/configuration failure"
                     record_attempt "$stage" "$provider" "$model" "$retry_count" "PROVIDER_DISABLED" "authentication/configuration failure"
-                    echo "::warning::$provider credentials or permissions were rejected; skipping this provider for the run."
+                    echo "::warning::$provider credentials or permissions were rejected; excluding the provider for this run."
                     ;;
                   MODEL_UNAVAILABLE)
                     MODEL_BLOCKED["$model"]="model unavailable or request unsupported"
+                    MODEL_PERMANENTLY_INELIGIBLE["$model"]="model unavailable or request unsupported"
                     record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_SKIPPED" "model unavailable or request unsupported"
-                    echo "::warning::$model is unavailable for this request; moving on."
+                    echo "::warning::$model is unavailable for this request; excluding it for this run."
                     ;;
                   MODEL_RATE_LIMIT|PROVIDER_RATE_LIMIT|TEMP_CAPACITY)
                     stage_temp_events=$((stage_temp_events + 1))
                     TEMP_LIMIT_EVENTS=$((TEMP_LIMIT_EVENTS + 1))
-                    if [[ "$retry_count" -ge "$MAX_MODEL_TEMP_ATTEMPTS" ]]; then
+                    temp_failure_count=$((${MODEL_STAGE_TEMP_FAILURES[$attempt_key]:-0} + 1))
+                    MODEL_STAGE_TEMP_FAILURES["$attempt_key"]="$temp_failure_count"
+                    if [[ "$temp_failure_count" -ge "$MAX_MODEL_TEMP_ATTEMPTS" ]]; then
                       MODEL_STAGE_EXHAUSTED["$attempt_key"]="temporary retry count reached"
-                      record_attempt "$stage" "$provider" "$model" "$retry_count" "TEMP_RETRIES_EXHAUSTED" "$failure_class; per-model retry cap reached"
-                      echo "::warning::$model remains temporarily unavailable after $retry_count attempts; it is deferred for this stage."
+                      record_attempt "$stage" "$provider" "$model" "$retry_count" "TEMP_RETRIES_EXHAUSTED" "$failure_class; per-stage temporary-failure cap reached"
+                      echo "::warning::$model remains temporarily unavailable after $temp_failure_count failures in $stage; deferring it for this stage."
                     else
-                      delay="$(retry_delay_seconds "$log_file" "$retry_count" "$failure_class")"
+                      delay="$(retry_delay_seconds "$log_file" "$temp_failure_count" "$failure_class")"
                       MODEL_COOLDOWN_UNTIL["$model"]=$((now + delay))
                       if [[ "$failure_class" == "PROVIDER_RATE_LIMIT" ]]; then
                         PROVIDER_COOLDOWN_UNTIL["$provider"]=$((now + delay))
@@ -653,16 +816,22 @@ jobs:
                         earliest_cooldown="$cooldown_until"
                       fi
                       record_attempt "$stage" "$provider" "$model" "$retry_count" "COOLDOWN" "$failure_class; retry scheduled in ${delay}s"
-                      echo "::notice::$provider/$model is temporarily limited ($failure_class). Cooling down for ${delay}s; the stage will continue automatically."
+                      echo "::notice::$provider/$model is temporarily limited ($failure_class). Cooling down for ${delay}s; other routes will run and later cycles will revisit it."
                     fi
                     ;;
                   *)
                     MODEL_BLOCKED["$model"]="unclassified failure"
-                    record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_ERROR" "unclassified exit code $status; continuing fallback"
-                    echo "::warning::Unclassified failure from $model (exit code $status); quarantining this model and continuing fallback."
+                    MODEL_PERMANENTLY_INELIGIBLE["$model"]="unclassified failure"
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_ERROR" "unclassified exit code $status; quarantining this model and continuing fallback"
+                    echo "::warning::Unclassified failure from $model (exit code $status); quarantining this model for this run."
                     ;;
                 esac
               done
+
+              if [[ "$TOTAL_MODEL_CALLS" -ge "$MAX_TOTAL_MODEL_CALLS" ]]; then
+                AUTONOMOUS_STOP_REASON="total_model_call_budget"
+                break
+              fi
 
               # Wait only after all currently available alternatives were tried.
               now="$(date +%s)"
@@ -677,7 +846,7 @@ jobs:
                   wait_seconds="$remaining_total"
                 fi
                 if [[ "$wait_seconds" -gt 0 ]]; then
-                  echo "::notice::All currently available candidates are cooling down. Waiting ${wait_seconds}s, then automatically retrying the original stage prompt."
+                  echo "::notice::All currently available alternatives are cooling down. Waiting ${wait_seconds}s, then automatically retrying this stage."
                   record_attempt "$stage" "scheduler" "automatic-cooldown" "$stage_calls" "WAITING" "waiting ${wait_seconds}s for earliest model/provider cooldown"
                   sleep "$wait_seconds"
                   TOTAL_TEMP_WAIT_SECONDS=$((TOTAL_TEMP_WAIT_SECONDS + wait_seconds))
@@ -734,45 +903,99 @@ jobs:
             return "$result"
           }
 
-          IMPLEMENT_PROMPT="You are the Pocket Habitat implementation agent. Read AGENTS.md and the relevant project documentation before changing code. Complete the user's task below with working, integrated Luau gameplay rather than disconnected scaffolding. Inspect the current repository state first and preserve correct existing work. Keep gameplay server-authoritative; validate all remote requests, ownership, distance, rewards, inventory, purchases, quests, and persistence. Do not publish to Roblox, access publishing credentials, create/switch branches, commit, or push. Never modify or reformat DevPackages or other vendored dependencies. Format/lint only src/. Run the checks you can actually run and report exact results; never claim Roblox Studio, engine, multiplayer, or TestEZ execution unless it truly happened. Update docs/PROJECT_STATE.md and docs/TESTING.md accurately. User task: ${TASK}"
+          IMPLEMENT_PROMPT="You are the Pocket Habitat implementation agent. Read AGENTS.md and the relevant project documentation before changing code. Complete the user's task below with working, integrated Luau gameplay rather than disconnected scaffolding. Inspect the current repository state first and preserve correct existing work. Keep gameplay server-authoritative; validate all remote requests, ownership, distance, rewards, inventory, purchases, quests, and persistence. Do not publish to Roblox, access publishing credentials, create/switch branches, commit, or push. Never modify or reformat DevPackages or other vendored dependencies. Format/lint only src/. Run the checks you can actually run and report exact results; never claim Roblox Studio, engine, multiplayer, or TestEZ execution unless it truly happened. Update docs/PROJECT_STATE.md, docs/ROADMAP.md, and docs/TESTING.md accurately. User task for the first cycle: ${TASK}"
+
+          CONTINUATION_PROMPT="You are continuing Pocket Habitat autonomous development in a multi-cycle run. The user's original request was: ${TASK}. The first implementation pass and its review/QA have already happened. Do NOT repeat completed changes or restart the project. Re-read AGENTS.md, docs/PROJECT_STATE.md, docs/ROADMAP.md, docs/TECHNICAL_ARCHITECTURE.md and docs/TESTING.md, inspect the current source and working tree, and identify the highest-priority unfinished task. Continue the original request if it remains incomplete; otherwise advance to the next highest-value incomplete roadmap task. Fix verified blockers before adding features. Implement one meaningful, integrated vertical slice, run checks, and accurately update the living docs so the following cycle can continue. Do not stop merely because the original request is complete; continue to the next documented task. Do not invent work or make unrelated changes. Never publish, commit, push, modify secrets/provider configuration, or touch DevPackages."
+
+          REVIEW_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Review the current cycle's implementation diff against the repository's actual code and architecture. Do not edit files, run shell commands, or ask another agent to make changes. Verify every suspected issue against the source before reporting it. Trace startup initialization, required modules, every changed module API and its call sites, remote/event ownership, player-data loss or cross-player leakage, economy/inventory duplication, broken gameplay interactions, persistence failure handling, runtime errors, and regressions. Explicitly verify that every called module function exists in its required module and that new lifecycle wiring is reachable. Ignore style-only opinions unless they cause a real problem. Start with exactly one line: REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Use YES only if at least one actionable defect is confirmed in source. Return a concise Markdown report with severity (CRITICAL/HIGH/MEDIUM/LOW), file and line, evidence, impact, and a specific suggested correction. If no actionable findings exist, use REVIEW_FINDINGS: NO and explain any remaining runtime checks. Do not claim a test was run unless the attached evidence shows it."
 
           echo "Configured models: ${#MODEL_CHAIN[@]}"
-          echo "Pipeline stages: implementation -> independent review (with strict-format fallback) -> repair -> deterministic validation -> QA"
+          echo "Quota pools tracked: ${#QUOTA_POOL_KEYS[@]} (75% daily exhaustion target)"
+          echo "Autonomous policy: continue coherent work/review/QA cycles until the quota target or a hard safety budget is reached."
+          echo "Per-model call cap: $MAX_MODEL_CALLS_PER_MODEL; total call cap: $MAX_TOTAL_MODEL_CALLS; round cap: $MAX_AUTONOMOUS_ROUNDS"
 
-          # Stage 1: implementation.
           COPILOT_STAGE_ALLOWED=true
           prioritize_models IMPLEMENT_MODELS
-          STAGE_FILES=()
-          run_stage "implementation" "build" "$IMPLEMENT_PROMPT" "${IMPLEMENT_MODELS[@]}"
-          IMPLEMENT_RESULT=$?
-          IMPLEMENT_PROVIDER="${STAGE_PROVIDER[implementation]:-}"
+          IMPLEMENT_PROVIDER=""
+          REVIEW_PROVIDER=""
+          REPAIR_PROVIDER=""
 
-          if [[ "$IMPLEMENT_RESULT" -ne 0 ]]; then
-            PIPELINE_EXIT=1
-            echo "::error::Implementation did not complete; skipping dependent AI stages."
-          else
-            # Stage 2: independent, read-only review using a different provider
-            # first. Attach a concrete diff so the reviewer does not need shell.
+          for ((round=1; round<=MAX_AUTONOMOUS_ROUNDS; round++)); do
+            ACTIVE_ROUND="$round"
+            refresh_quota_counts
+
+            if [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
+              AUTONOMOUS_STOP_REASON="daily_quota_target_reached"
+              echo "::notice::Daily quota exhaustion target reached: ${DAILY_QUOTA_POOL_EXHAUSTED_COUNT}/$((DAILY_QUOTA_POOL_EXHAUSTED_COUNT + ELIGIBLE_QUOTA_POOL_COUNT)) eligible quota pools."
+              break
+            fi
+            if [[ "$TOTAL_MODEL_CALLS" -ge "$MAX_TOTAL_MODEL_CALLS" ]]; then
+              AUTONOMOUS_STOP_REASON="total_model_call_budget"
+              break
+            fi
+
+            # Reset only per-cycle role exclusion. Daily quota blocks, temporary
+            # cooldowns, failure counts, and run-wide call budgets remain intact.
+            unset MODEL_ATTEMPTED
+            declare -A MODEL_ATTEMPTED=()
+            IMPLEMENT_PROVIDER=""
+            REVIEW_PROVIDER=""
+            REPAIR_PROVIDER=""
+            STAGE_FILES=()
+
+            echo "::group::Autonomous development cycle $round"
+            echo "Cycle $round begins. Confirmed daily quota pools exhausted: $DAILY_QUOTA_POOL_EXHAUSTED_COUNT; eligible pools: $ELIGIBLE_QUOTA_POOL_COUNT."
             refresh_diff
+            before_diff_hash="$(sha256sum "$DIFF_FILE" | awk '{print $1}')"
+
+            if [[ "$round" -eq 1 ]]; then
+              CURRENT_IMPLEMENT_PROMPT="$IMPLEMENT_PROMPT"
+            else
+              CURRENT_IMPLEMENT_PROMPT="$CONTINUATION_PROMPT"
+            fi
+
+            COPILOT_STAGE_ALLOWED=true
+            prioritize_models IMPLEMENT_MODELS
+            run_stage "implementation" "build" "$CURRENT_IMPLEMENT_PROMPT" "${IMPLEMENT_MODELS[@]}"
+            IMPLEMENT_RESULT=$?
+            IMPLEMENT_PROVIDER="${STAGE_PROVIDER[implementation]:-}"
+
+            if [[ "$IMPLEMENT_RESULT" -ne 0 ]]; then
+              PIPELINE_EXIT=1
+              if [[ -z "$AUTONOMOUS_STOP_REASON" ]]; then
+                AUTONOMOUS_STOP_REASON="no_implementation_route_completed"
+              fi
+              echo "::error::No eligible model completed implementation cycle $round; stopping safely."
+              echo "::endgroup::"
+              break
+            fi
+
+            refresh_diff
+            after_diff_hash="$(sha256sum "$DIFF_FILE" | awk '{print $1}')"
+            if [[ "$before_diff_hash" == "$after_diff_hash" ]]; then
+              NO_PROGRESS_ROUNDS=$((NO_PROGRESS_ROUNDS + 1))
+              echo "::warning::Implementation cycle $round produced no repository diff ($NO_PROGRESS_ROUNDS consecutive no-progress cycles)."
+            else
+              NO_PROGRESS_ROUNDS=0
+            fi
+
+            # Independent review uses a different provider first. Every changed
+            # cycle is reviewed before validation and QA.
             COPILOT_STAGE_ALLOWED=false
-            REVIEW_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Review the attached implementation diff against the repository's actual code and architecture. Do not edit files, run shell commands, or ask another agent to make changes. Verify every suspected issue against the source before reporting it. Prioritize exploitable remote/event flows, player-data loss or cross-player leakage, economy/inventory duplication, broken gameplay interactions, persistence failure handling, runtime errors, and regressions. Ignore style-only opinions unless they cause a real problem. Start with exactly one line: REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Use YES only if at least one actionable defect is confirmed in source. Return a concise Markdown report with severity (CRITICAL/HIGH/MEDIUM/LOW), file and line, evidence, impact, and a specific suggested correction. If no actionable findings exist, use REVIEW_FINDINGS: NO and explain any remaining runtime checks. Do not claim a test was run unless the attached evidence shows it."
             prioritize_models REVIEW_MODELS "$IMPLEMENT_PROVIDER"
             STAGE_FILES=("$DIFF_FILE")
             run_stage "review" "reviewer" "$REVIEW_PROMPT" "${REVIEW_MODELS[@]}"
             REVIEW_RESULT=$?
             REVIEW_PROVIDER="${STAGE_PROVIDER[review]:-}"
-
-            # Stage 3: repair verified findings only. If a reviewer exits
-            # successfully but omits the required header, try one additional
-            # independent model before treating the review as incomplete.
             REVIEW_LOG_PATH="${STAGE_LOG[review]:-}"
             REVIEW_DECISION="INVALID"
+
             if [[ "$REVIEW_RESULT" -eq 0 ]]; then
               REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
               if [[ "$REVIEW_DECISION" == "INVALID" ]]; then
                 STAGE_STATUS["review"]="SUCCESS (invalid response format)"
-                echo "::warning::Reviewer output was missing REVIEW_FINDINGS: YES/NO; requesting one independent fallback review."
-                REVIEW_FALLBACK_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Inspect the attached implementation diff and relevant source evidence. Do not edit files or run shell commands. Verify findings against the supplied code. Your FIRST output line MUST be exactly REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Do not put a preamble, Markdown fence, or explanation before it. Use YES only for at least one confirmed actionable defect; otherwise use NO. Then provide concise evidence, severity, file/line, impact, and a specific correction for each confirmed finding. Never claim tests ran unless the evidence proves it."
+                echo "::warning::Reviewer response lacked REVIEW_FINDINGS; requesting an independent format-correction review."
+                REVIEW_FALLBACK_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Inspect the attached current diff and relevant source. Verify findings against source, especially startup initialization and module API call sites. Do not edit files or run shell commands. Your FIRST output line MUST be exactly REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Use YES only for confirmed actionable defects. Report severity, file/line, evidence, impact, and correction. Never claim tests ran unless evidence proves it."
                 prioritize_models REVIEW_FALLBACK_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
                 STAGE_FILES=("$DIFF_FILE")
                 run_stage "review-fallback" "reviewer" "$REVIEW_FALLBACK_PROMPT" "${REVIEW_FALLBACK_MODELS[@]}"
@@ -780,24 +1003,22 @@ jobs:
                 if [[ "$REVIEW_FALLBACK_RESULT" -eq 0 ]]; then
                   REVIEW_LOG_PATH="${STAGE_LOG[review-fallback]:-}"
                   REVIEW_DECISION="$(review_decision "$REVIEW_LOG_PATH")"
-                  if [[ "$REVIEW_DECISION" == "INVALID" ]]; then
-                    STAGE_STATUS["review-fallback"]="SUCCESS (invalid response format)"
-                    echo "::warning::Fallback reviewer also omitted the required header; the review remains incomplete."
-                  else
+                  if [[ "$REVIEW_DECISION" != "INVALID" ]]; then
                     REVIEW_PROVIDER="${STAGE_PROVIDER[review-fallback]:-}"
-                    echo "Independent fallback reviewer returned REVIEW_FINDINGS: $REVIEW_DECISION."
                   fi
-                else
-                  echo "::warning::No independent fallback reviewer completed the strict-format review."
                 fi
               fi
             fi
 
-            if [[ "$REVIEW_RESULT" -ne 0 ]]; then
+            if [[ "$REVIEW_RESULT" -ne 0 || "$REVIEW_DECISION" == "INVALID" ]]; then
               PIPELINE_EXIT=1
-              STAGE_STATUS["repair"]="SKIPPED (review unavailable)"
-              echo "::warning::No independent model completed the review stage; repair stage skipped."
-            elif [[ "$REVIEW_DECISION" == "YES" ]]; then
+              AUTONOMOUS_STOP_REASON="independent_review_unavailable_or_invalid"
+              echo "::error::Independent review did not produce a valid decision; stopping rather than accepting unreviewed work."
+              echo "::endgroup::"
+              break
+            fi
+
+            if [[ "$REVIEW_DECISION" == "YES" ]]; then
               COPILOT_STAGE_ALLOWED=true
               REPAIR_PROMPT="You are the Pocket Habitat repair engineer. Read the attached independent review output and verify each finding in the current source before changing anything. Fix confirmed CRITICAL and HIGH findings, plus MEDIUM findings that directly break the requested task or core progression. Do not blindly apply speculative comments. Preserve working behavior, keep all server-side validation and data safety, never modify DevPackages, do not publish, and do not commit or push. Run appropriate local checks and accurately update project-state/testing docs. The attached text is the selected independent review report."
               prioritize_models REPAIR_MODELS "$REVIEW_PROVIDER"
@@ -807,23 +1028,21 @@ jobs:
               REPAIR_PROVIDER="${STAGE_PROVIDER[repair]:-}"
               if [[ "$REPAIR_RESULT" -ne 0 ]]; then
                 PIPELINE_EXIT=1
-                echo "::warning::The review repair stage could not complete."
+                AUTONOMOUS_STOP_REASON="review_repair_unavailable"
+                echo "::error::Review found actionable defects but no repair route completed; stopping."
+                echo "::endgroup::"
+                break
               fi
-            elif [[ "$REVIEW_DECISION" == "NO" ]]; then
-              STAGE_STATUS["repair"]="SKIPPED (no confirmed findings)"
-              echo "Independent reviewer found no confirmed actionable defects; repair call not needed."
             else
-              PIPELINE_EXIT=1
-              STAGE_STATUS["repair"]="SKIPPED (review invalid after fallback)"
-              echo "::error::Review could not produce a valid YES/NO decision after the controlled fallback; repair is not safe to run."
+              STAGE_STATUS["repair"]="SKIPPED (no confirmed findings)"
             fi
 
-            # Stage 4: deterministic CI validation, independent of model claims.
+            # Deterministic checks run after any review-driven repair.
             run_validation
             if [[ "$VALIDATION_STATUS" -ne 0 ]]; then
               echo "::warning::Initial deterministic validation failed; requesting one focused repair."
               COPILOT_STAGE_ALLOWED=true
-              VALIDATION_REPAIR_PROMPT="The complete deterministic validation output is embedded directly in this prompt. Use that output as your evidence; do not try to open a runner-temporary file or request interactive approval to read it. Fix only confirmed failures in project-owned files. Do not modify DevPackages, weaken checks, publish, commit, or push. Then report the exact changes made."
+              VALIDATION_REPAIR_PROMPT="The complete deterministic validation output is embedded directly in this prompt. Fix only confirmed failures in project-owned files. Do not modify DevPackages, weaken checks, publish, commit, or push. Then report exact changes."
               prioritize_models VALIDATION_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER"
               STAGE_FILES=("$VALIDATION_LOG")
               run_stage "validation-repair" "build" "$VALIDATION_REPAIR_PROMPT" "${VALIDATION_REPAIR_MODELS[@]}"
@@ -833,49 +1052,98 @@ jobs:
               fi
             fi
 
-            # Stage 5: read-only QA gets both the current diff and actual CI log.
-            refresh_diff
-            COPILOT_STAGE_ALLOWED=false
-            QA_PROMPT="You are the read-only Pocket Habitat QA agent. Inspect the attached current diff and deterministic validation log, then inspect relevant source and tests. Start your response with exactly one line: QA_BLOCKER: YES or QA_BLOCKER: NO. Say YES only when you have verified a concrete critical/high correctness, security, progression, or player-data issue that should block this checkpoint. Otherwise say NO. Report what CI actually passed or failed from the attached log. Identify missing test coverage and Roblox Studio-only checks separately. Do not edit files, run shell commands, or claim unexecuted TestEZ, Roblox engine, multiplayer, or manual playtests passed."
-            prioritize_models QA_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER"
-            STAGE_FILES=("$DIFF_FILE" "$VALIDATION_LOG")
-            run_stage "qa" "qa" "$QA_PROMPT" "${QA_MODELS[@]}"
-            QA_RESULT=$?
-            if [[ "$QA_RESULT" -ne 0 ]]; then
+            if [[ "$VALIDATION_STATUS" -ne 0 ]]; then
               PIPELINE_EXIT=1
-              echo "::warning::The independent QA stage did not complete; this run will be reported as incomplete."
+              AUTONOMOUS_STOP_REASON="deterministic_validation_failed"
+              echo "::error::Deterministic validation remains failing; stopping before another implementation cycle."
+              echo "::endgroup::"
+              break
             fi
 
-            # If QA finds a confirmed blocker, allow one extra repair pass and
-            # re-run deterministic checks before the checkpoint is persisted.
+            refresh_diff
+            COPILOT_STAGE_ALLOWED=false
+            prioritize_models QA_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER"
+            STAGE_FILES=("$DIFF_FILE" "$VALIDATION_LOG")
+            QA_PROMPT="You are the read-only Pocket Habitat QA agent. Independently inspect the entire current cycle diff and deterministic validation log, then inspect all relevant source and call sites. Do not trust reviewer summaries without verifying them. Trace server startup from the first line through module initialization and player event connections; verify every invoked module function exists. Inspect geometry/transforms, player spawn/respawn, saved-state restoration, exact plot/resource ownership and distance checks, persistence failure handling, and multiplayer boundaries. Start with exactly one line: QA_BLOCKER: YES or QA_BLOCKER: NO. Say YES for a concrete critical/high correctness, security, progression, or player-data issue. Report what CI actually passed and all missing tests. Do not edit files, run shell commands, or claim unexecuted TestEZ, Roblox engine, multiplayer, or manual playtests passed."
+            run_stage "qa" "qa" "$QA_PROMPT" "${QA_MODELS[@]}"
+            QA_RESULT=$?
             QA_LOG="${STAGE_LOG[qa]:-}"
-            if [[ "$QA_RESULT" -eq 0 && -f "$QA_LOG" ]]; then
-              if grep -Eiq '^QA_BLOCKER:[[:space:]]*YES' "$QA_LOG"; then
-                echo "::warning::QA identified a blocker; starting one focused final repair."
-                COPILOT_STAGE_ALLOWED=true
-                FINAL_REPAIR_PROMPT="The attached QA report identifies a possible blocking issue. Verify it against the current code and fix it only if confirmed. Preserve unrelated work, never modify DevPackages, do not publish, and do not commit or push. Update documentation and report exact checks."
-                prioritize_models FINAL_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER" "${STAGE_PROVIDER[qa]:-}"
-                STAGE_FILES=("$QA_LOG" "$VALIDATION_LOG")
-                run_stage "qa-repair" "build" "$FINAL_REPAIR_PROMPT" "${FINAL_REPAIR_MODELS[@]}"
-                QA_REPAIR_RESULT=$?
-                if [[ "$QA_REPAIR_RESULT" -eq 0 ]]; then
-                  run_validation
-                else
-                  PIPELINE_EXIT=1
-                  echo "::error::QA reported a blocker but no repair model completed the fix stage."
-                fi
-              elif ! grep -Eiq '^QA_BLOCKER:[[:space:]]*NO' "$QA_LOG"; then
+
+            if [[ "$QA_RESULT" -ne 0 || ! -f "$QA_LOG" ]]; then
+              PIPELINE_EXIT=1
+              AUTONOMOUS_STOP_REASON="qa_unavailable"
+              echo "::error::Independent QA did not complete; stopping before another implementation cycle."
+              echo "::endgroup::"
+              break
+            fi
+
+            if grep -Eiq '^QA_BLOCKER:[[:space:]]*YES' "$QA_LOG"; then
+              echo "::warning::QA identified a blocker; starting one focused final repair."
+              COPILOT_STAGE_ALLOWED=true
+              FINAL_REPAIR_PROMPT="The attached QA report identifies a possible blocking issue. Verify each claim against current code and fix confirmed blockers. Trace module API calls and lifecycle paths. Preserve unrelated work, never modify DevPackages, do not publish, and do not commit or push. Update docs and report exact checks."
+              prioritize_models FINAL_REPAIR_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER" "${STAGE_PROVIDER[qa]:-}"
+              STAGE_FILES=("$QA_LOG" "$VALIDATION_LOG")
+              run_stage "qa-repair" "build" "$FINAL_REPAIR_PROMPT" "${FINAL_REPAIR_MODELS[@]}"
+              QA_REPAIR_RESULT=$?
+              if [[ "$QA_REPAIR_RESULT" -eq 0 ]]; then
+                run_validation
+              else
                 PIPELINE_EXIT=1
-                echo "::warning::QA output did not contain the required QA_BLOCKER header; treating QA as incomplete."
+                AUTONOMOUS_STOP_REASON="qa_repair_unavailable"
+                echo "::error::QA reported a blocker but no repair model completed the fix."
+                echo "::endgroup::"
+                break
               fi
+            elif ! grep -Eiq '^QA_BLOCKER:[[:space:]]*NO' "$QA_LOG"; then
+              PIPELINE_EXIT=1
+              AUTONOMOUS_STOP_REASON="qa_response_invalid"
+              echo "::error::QA output did not contain QA_BLOCKER: YES or NO."
+              echo "::endgroup::"
+              break
             fi
 
             if [[ "$VALIDATION_STATUS" -ne 0 ]]; then
               PIPELINE_EXIT=1
+              AUTONOMOUS_STOP_REASON="final_validation_failed"
               echo "::error::Final deterministic validation did not pass."
+              echo "::endgroup::"
+              break
             fi
-          fi
 
+            AUTONOMOUS_ROUNDS_COMPLETED=$round
+            echo "Cycle $round completed: implementation, independent review, deterministic validation, and QA succeeded."
+            refresh_quota_counts
+            echo "Quota status: $DAILY_QUOTA_POOL_EXHAUSTED_COUNT exhausted / $((DAILY_QUOTA_POOL_EXHAUSTED_COUNT + ELIGIBLE_QUOTA_POOL_COUNT)) eligible pools (${QUOTA_EXHAUSTION_PERCENT}%; target ${QUOTA_EXHAUSTION_TARGET_PERCENT}%)."
+            echo "::endgroup::"
+
+            if [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
+              AUTONOMOUS_STOP_REASON="daily_quota_target_reached"
+              break
+            fi
+            if [[ "$NO_PROGRESS_ROUNDS" -ge "$MAX_CONSECUTIVE_NO_PROGRESS_ROUNDS" ]]; then
+              AUTONOMOUS_STOP_REASON="no_meaningful_progress"
+              PIPELINE_EXIT=1
+              echo "::warning::Stopping after $NO_PROGRESS_ROUNDS consecutive implementation cycles produced no repository changes."
+              break
+            fi
+            if [[ "$TOTAL_MODEL_CALLS" -ge "$MAX_TOTAL_MODEL_CALLS" ]]; then
+              AUTONOMOUS_STOP_REASON="total_model_call_budget"
+              PIPELINE_EXIT=1
+              break
+            fi
+          done
+
+          if [[ -z "$AUTONOMOUS_STOP_REASON" ]]; then
+            AUTONOMOUS_STOP_REASON="autonomous_round_budget"
+            PIPELINE_EXIT=1
+          fi
+          refresh_quota_counts
+          if [[ "$QUOTA_TARGET_REACHED" != "true" && "$AUTONOMOUS_STOP_REASON" != "no_meaningful_progress" ]]; then
+            echo "::warning::The run stopped before the ${QUOTA_EXHAUSTION_TARGET_PERCENT}% daily quota-pool target. Stop reason: $AUTONOMOUS_STOP_REASON."
+          fi
+          echo "Autonomous cycles completed: $AUTONOMOUS_ROUNDS_COMPLETED"
+          echo "Total model calls: $TOTAL_MODEL_CALLS/$MAX_TOTAL_MODEL_CALLS"
+          echo "Autonomous stop reason: $AUTONOMOUS_STOP_REASON"
           # Machine-readable per-run usage log plus a compact human report are
           # uploaded even if a required model stage is exhausted.
           {
@@ -883,13 +1151,23 @@ jobs:
             echo
             echo "- Run: ${GITHUB_RUN_NUMBER}"
             echo "- Task: ${TASK}"
-            echo "- Execution mode: LIVE"
+            echo "- Execution mode: LIVE MULTI-CYCLE"
             echo "- Models configured: ${#MODEL_CHAIN[@]}"
+            echo "- Quota pools: ${#QUOTA_POOL_KEYS[@]}"
+            echo "- Daily quota pools exhausted: ${DAILY_QUOTA_POOL_EXHAUSTED_COUNT}"
+            echo "- Eligible quota pools remaining: ${ELIGIBLE_QUOTA_POOL_COUNT}"
+            echo "- Permanently ineligible quota pools: ${INELIGIBLE_QUOTA_POOL_COUNT}"
+            echo "- Quota exhaustion: ${QUOTA_EXHAUSTION_PERCENT}% (target: ${QUOTA_EXHAUSTION_TARGET_PERCENT}%)"
+            echo "- Quota target reached: ${QUOTA_TARGET_REACHED}"
+            echo "- Autonomous cycles completed: ${AUTONOMOUS_ROUNDS_COMPLETED}/${MAX_AUTONOMOUS_ROUNDS}"
+            echo "- Total model calls: ${TOTAL_MODEL_CALLS}/${MAX_TOTAL_MODEL_CALLS}"
+            echo "- Stop reason: ${AUTONOMOUS_STOP_REASON}"
             echo "- Automatic temporary-limit wait: ${TOTAL_TEMP_WAIT_SECONDS}s across ${TEMP_LIMIT_EVENTS} classified events"
             echo "- Daily/shared quota exhaustion events: ${DAILY_QUOTA_EVENTS}"
+            echo "- Per-model call cap: ${MAX_MODEL_CALLS_PER_MODEL}; per-stage temporary-failure cap: ${MAX_MODEL_TEMP_ATTEMPTS}"
             echo "- Per-stage wait budget: ${STAGE_TEMP_WAIT_BUDGET_SECONDS}s; workflow-wide wait budget: ${TOTAL_TEMP_WAIT_BUDGET_SECONDS}s"
             echo
-            echo "| Stage | Result | Model | Provider |"
+            echo "| Latest stage | Result | Model | Provider |"
             echo "|---|---|---|---|"
             for stage in implementation review review-fallback repair validation-repair qa qa-repair; do
               printf '| %s | %s | %s | %s |\n' "$stage" "${STAGE_STATUS[$stage]:-NOT RUN}" "${STAGE_MODEL[$stage]:-—}" "${STAGE_PROVIDER[$stage]:-—}"
@@ -898,7 +1176,11 @@ jobs:
             echo
             echo "## Provider/model attempt log"
             echo
-            echo 'See the accompanying TSV artifact for every attempted model, retry, and skip reason.'
+            echo 'See the accompanying TSV artifact for every attempt grouped by autonomous cycle.'
+            echo
+            echo "## Quota accounting note"
+            echo
+            echo "Quota exhaustion is detected from explicit provider/model errors. The workflow does not query live account balances. Provider-scoped pools group models that share an account-level quota; Google/Groq routes are treated as model-scoped. Transient rate limits, request-size errors, authentication failures, and unavailable models do not count as daily quota exhaustion."
             echo
             echo "## Testing boundaries"
             echo
