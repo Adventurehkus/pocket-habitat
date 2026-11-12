@@ -910,15 +910,15 @@ jobs:
                     record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_SKIPPED" "model unavailable or request unsupported"
                     echo "::warning::$model is unavailable for this request; excluding it for this run."
                     ;;
-                  MODEL_RATE_LIMIT|PROVIDER_RATE_LIMIT|TEMP_CAPACITY)
+                  MODEL_RATE_LIMIT|PROVIDER_RATE_LIMIT|TEMP_CAPACITY|UNKNOWN)
                     stage_temp_events=$((stage_temp_events + 1))
                     TEMP_LIMIT_EVENTS=$((TEMP_LIMIT_EVENTS + 1))
                     temp_failure_count=$((${MODEL_STAGE_TEMP_FAILURES[$attempt_key]:-0} + 1))
                     MODEL_STAGE_TEMP_FAILURES["$attempt_key"]="$temp_failure_count"
                     if [[ "$temp_failure_count" -ge "$MAX_MODEL_TEMP_ATTEMPTS" ]]; then
                       MODEL_STAGE_EXHAUSTED["$attempt_key"]="temporary retry count reached"
-                      record_attempt "$stage" "$provider" "$model" "$retry_count" "TEMP_RETRIES_EXHAUSTED" "$failure_class; per-stage temporary-failure cap reached"
-                      echo "::warning::$model remains temporarily unavailable after $temp_failure_count failures in $stage; deferring it for this stage."
+                      record_attempt "$stage" "$provider" "$model" "$retry_count" "RETRY_DEFERRED" "$failure_class; per-cycle retry cap reached; route becomes eligible again in a later cycle"
+                      echo "::warning::$model remains unavailable after $temp_failure_count $failure_class failures in $stage; deferring it only until the next autonomous cycle."
                     else
                       delay="$(retry_delay_seconds "$log_file" "$temp_failure_count" "$failure_class")"
                       MODEL_COOLDOWN_UNTIL["$model"]=$((now + delay))
@@ -1211,8 +1211,14 @@ jobs:
             if [[ "$IMPLEMENT_RESULT" -ne 0 ]]; then
               echo "::warning::No implementation route completed this attempt. Retaining the current recovery task and retrying eligible routes in a later cycle."
               if [[ "$TOTAL_MODEL_CALLS" -ge "$MAX_TOTAL_MODEL_CALLS" ]]; then
+                refresh_diff
+                write_recovery_context "The global model-call budget was reached during implementation. The current source diff may be incomplete and remains unreviewed. Obtain independent review and QA before treating it as validated or starting unrelated work." "$DIFF_FILE"
+                if ! persist_recovery_checkpoint; then
+                  AUTONOMOUS_STOP_REASON="recovery_checkpoint_persistence_failed"
+                else
+                  AUTONOMOUS_STOP_REASON="total_model_call_budget"
+                fi
                 PIPELINE_EXIT=1
-                AUTONOMOUS_STOP_REASON="total_model_call_budget"
                 echo "::endgroup::"
                 break
               fi
@@ -1349,9 +1355,14 @@ jobs:
               echo "::warning::Validation remains failing after in-cycle repair attempts. QA will inspect the actual diff and diagnostic log; the next cycle will prioritize the unresolved failure."
             fi
             if [[ "$TOTAL_MODEL_CALLS" -ge "$MAX_TOTAL_MODEL_CALLS" ]]; then
-              AUTONOMOUS_STOP_REASON="total_model_call_budget"
+              write_recovery_context "The global model-call budget was reached after deterministic validation. Independent review completed, but QA did not run because no model calls remained. Resolve the attached validation findings and obtain independent QA in the next run." "$REVIEW_LOG_PATH" "$DIFF_FILE" "$VALIDATION_LOG"
+              if ! persist_recovery_checkpoint; then
+                AUTONOMOUS_STOP_REASON="recovery_checkpoint_persistence_failed"
+              else
+                AUTONOMOUS_STOP_REASON="total_model_call_budget"
+              fi
               PIPELINE_EXIT=1
-              echo "::warning::Global model-call budget reached during validation recovery."
+              echo "::warning::Global model-call budget reached during validation recovery; saved reviewed but QA-pending recovery work."
               echo "::endgroup::"
               break
             fi
