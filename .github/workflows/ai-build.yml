@@ -982,6 +982,187 @@ jobs:
             return 1
           }
 
+          # GitHub can transiently reject an otherwise valid Git push (for
+          # example, an HTTP 500 from the repository service). Never abandon a
+          # validated checkpoint after one such response. Retry the same commit,
+          # verify ambiguous pushes by fetching the target ref, and rebase only
+          # when another workflow advanced the branch. Never force-push.
+          push_checkpoint_with_retry() {
+            local remote="${1:-origin}"
+            local target_ref="${2:-refs/heads/ai/game-build}"
+            local max_attempts="${CHECKPOINT_PUSH_MAX_ATTEMPTS:-5}"
+            local delay_seconds="${CHECKPOINT_PUSH_RETRY_DELAY_SECONDS:-5}"
+            local push_status=0
+            local remote_head=""
+            local attempt=1
+            local quiet="${CHECKPOINT_PUSH_QUIET:-false}"
+            local temp_dir="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+            local push_log="$temp_dir/pocket-habitat-push-${GITHUB_RUN_ID:-local}-${ACTIVE_ROUND:-0}.log"
+            local fetch_log="$temp_dir/pocket-habitat-fetch-${GITHUB_RUN_ID:-local}-${ACTIVE_ROUND:-0}.log"
+
+            if [[ ! "$max_attempts" =~ ^[1-9][0-9]*$ || ! "$delay_seconds" =~ ^[0-9]+$ ]]; then
+              echo "::error::Invalid checkpoint push retry configuration."
+              return 1
+            fi
+
+            while (( attempt <= max_attempts )); do
+              if git push "$remote" "HEAD:$target_ref" >"$push_log" 2>&1; then
+                if [[ "$quiet" != "true" ]]; then
+                  cat "$push_log"
+                  echo "Checkpoint push succeeded on attempt $attempt/$max_attempts."
+                fi
+                return 0
+              else
+                push_status=$?
+              fi
+
+              if [[ "$quiet" != "true" ]]; then
+                echo "::warning::Checkpoint push attempt $attempt/$max_attempts failed (git exit $push_status)."
+                cat "$push_log"
+              fi
+
+              # Authentication/permission/rules failures cannot be repaired by
+              # retrying. Non-fast-forward errors are handled by fetch + rebase.
+              if grep -Eiq 'authentication failed|permission to .* denied|write access to repository not granted|HTTP 40[13]|GH006|GH013|protected branch|repository rule violations' "$push_log"; then
+                echo "::error::Checkpoint push was rejected for a permanent permission or branch-policy reason."
+                return 1
+              fi
+
+              # A server may accept the update but return an error to the client.
+              # Fetching first distinguishes that case from a genuinely lost push.
+              if git fetch --no-tags "$remote" "$target_ref" >"$fetch_log" 2>&1; then
+                remote_head="$(git rev-parse --verify FETCH_HEAD 2>/dev/null || true)"
+                if [[ -n "$remote_head" ]]; then
+                  if git merge-base --is-ancestor HEAD "$remote_head"; then
+                    if [[ "$quiet" != "true" ]]; then
+                      echo "The remote branch already contains this checkpoint; treating the ambiguous push as persisted."
+                    fi
+                    return 0
+                  fi
+
+                  if ! git merge-base "$remote_head" HEAD >/dev/null 2>&1; then
+                    echo "::error::The gameplay branch no longer shares history with this checkpoint; refusing to overwrite it."
+                    return 1
+                  fi
+
+                  if ! git merge-base --is-ancestor "$remote_head" HEAD; then
+                    if [[ "$quiet" != "true" ]]; then
+                      echo "::notice::The gameplay branch advanced concurrently; rebasing this checkpoint onto the latest remote commit."
+                    fi
+                    if ! git rebase "$remote_head"; then
+                      git rebase --abort >/dev/null 2>&1 || true
+                      echo "::error::Could not safely rebase the checkpoint onto the latest gameplay branch. No force-push was attempted."
+                      return 1
+                    fi
+                  fi
+                fi
+              else
+                if [[ "$quiet" != "true" ]]; then
+                  echo "::warning::Could not refresh the gameplay branch before retrying the checkpoint push."
+                  cat "$fetch_log"
+                fi
+                if grep -Eiq 'authentication failed|permission to .* denied|write access to repository not granted|HTTP 40[13]' "$fetch_log"; then
+                  echo "::error::Unable to read the gameplay branch while reconciling a failed checkpoint push."
+                  return 1
+                fi
+              fi
+
+              if (( attempt < max_attempts )); then
+                if [[ "$quiet" != "true" ]]; then
+                  echo "::notice::Retrying checkpoint persistence in ${delay_seconds}s (attempt $((attempt + 1))/$max_attempts)."
+                fi
+                sleep "$delay_seconds"
+                if (( delay_seconds < 30 )); then
+                  delay_seconds=$((delay_seconds * 2))
+                  (( delay_seconds > 60 )) && delay_seconds=60
+                else
+                  delay_seconds=60
+                fi
+              fi
+              attempt=$((attempt + 1))
+            done
+
+            echo "::error::Checkpoint could not be persisted after $max_attempts attempts. The workflow will stop without continuing on uncheckpointed work."
+            return 1
+          }
+
+          # Exercise the retry and remote-ref confirmation behavior against a
+          # local bare repository. The first push is deliberately rejected with
+          # a server-side error; the same commit must persist on the next try.
+          checkpoint_push_retry_regression_test() {
+            local test_root
+            local expected_head
+            local actual_head
+            test_root="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/pocket-habitat-push-retry.XXXXXX")" || return 1
+
+            git init --bare --initial-branch=main "$test_root/remote.git" >/dev/null 2>&1 || {
+              rm -rf "$test_root"
+              return 1
+            }
+            git init --initial-branch=main "$test_root/seed" >/dev/null 2>&1 || {
+              rm -rf "$test_root"
+              return 1
+            }
+            git -C "$test_root/seed" config user.name "Pocket Habitat Push Test"
+            git -C "$test_root/seed" config user.email "push-test@example.invalid"
+            printf 'seed\n' > "$test_root/seed/seed.txt"
+            git -C "$test_root/seed" add seed.txt
+            git -C "$test_root/seed" commit -m "seed test branch" >/dev/null 2>&1 || {
+              rm -rf "$test_root"
+              return 1
+            }
+            git -C "$test_root/seed" remote add origin "$test_root/remote.git"
+            git -C "$test_root/seed" push origin HEAD:refs/heads/main >/dev/null 2>&1 || {
+              rm -rf "$test_root"
+              return 1
+            }
+            git clone -q "$test_root/remote.git" "$test_root/clone" || {
+              rm -rf "$test_root"
+              return 1
+            }
+            git -C "$test_root/clone" config user.name "Pocket Habitat Push Test"
+            git -C "$test_root/clone" config user.email "push-test@example.invalid"
+            printf 'checkpoint\n' > "$test_root/clone/checkpoint.txt"
+            git -C "$test_root/clone" add checkpoint.txt
+            git -C "$test_root/clone" commit -m "validated checkpoint" >/dev/null 2>&1 || {
+              rm -rf "$test_root"
+              return 1
+            }
+
+            cat > "$test_root/remote.git/hooks/pre-receive" <<EOF
+          #!/usr/bin/env bash
+          if [[ ! -f "$test_root/rejected-first-push" ]]; then
+            touch "$test_root/rejected-first-push"
+            echo "remote: Internal Server Error" >&2
+            exit 1
+          fi
+          exit 0
+          EOF
+            chmod +x "$test_root/remote.git/hooks/pre-receive"
+
+            if ! (
+              cd "$test_root/clone"
+              RUNNER_TEMP="$test_root" GITHUB_RUN_ID="push-retry-regression" ACTIVE_ROUND=0 CHECKPOINT_PUSH_QUIET=true CHECKPOINT_PUSH_MAX_ATTEMPTS=3 CHECKPOINT_PUSH_RETRY_DELAY_SECONDS=0 push_checkpoint_with_retry origin refs/heads/main
+            ); then
+              rm -rf "$test_root"
+              return 1
+            fi
+
+            expected_head="$(git -C "$test_root/clone" rev-parse HEAD)"
+            actual_head="$(git --git-dir="$test_root/remote.git" rev-parse refs/heads/main)"
+            rm -rf "$test_root"
+            if [[ "$actual_head" != "$expected_head" ]]; then
+              echo "::error::Checkpoint push retry regression did not persist the expected commit."
+              return 1
+            fi
+            echo "Checkpoint push retry regression test passed (transient server rejection recovered)."
+          }
+
+          if ! checkpoint_push_retry_regression_test; then
+            echo "::error::Checkpoint push retry regression test failed."
+            exit 1
+          fi
+
           # Persist each reviewed cycle so a GitHub Actions timeout cannot
           # discard several hours of already-validated development work.
           persist_cycle_checkpoint() {
@@ -1000,7 +1181,7 @@ jobs:
               return 0
             fi
             git commit -m "AI autonomous checkpoint ${GITHUB_RUN_NUMBER} cycle ${ACTIVE_ROUND}" || return 1
-            git push origin HEAD:ai/game-build || return 1
+            push_checkpoint_with_retry origin refs/heads/ai/game-build || return 1
             PERSISTED_CYCLE_CHECKPOINTS=$((PERSISTED_CYCLE_CHECKPOINTS + 1))
             SAFE_TO_PERSIST=true
             echo "safe_to_persist=true" >> "$GITHUB_OUTPUT"
@@ -1023,7 +1204,7 @@ jobs:
               return 0
             fi
             git commit -m "AI recovery checkpoint ${GITHUB_RUN_NUMBER} cycle ${ACTIVE_ROUND} (follow-up required)" || return 1
-            git push origin HEAD:ai/game-build || return 1
+            push_checkpoint_with_retry origin refs/heads/ai/game-build || return 1
             PERSISTED_RECOVERY_CHECKPOINTS=$((PERSISTED_RECOVERY_CHECKPOINTS + 1))
             SAFE_TO_PERSIST=true
             echo "safe_to_persist=true" >> "$GITHUB_OUTPUT"
