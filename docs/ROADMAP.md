@@ -39,11 +39,11 @@ Acceptance criteria:
 - [ ] Full-inventory and failed-reward cases do not produce cooldown-only failures, item loss, or duplicate rewards. (Fixed cooldown management)
 - [ ] Quest and upgrade actions reflect real server-side gameplay. (Source exists, not yet verified)
 - [ ] The experience works in a two-client server. (Not yet tested)
-- [ ] Save/rejoin behavior is verified without overwriting data. (DataStore persistence not yet implemented)
+- [ ] Save/rejoin behavior is verified without overwriting data. (DataStore lease/save code exists but has unresolved correctness gaps and no runtime test)
 
 ## Milestone 2 — Personal habitats and multiplayer/data reliability
 
-**Status: IN PROGRESS; NOT COMPLETE. Significant progress made on habitat allocation, ownership validation, and security, but multiplayer isolation and persistence still require implementation.**
+**Status: IN PROGRESS; NOT COMPLETE.** Habitat allocation and source-level ownership validation exist. DataStore session-lease code was added in Run #34 but is not accepted as safe: its save path does not persist current in-memory data atomically, its release path clears memory after failed save, `RemoteEvents` is not required in `DataStoreManager`, and lease renewal does not recur. Correct persistence, multiplayer isolation, and runtime verification remain.
 
 This milestone establishes the defining Pocket Habitat experience: every player has an independent, persistent world.
 
@@ -58,7 +58,7 @@ This milestone establishes the defining Pocket Habitat experience: every player 
 - [x] Make allocation idempotent and safe against duplicate folders/registry entries. (Implemented in HabitatManager; runtime-unverified)
 - [ ] Spawn characters at their own habitat and handle every respawn. (Not yet implemented)
 - [ ] Restore plots/plants/upgrades/world state from validated saved data before the player can interact. (DataStore restoration not yet implemented)
-- [ ] Ensure leave and BindToClose cleanup disconnects/destroys only that player's runtime objects and handles failed final saves safely. (DataStore session safety not yet implemented)
+- [ ] Ensure leave and BindToClose cleanup disconnects/destroys only that player's runtime objects and handles failed final saves safely. (Session release exists in source, but failed-save retention and runtime cleanup are not safe/verified)
 
 ### Prompt, plot, and resource ownership
 - [x] Make LocalScript prompt discovery connect only to the local player's habitat, including an initial lookup and later DescendantAdded/removed handling. (Implemented in ProximityHandler; runtime-unverified)
@@ -78,12 +78,12 @@ This milestone establishes the defining Pocket Habitat experience: every player 
 - [ ] Prevent one player's creatures from spawning, moving, or being cleaned up in another player's habitat.
 
 ### Persistence safety
-- [ ] Atomic cross-server session ownership using UpdateAsync and a server-specific token.
-- [ ] Expiring lease, renewal, and safe recovery from crashed servers.
-- [ ] Writes and releases rejected when the server no longer owns the session.
+- [ ] Atomic cross-server session ownership using UpdateAsync and a server-specific token. (Attempted in source; save path still uses non-atomic GetAsync/SetAsync)
+- [ ] Expiring lease, recurring renewal, and safe recovery from crashed servers. (Current source schedules renewal only once; needs recurring renewal and tests)
+- [ ] Writes and releases rejected when the server no longer owns the session. (Token checks exist, but save must become atomic and release must retain state after failure)
 - [ ] Explicit schema validation/migration while preserving PocketHabitat_v2_PlayerData.
 - [ ] Failed reads never initialize defaults over inaccessible or malformed existing data.
-- [ ] Failed final saves do not clear the only in-memory copy of the player's state.
+- [ ] Failed final saves do not clear the only in-memory copy of the player's state. (Current release path clears activeSessions even if savePlayerData failed)
 - [ ] Bounded save, release, and shutdown behavior.
 
 **Milestone acceptance:** at least two simultaneous players can build independently, leave/rejoin safely, and retain correct worlds and progression. Automated tests cover core ownership/session rules, and Roblox Studio tests verify real behavior. Static build success alone is insufficient.
@@ -145,4 +145,4 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-✅ COMPLETED: Atomic cross-server DataStore session leases and failure-safe save/release semantics implemented. Next: character spawn/respawn routing and saved habitat state restoration. Startup API consistency, per-server habitat slot allocation, local-player prompt discovery, and resource-node identity checks are implemented in source but remain Roblox-runtime unverified. Consult docs/PROJECT_STATE.md for current source facts and project-state/run-32-audit.md for historical Run #32 evidence. Do not advance runtime acceptance checkboxes based on static CI alone.
+**Immediate priority:** repair Run #34's ServerMain validation failures (`game:BindToClose`, unused imports, StyLua formatting). Then fix DataStoreManager's missing RemoteEvents dependency, atomic persistence of current session data, failed-save retention, recurring lease renewal, and safe release. Only then continue character spawn/respawn and saved habitat restoration. Startup API consistency, per-server habitat slot allocation, local-player prompt discovery, and resource-node identity checks are source-implemented but Roblox-runtime unverified. Consult `docs/PROJECT_STATE.md` for current facts and `project-state/run-32-audit.md` for historical Run #32 evidence. Do not advance runtime acceptance checkboxes based on static CI alone.
