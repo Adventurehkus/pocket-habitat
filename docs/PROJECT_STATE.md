@@ -4,7 +4,7 @@
 
 - **Gameplay repository:** Adventurehkus/pocket-habitat
 - **Gameplay branch:** ai/game-build
-- **Latest gameplay checkpoint:** `44b3798a23602abb6884a90f15e19ce62a469d18`
+- **Latest gameplay/source checkpoint from Run #34:** `8c9c2fa8cfc06f0b85fd5fae781b81cb14ed6d66`.
 - **Latest dispatched autonomous workflow:** Run #34, ID `43131314450` (failed final deterministic validation; this was not a quota-target stop).
 - **Workflow URL:** https://github.com/Adventurehkus/pocket-habitat/actions/runs/43131314450
 - **Workflow configuration branch:** `main`.
@@ -20,13 +20,13 @@ This document is the live project snapshot. Re-read the actual branch head and i
 
 ## Current project status
 
-Pocket Habitat is **not currently verified as a playable Roblox game**. Run #32 passed static build, formatting, and lint checks, but no Roblox engine, Studio, multiplayer, DataStore, or manual playtest ran. The current worktree has a matching `WorldBuilder.init()` definition and call, but server startup still needs engine verification.
+Pocket Habitat is **not currently verified as a playable Roblox game**. Run #34 generated a Rojo `.rbxl` artifact but failed final StyLua/Selene validation; Run #32's earlier static success is historical. No Roblox engine, Studio, multiplayer, DataStore, or manual playtest has run. Server startup and actual gameplay still require Roblox runtime verification.
 
-Milestone 2 (personal habitats, multiplayer isolation, and safe persistence) remains **IN PROGRESS and NOT COMPLETE**. The source now allocates non-overlapping active slots per server, but multiplayer isolation is unverified. Character spawn/respawn routing, save restoration, and full player ownership validation are not complete.
+Milestone 2 (personal habitats, multiplayer isolation, and safe persistence) remains **IN PROGRESS and NOT COMPLETE**. The source allocates non-overlapping active slots per server and now contains cross-server DataStore session leases/failure-safe save-release logic, but multiplayer and DataStore runtime behavior are unverified. Character spawn/respawn routing, saved habitat restoration, and full player ownership validation remain incomplete.
 
-**Current highest-priority task:** implement character spawn/respawn routing and restore saved habitat state before enabling interactions. Cross-server DataStore session leases and failure-safe save/release semantics are now implemented in source but still need Roblox runtime verification.
+**Current highest-priority task:** first repair Run #34's remaining deterministic validation findings in `src/server/ServerMain.server.lua`: call `game:BindToClose(onBindToClose)`, remove unused `Workspace`/`Constants` imports, and format the file with StyLua. Then continue character spawn/respawn routing and saved habitat restoration. Cross-server DataStore session leases and failure-safe save/release semantics are implemented in source but still require Roblox runtime verification.
 
-## Latest workflow — Run #32
+## Historical workflow — Run #32
 
 - Run ID: `43119650837`; completed successfully.
 - Gameplay checkpoint persisted: `1af27d2aade0922f57ec4333bf5d5331366d7b9b`.
@@ -63,7 +63,7 @@ These items exist in source but are not equivalent to a verified end-to-end Robl
 - Existing plant/economy/quest/creature source modules remain. Creature runtime remains incompletely player-scoped (Milestone 2 incomplete), plot interaction validation is now implemented, creature runtime isolation still needs work (Milestone 2 incomplete).
 - TestEZ specifications exist for PlantRules/EconomyRules but were not executed in Run #32.
 
-**Important:** While static CI checks pass and the source now includes significant security and validation improvements, the game is **NOT currently verified as a playable Roblox game**. No Roblox runtime, Studio, multiplayer, DataStore, or manual playtests have been executed. Milestone 2 (personal habitats, multiplayer isolation, and safe persistence) remains **IN PROGRESS and NOT COMPLETE**. Server startup no longer has the API mismatch, but character spawn/respawn, world state restoration, DataStore session management, creature runtime isolation, and persistence safety across servers still require implementation and verification.
+**Important:** The game is **NOT currently verified as a playable Roblox game**. Run #34's Rojo build succeeded, but its final StyLua/Selene gate failed. `src/server/ServerMain.server.lua` still needs `game:BindToClose(onBindToClose)` instead of property-style `game.BindToClose(onBindToClose)`, removal of unused `Workspace` and `Constants` locals, and StyLua formatting. No Roblox runtime, Studio, multiplayer, DataStore, or manual playtests have been executed. Milestone 2 remains **IN PROGRESS and NOT COMPLETE**. Character spawn/respawn, saved-world restoration, creature runtime isolation, and runtime verification of session leases remain.
 
 ## Current autonomous workflow behavior (recovery changes committed; live verification pending)
 
