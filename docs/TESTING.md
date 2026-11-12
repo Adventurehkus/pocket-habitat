@@ -150,7 +150,7 @@ The workflow on `main` has evolved through these changes:
 - Multi-cycle router, model rotation, and checkpointing: `d5e4a14b3d433f40fbb16e233533b98ee1dd9858`.
 - Regression/checkpoint and wait-budget fixes: `519de8cea3df3fdf3e719399ec7d7e804c01a4e3`, `658bb50bad7060dc0ae99760ac673c748684cac4`.
 - 100% eligible-pool exhaustion target: `649d6137cb0221bccac914f337754b3db1bf59a8`.
-- Cross-cycle validation/QA recovery, recovery checkpoints, durable recovery state, per-cycle temporary-route reset, and unknown-error retries: current main head `d3240908cfb2e3e89e816c97e084b9e750e5236e`.
+- Cross-cycle validation/QA recovery, recovery checkpoints, durable recovery state, per-cycle temporary-route reset, and unknown-error retries: current main head `a84e1e48a323b649f380930bc9f72ba6588fb1f2`.
 
 ### Current behavior
 
