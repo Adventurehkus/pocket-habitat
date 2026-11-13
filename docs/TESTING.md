@@ -27,7 +27,7 @@ Format/lint only project-owned Luau files under src/. Never format the repositor
 
 src/shared/PocketHabitat.spec.lua contains TestEZ specifications for production PlantRules and EconomyRules logic. It covers interaction validation, seed selection/ownership, watering and growth constraints, harvest eligibility, malformed state, inventory capacity, and invalid inventory data.
 
-These specs have not been executed by a compatible Roblox/TestEZ runner as of the latest verified gameplay run. The CI workflow installs TestEZ as a dependency but does not currently invoke a TestEZ runner. Do not report TestEZ as passed until a real test execution result is available.
+`src/shared/Tests/CharacterSpawn.spec.lua` is also in the TestEZ `describe`/`it` format and checks the production default-data API plus the shared spawn-coordinate serializer's round-trip and invalid-value handling. Neither spec suite has been executed by a compatible Roblox/TestEZ runner in this environment. The CI workflow installs TestEZ but does not invoke a runner. Do not report TestEZ as passed until a real test execution result is available.
 
 Expand tests around production logic for:
 - Habitat allocation and owner isolation.
@@ -56,33 +56,20 @@ These require a supported Roblox engine runner or Studio. They are not replaced 
 
 Use a dedicated test place and test data. Never use production player data for experiments. Record execution IDs, output, errors, and actual completion status where a cloud runner is used. Cloud Luau execution does not prove full client rendering or input behavior.
 
-## Current worktree verification — 2026-11-12
+## Current recovery source pass — 2026-11-12
 
-The current source was inspected and the confirmed fixes were applied for the server-side startup race, respawn validation, and persistence/session-store safety issues. The core validation gates now pass for the checked-in source.
+The current worktree implements the Run #38 QA repairs: it disables automatic character loading, spawns only after a successful leased data load and habitat allocation, validates and rate-limits dead-character respawn requests (including initial-spawn concurrency), captures position/orientation in memory, serializes spawn vectors as numeric tables, and saves live data during lease renewal and final release. Loads fail closed on service errors, active foreign leases, malformed records, or unsupported envelope versions. Independent pipeline review/QA and Roblox runtime evidence remain pending; the recovery marker is OPEN.
 
-Checks actually run:
+Checks actually run on the current source:
 
-- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS.
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated `build/pocket-habitat.rbxl`.
 - `stylua --check src`: PASS.
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
-- `git diff --check`: PASS.
-- TestEZ, Roblox engine/Studio, multiplayer, DataStore contention, and manual playtests: NOT RUN.
+- `git diff --check`: PASS on the current source and documentation state.
+- TestEZ suite: NOT RUN. No compatible runner (`run-in-roblox`, `luau`, or `lune`) was available.
+- Roblox engine/Studio, multiplayer, DataStore contention/failure/rejoin, shutdown, and manual playtests: NOT RUN.
 
-The source-level issues fixed in this pass include the duplicate spawn initialization race, missing `WorldBuilder.init()` startup path, missing RemoteEvents import path, and insufficient respawn/data-store validation for the player lifecycle.
-
-## Deterministic validation repair — 2026-11-12
-
-The source-level fixes were implemented and the repository's deterministic checks were rerun successfully.
-
-Checks actually run after the repairs:
-
-- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS.
-- `stylua --check src`: PASS.
-- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
-- `git diff --check`: PASS.
-- Roblox engine/Studio, multiplayer, DataStore integration, and manual tests: NOT RUN.
-
-Independent review and QA have not yet been performed; `docs/AUTONOMOUS_RECOVERY.md` remains OPEN.
+These are static/source checks only; they do not prove the Roblox runtime path works.
 
 ## Latest verified gameplay pipeline run
 

@@ -7,61 +7,142 @@ local HabitatManager = require(script.Parent.HabitatManager)
 local RemoteEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RemoteEvents"))
 
 local RESPAWN_COOLDOWN = 5
-local lastRespawnTimes = {}
+local REQUEST_INTERVAL = 0.5
+local RESPAWN_HEIGHT_LIMIT = 200
+local lastRespawnTimes: { [Player]: number } = {}
+local lastRequestTimes: { [Player]: number } = {}
+local respawnsInProgress: { [Player]: boolean } = {}
 
-local function getSpawnPosition(player: Player, spawnData)
-    local habitat = HabitatManager.getHabitat(player)
-    local habitatPosition = Vector3.new(0, 5, 0)
-
-    if habitat then
-        local stored = habitat:GetAttribute("SpawnPosition")
-        if typeof(stored) == "Vector3" then
-            habitatPosition = stored
-        end
+local function isInsideHabitat(habitat: Folder, position: Vector3): boolean
+    local offset = habitat:GetAttribute("BaseOffset")
+    if typeof(offset) ~= "Vector3" then
+        return false
     end
 
-    if type(spawnData) == "table" and typeof(spawnData.position) == "Vector3" then
+    return math.abs(position.X - offset.X) <= 45
+        and math.abs(position.Z - offset.Z) <= 45
+        and position.Y >= 1
+        and position.Y <= RESPAWN_HEIGHT_LIMIT
+end
+
+local function getSpawnPosition(player: Player, spawnData): Vector3
+    local habitat = HabitatManager.getHabitat(player)
+    if not habitat then
+        return Vector3.new(0, 5, 0)
+    end
+
+    local habitatPosition = habitat:GetAttribute("SpawnPosition")
+    if typeof(habitatPosition) ~= "Vector3" then
+        habitatPosition = Vector3.new(0, 5, 0)
+    end
+
+    if
+        type(spawnData) == "table"
+        and typeof(spawnData.position) == "Vector3"
+        and isInsideHabitat(habitat, spawnData.position)
+    then
         return spawnData.position
     end
 
     return habitatPosition
 end
 
-function CharacterSpawner.spawnOrRestoreCharacter(player: Player, spawnData)
+local function monitorCharacter(player: Player, character: Model)
+    task.spawn(function()
+        while player.Parent and player.Character == character do
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if rootPart and rootPart:IsA("BasePart") then
+                DataStoreManager.updateCharacterSpawnData(
+                    player,
+                    rootPart.Position,
+                    rootPart.CFrame.LookVector
+                )
+            end
+            task.wait(5)
+        end
+    end)
+end
+
+local function spawnOrRestoreCharacter(player: Player, spawnData): Model?
+    if not DataStoreManager.getSession(player) or not HabitatManager.getHabitat(player) then
+        return nil
+    end
+
     local character = player.Character
-    if not character or not character.Parent then
-        local success, loadedCharacter = pcall(function()
-            return player:LoadCharacter()
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+    if not character or not character.Parent or not humanoid or humanoid.Health <= 0 then
+        local success, loadError = pcall(function()
+            player:LoadCharacterAsync()
         end)
-        if not success or not loadedCharacter then
-            warn("Failed to load character for " .. tostring(player.UserId))
+        if not success then
+            warn(
+                "Failed to load character for "
+                    .. tostring(player.UserId)
+                    .. ": "
+                    .. tostring(loadError)
+            )
             return nil
         end
-        character = loadedCharacter
+        character = player.Character
     end
 
-    local rootPart = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
+    if not character then
+        warn("Character load completed without a character for " .. tostring(player.UserId))
+        return nil
+    end
+
+    local rootPart = character:WaitForChild("HumanoidRootPart", 10)
+    if not rootPart or not rootPart:IsA("BasePart") then
+        warn("Character root part was not available for " .. tostring(player.UserId))
+        return nil
+    end
+
+    local habitat = HabitatManager.getHabitat(player)
+    if not habitat then
+        return nil
+    end
+
     local position = getSpawnPosition(player, spawnData)
     local orientation = Vector3.zero
-    if type(spawnData) == "table" and typeof(spawnData.orientation) == "Vector3" then
-        orientation = spawnData.orientation
+    if
+        type(spawnData) == "table"
+        and typeof(spawnData.position) == "Vector3"
+        and typeof(spawnData.orientation) == "Vector3"
+        and isInsideHabitat(habitat, spawnData.position)
+    then
+        orientation = Vector3.new(
+            math.clamp(spawnData.orientation.X, -360, 360),
+            math.clamp(spawnData.orientation.Y, -360, 360),
+            math.clamp(spawnData.orientation.Z, -360, 360)
+        )
     end
 
-    if rootPart then
-        local cframe = CFrame.new(position)
-        if orientation ~= Vector3.zero then
-            cframe = CFrame.new(position)
-                * CFrame.fromEulerAnglesXYZ(
-                    math.rad(orientation.X),
-                    math.rad(orientation.Y),
-                    math.rad(orientation.Z)
-                )
-        end
-        rootPart.CFrame = cframe
-    end
-
-    DataStoreManager.updateCharacterSpawnData(player, position, orientation) -- Update session data immediately after spawn/restore
+    rootPart.CFrame = CFrame.new(position)
+        * CFrame.Angles(math.rad(orientation.X), math.rad(orientation.Y), math.rad(orientation.Z))
+    DataStoreManager.updateCharacterSpawnData(player, rootPart.Position, rootPart.CFrame.LookVector)
+    monitorCharacter(player, character)
     return character
+end
+
+function CharacterSpawner.spawnOrRestoreCharacter(player: Player, spawnData): Model?
+    if respawnsInProgress[player] then
+        return nil
+    end
+    respawnsInProgress[player] = true
+
+    local succeeded, characterOrError = pcall(spawnOrRestoreCharacter, player, spawnData)
+    respawnsInProgress[player] = nil
+    if not succeeded then
+        warn(
+            "Character spawn failed for "
+                .. tostring(player.UserId)
+                .. ": "
+                .. tostring(characterOrError)
+        )
+        return nil
+    end
+
+    return characterOrError
 end
 
 function CharacterSpawner.cleanupPlayer(player: Player)
@@ -69,80 +150,57 @@ function CharacterSpawner.cleanupPlayer(player: Player)
         player.Character:Destroy()
     end
 
-    if lastRespawnTimes[player] then
-        lastRespawnTimes[player] = nil
+    lastRespawnTimes[player] = nil
+    lastRequestTimes[player] = nil
+    respawnsInProgress[player] = nil
+end
+
+local function validateRespawnRequest(player: Player): boolean
+    if not player.Parent or not DataStoreManager.getSession(player) then
+        return false
     end
+    if not HabitatManager.getHabitat(player) then
+        return false
+    end
+
+    local character = player.Character
+    if not character then
+        return true
+    end
+
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    return humanoid ~= nil and humanoid.Health <= 0
 end
 
 local function onRespawnRequest(player: Player)
-    if not player or not player.Parent then
+    local now = os.clock()
+    if respawnsInProgress[player] then
+        return
+    end
+    if lastRequestTimes[player] and now - lastRequestTimes[player] < REQUEST_INTERVAL then
+        return
+    end
+    lastRequestTimes[player] = now
+
+    if lastRespawnTimes[player] and now - lastRespawnTimes[player] < RESPAWN_COOLDOWN then
+        return
+    end
+    if not validateRespawnRequest(player) then
         return
     end
 
-    local now = os.clock()
-    if lastRespawnTimes[player] and (now - lastRespawnTimes[player]) < RESPAWN_COOLDOWN then
-        return
-    end
-
-    local sessionData = DataStoreManager.getSession(player)
-    local spawnPosition = Vector3.new(0, 5, 0)
-    if type(sessionData) == "table" and type(sessionData.characterSpawnData) == "table" then
-        local savedPosition = sessionData.characterSpawnData.position
-        if typeof(savedPosition) == "Vector3" then
-            spawnPosition = savedPosition
-        end
-    end
-
-    local habitat = HabitatManager.getHabitat(player)
-    if habitat and typeof(habitat:GetAttribute("SpawnPosition")) == "Vector3" then
-        spawnPosition = habitat:GetAttribute("SpawnPosition")
-    end
-
-    local character = CharacterSpawner.spawnOrRestoreCharacter(player, {
-        position = spawnPosition,
-        orientation = Vector3.zero,
-    })
-
-    if character then
-        lastRespawnTimes[player] = now
-        DataStoreManager.updateCharacterSpawnData(player, spawnPosition, Vector3.zero)
-    end
-end
-
--- Add server-side validation and cooldown check before processing respawn request
-local function validateRespawnRequest(player)
-    if not player or not player.Parent then
-        return false, "Player not found or removed"
-    end
-
-    local now = os.clock()
-    if lastRespawnTimes[player] and (now - lastRespawnTimes[player]) < RESPAWN_COOLDOWN then
-        return false, "Respawn cooldown active"
-    end
-
-    -- Verify player has a valid session
     local sessionData = DataStoreManager.getSession(player)
     if not sessionData then
-        return false, "No active session found"
-    end
-
-    -- Check if player is currently in a habitat
-    local habitat = HabitatManager.getHabitat(player)
-    if not habitat then
-        return false, "No habitat assigned"
-    end
-
-    return true
-end
-
-RemoteEvents.RespawnCharacter.OnServerEvent:Connect(function(player)
-    local shouldRespawn, reason = validateRespawnRequest(player)
-    if not shouldRespawn then
-        warn("Respawn request rejected: " .. tostring(reason))
         return
     end
 
-    onRespawnRequest(player)
-end)
+    local character =
+        CharacterSpawner.spawnOrRestoreCharacter(player, sessionData.characterSpawnData)
+    if character then
+        lastRespawnTimes[player] = os.clock()
+    end
+end
+
+RemoteEvents.RespawnCharacter.OnServerEvent:Connect(onRespawnRequest)
 
 return CharacterSpawner

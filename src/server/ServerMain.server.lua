@@ -1,51 +1,122 @@
 --!strict
 
 local Players = game:GetService("Players")
+Players.CharacterAutoLoads = false
+
 local HabitatManager = require(script.Parent.HabitatManager)
 local DataStoreManager = require(script.Parent.DataStoreManager)
 local CharacterSpawner = require(script.Parent.CharacterSpawner)
 local WorldBuilder = require(script.Parent.WorldBuilder)
+local ResourceManager = require(script.Parent.ResourceManager)
+local PlantManager = require(script.Parent.PlantManager)
+local QuestManager = require(script.Parent.QuestManager)
 
 WorldBuilder.init()
 HabitatManager.init()
 DataStoreManager.init()
+ResourceManager.init()
+PlantManager.init()
+QuestManager.init()
+
+local initializingPlayers: { [Player]: boolean } = {}
+local cleaningPlayers: { [Player]: boolean } = {}
+
+local function stopPlayerSession(player: Player, reason: string)
+    warn("Unable to start a safe player session for " .. tostring(player.UserId) .. ": " .. reason)
+    DataStoreManager.releaseSession(player)
+    CharacterSpawner.cleanupPlayer(player)
+    ResourceManager.removePlayer(player)
+    HabitatManager.removeHabitat(player)
+    if player.Parent then
+        player:Kick("Your habitat could not be loaded safely. Please rejoin.")
+    end
+end
 
 local function onPlayerAdded(player: Player)
-    DataStoreManager.loadPlayerData(player, function(sessionData)
-        local spawnData = {
-            position = Vector3.new(0, 5, 0),
-            orientation = Vector3.zero,
-        }
+    if initializingPlayers[player] then
+        return
+    end
+    initializingPlayers[player] = true
 
-        if type(sessionData) == "table" and type(sessionData.characterSpawnData) == "table" then
-            local savedPosition = sessionData.characterSpawnData.position
-            if typeof(savedPosition) == "Vector3" then
-                spawnData.position = savedPosition
-            end
+    local sessionData, loadError = DataStoreManager.loadPlayerData(player)
+    if not sessionData then
+        initializingPlayers[player] = nil
+        stopPlayerSession(player, tostring(loadError or "Data load failed"))
+        return
+    end
+    if not player.Parent then
+        initializingPlayers[player] = nil
+        DataStoreManager.releaseSession(player)
+        return
+    end
 
-            local savedOrientation = sessionData.characterSpawnData.orientation
-            if typeof(savedOrientation) == "Vector3" then
-                spawnData.orientation = savedOrientation
-            end
-        end
+    HabitatManager.allocateHabitat(player)
+    local spawned, character =
+        pcall(CharacterSpawner.spawnOrRestoreCharacter, player, sessionData.characterSpawnData)
+    if not spawned or not character then
+        initializingPlayers[player] = nil
+        stopPlayerSession(player, if spawned then "Character spawn failed" else tostring(character))
+        return
+    end
 
-        CharacterSpawner.spawnOrRestoreCharacter(player, spawnData)
+    if player.Parent then
         DataStoreManager.handleClientSessionRequest(player)
-    end)
+    end
+    initializingPlayers[player] = nil
 end
 
-Players.PlayerAdded:Connect(onPlayerAdded)
+local function cleanupPlayer(player: Player)
+    if cleaningPlayers[player] then
+        while cleaningPlayers[player] do
+            task.wait(0.1)
+        end
+        return
+    end
+    cleaningPlayers[player] = true
 
-for _, player in ipairs(Players:GetPlayers()) do
-    task.defer(onPlayerAdded, player)
-end
-
-Players.PlayerRemoving:Connect(function(player: Player)
     local sessionReleased = DataStoreManager.releaseSession(player)
     if not sessionReleased then
-        warn("Session release failed during PlayerRemoving for " .. tostring(player.UserId))
+        warn("Session release failed during cleanup for " .. tostring(player.UserId))
     end
 
     CharacterSpawner.cleanupPlayer(player)
+    ResourceManager.removePlayer(player)
     HabitatManager.removeHabitat(player)
+    initializingPlayers[player] = nil
+    cleaningPlayers[player] = nil
+end
+
+Players.PlayerAdded:Connect(function(player: Player)
+    task.spawn(onPlayerAdded, player)
+end)
+
+Players.PlayerRemoving:Connect(cleanupPlayer)
+
+for _, player in ipairs(Players:GetPlayers()) do
+    task.spawn(onPlayerAdded, player)
+end
+
+game:BindToClose(function()
+    local pending = 0
+    for _, player in ipairs(Players:GetPlayers()) do
+        pending += 1
+        task.spawn(function()
+            cleanupPlayer(player)
+            pending -= 1
+        end)
+    end
+
+    local deadline = os.clock() + 25
+    while pending > 0 and os.clock() < deadline do
+        task.wait(0.1)
+        -- Add a timeout for each individual cleanupPlayer call to prevent hanging
+        -- Use a shorter timeout than the overall deadline
+        local checkDeadline = os.clock() + 5
+        while pending > 0 and os.clock() < checkDeadline do
+            task.wait(0.1)
+        end
+    end
+    if pending > 0 then
+        warn("Timed out while releasing player sessions during server shutdown")
+    end
 end)

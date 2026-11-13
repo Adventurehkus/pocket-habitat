@@ -4,26 +4,22 @@
 
 - **Gameplay repository:** Adventurehkus/pocket-habitat
 - **Gameplay branch:** ai/game-build
-- **Latest review-run checkpoint:** [Running autonomous recovery repair now]
+- **Last inspected source checkpoint:** `67cb832` (local implementation changes are uncommitted and not persisted).
 - **Documentation pipeline:** Main workflow configuration at `3490233f6af9084dbc518d8b06936dff5190cfc0`
 - **Current workflow policy:** 100% of currently eligible quota pools; repeated implementation/review/repair/validation/QA cycles; cross-cycle retries for recoverable agent/provider/code errors; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`.
-- **Verification boundary:** This checkpoint includes source-level recovery repair for Priority 1 and Priority 2 from AUTONOMOUS_RECOVERY.md, verified through deterministic CI checks (Rojo, StyLua, Selene, git diff). Independent review and QA are pending to confirm each source fix before marking persistence and Milestone 2 safe. Roblox engine tests remain unexecuted.
+- **Verification boundary:** Run #38 source recovery work is being repaired in this worktree. Independent review/QA and Roblox engine tests are pending; do not treat static checks as runtime proof.
 
 This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
 
 ## Current project status
 
-The deterministic validation failures in the current worktree have been repaired and revalidated. The current source now:
-- prevents duplicate character initialization by spawing from a single server-side flow after data load;
-- validates and cooldowns `RespawnCharacter` requests on the server before respawning;
-- keeps DataStore session state safe by using current in-memory data, ownership-checked saves, and failure-safe release behavior;
-- restores the shared RemoteEvents wiring and `WorldBuilder.init()` startup path.
+The current source implements a single server-owned join flow: automatic character loading is disabled, a DataStore session lease and saved data are acquired before habitat allocation, and the character is spawned/restored before client data is synchronized. Respawn requests are rate-limited and accepted only for a connected player with an active session and habitat whose character is dead or absent. Saved spawn coordinates are kept in memory as `Vector3`, encoded as numeric tables for DataStore compatibility, refreshed from the character during play, and bounded to the player's habitat when restored.
 
-The Rojo build, StyLua check, Selene lint, and `git diff --check` all pass for the current source. Roblox engine, Studio, multiplayer, DataStore contention, and manual playtests remain unexecuted.
+`DataStoreManager` now uses `UpdateAsync` to acquire, renew, save, and release a per-user session lease. Read failures, active locks, malformed records, and unsupported schema versions do not create or overwrite default data. Lease renewals also persist the current session every two minutes. Server shutdown attempts concurrent per-player release with a bounded wait. These are source-level changes only; Roblox engine and actual DataStore behavior have not been tested.
 
-**Current highest-priority task:** Obtain independent code review and QA confirmation of the source-level fixes before closing recovery debt. Character spawn/respawn and saved habitat restoration remain runtime-unverified; do not start CreatureManager scoping work until review and QA clear the recovery note.
+**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` remains OPEN. This workspace has not run the required independent pipeline review/QA confirmation. The new TestEZ-shaped character-default spec and existing shared-rule specs were not executed because no compatible runner is available. Roblox Studio, multiplayer, save/rejoin, lease contention, failed DataStore calls, and shutdown behavior remain unverified.
 
-**Recovery Status Note:** `docs/AUTONOMOUS_RECOVERY.md` remains OPEN because independent review and QA have not been performed. Roblox runtime verification of character spawning, persistence, shutdown, and multiplayer behavior remains outstanding.
+**Current highest-priority task:** Run independent review and QA against the current source and recovery fixes, then address any new blockers. Do not start unrelated feature work or close recovery while that confirmation is pending. Afterward, prioritize supported TestEZ execution and Roblox Studio two-client/DataStore lifecycle testing.
 
 ## Historical workflow — Run #32
 
@@ -60,46 +56,41 @@ These items exist in source but are not equivalent to a verified end-to-end Robl
 - `ServerMain` registers `PlayerAdded` before processing already-connected players and avoids duplicate initialization for the same UserId. It removes runtime habitat/cooldown state on PlayerRemoving.
 - `PlantManager` now validates exact plot Instance membership in the calling player's habitat, server-measured interaction distance (25 studs), and validates that the plotIndex corresponds to an actual plot Instance. Includes plot position effects derived from server-resolved plot Instance positions.
 - `ProximityHandler.client.lua` connects only to LocalPlayer's habitat, handles existing and newly added habitats, discovers prompts added during construction, and disconnects connections when the habitat is removed.
-- **Recovery: `DataStoreManager` now implements atomic ownership-checked saves of current in-memory data, retains memory after failed final saves, and performs bounded, chaining lease renewal with cancellation and token checks.** Source-level defects identified in AUTONOMOUS_RECOVERY.md (Priority 1 and Priority 2) have been corrected and verified through deterministic CI.
+- **Recovery: `DataStoreManager` uses atomic lease acquisition/renewal/save/release, rejects failed or malformed loads without creating defaults, periodically saves the current in-memory session, serializes spawn coordinates as numeric tables, and retains in-memory state after a failed final release.** These current changes passed this pass's static checks but have not received independent review/QA.
 - Existing plant/economy/quest/creature source modules remain. Creature runtime remains incompletely player-scoped (Milestone 2 incomplete), plot interaction validation is now implemented, creature runtime isolation still needs work (Milestone 2 incomplete).
 - TestEZ specifications exist for PlantRules/EconomyRules but were not executed in Run #32.
 
-**Important:** The game is **NOT currently verified as a playable Roblox game**. Static CI gates are now green, but no Roblox engine, Studio, multiplayer, DataStore, or manual playtest has been executed. Milestone 2 remains **IN PROGRESS and NOT COMPLETE**. Character spawn/respawn, saved-world restoration, creature runtime isolation, and runtime verification of session leases remain.
+**Important:** The game is **NOT currently verified as a playable Roblox game**. Static gates do not establish server startup, character, multiplayer, or persistence behavior. Milestone 2 remains **IN PROGRESS and NOT COMPLETE**. Spawn/respawn and position restore now exist in source, but saved plot/world restoration, creature runtime isolation, and runtime verification of session leases remain.
 
-## Current autonomous workflow behavior (source-level recovery complete, runtime testing pending)
+## Autonomous workflow status
 
-The workflow on `main` continues beyond the first successful implementation/review/QA pass. It repeats coherent implementation, independent review, conditional repair, deterministic validation, and QA cycles. Later cycles continue the original task if unfinished; otherwise they use the live project state and roadmap to advance to the next unfinished priority. Recoverable implementation, repair, review-format, QA-format/availability, and deterministic validation failures are now carried through fallback models and later cycles rather than immediately terminating the job.
+The workflow policy is described in the guide and historical run records. Do not treat this local implementation pass as an independent review/QA cycle or a persisted validated checkpoint.
 
-The agent has completed Priority 1 and Priority 2 recovery work against the durable `ai/game-build` baseline (586f702—the agent's recovery checkpoint). All remaining issues are SOURCE-LEVEL and have evidence from CI validation. The next cycle must:
-1. Confirm this recovery checkpoint passes independent review and QA
-2. Persist validated checkpoint to `ai/game-build`
-3. Re-open this project-state record with runtime verification evidence
+The current source worktree must first receive independent review and QA through the authorized pipeline. The current recovery marker stays OPEN until that evidence exists. No manual commit, push, or workflow persistence was performed by this pass.
 
 ## Run #32 findings and current status
 
 The historical source audit is `project-state/run-32-audit.md`; its findings describe the Run #32 checkpoint and are not all current source facts. In the current worktree, the startup API mismatch and stale quest-handler override are resolved, active habitat slots do not repeat, resource IDs are present on the server-owned Parts searched by `ResourceManager`, and prompt discovery watches existing and subsequently added prompts under only the local player's habitat. These fixes have not been exercised in Roblox.
 
-DataStore session-lease code now implements the fixes described in AUTONOMOUS_RECOVERY.md (Priority 1 and Priority 2). The source-level correctness gaps have been corrected, and deterministic CI validation gates are green. Roblox runtime behavior and persistence isolation remain unverified.
+Character startup/respawn and session persistence have been repaired in current source after the Run #38 QA findings. Deterministic validation must be re-run after documentation and final source edits. Roblox runtime behavior and persistence isolation remain unverified.
 
 Current remaining risks and gaps:
 
-1. Character spawn/respawn placement and saved-world restoration are not implemented.
-2. Independent review and QA confirmation of DataStore Manager session/save/release/lease fixes.
-3. Roblox Studio/server startup, multiplayer isolation, persistence, and manual playtests for Habitat allocation, prompt discovery, creature runtime isolation, and session lifecycle.
+1. Independent review and QA confirmation of the current lifecycle/persistence changes.
+2. Character lifecycle, lease contention/renewal, persistence, and shutdown have no Roblox runtime verification.
+3. Saved plot/world progression is not restored before interactions.
 4. Creature runtime is not fully scoped to each player's habitat.
-5. Real-time session contention, lease expiry, save/rejoin, and crash recovery behavior is not verified.
-6. Plot state/schema count consistency and concurrent interaction behavior need dedicated verification.
+5. TestEZ has not been executed; concurrent interaction and plot schema consistency still need test coverage.
 
 Do not mark checklist items complete based on a folder, helper module, static build, reviewer assertion, or generated .rbxl. Require source verification and runtime evidence at the appropriate level.
 
 ## Current next-task sequence
 
-1. Wait for independent reviewer/QA to confirm the recovered DataStoreManager Source-Level fixes (Priority 1 and Priority 2).
-2. Persist a validated checkpoint of 586f702 to `ai/game-build`.
-3. Execute and document Rolox Studio/server startup, two-client multiplayer, DataStore save/rejoin/contention, and shutdown tests when supported; do not claim these from static CI.
-4. Add character spawn/respawn and restore saved habitat state before interactions are enabled.
-5. Scope CreatureManager runtime to each player's habitat and clean it up with the player session.
-6. Reassess milestone acceptance only after these checks.
+1. Obtain independent review and QA of the current lifecycle/persistence changes and resolve any source blockers.
+2. Execute the TestEZ suites with a compatible runner when one is available; this pass did not execute them.
+3. Verify startup, character death/respawn, position restoration, DataStore contention/save/rejoin, and shutdown in Roblox Studio with at least two clients.
+4. Restore saved plot/world progression before interactions are enabled; current source only restores character position and session data.
+5. Scope CreatureManager instances, movement, and cleanup to each player's habitat.
 
 ## Workflow and model/provider routing status
 
@@ -118,8 +109,4 @@ See `docs/TESTING.md` for "Checkpoint-push retry regression coverage — local r
 
 ## Recovery checkpoint
 
-This run has produced source-level recovery fixes for Priority 1 and Priority 2 from AUTONOMOUS_RECOVERY.md. Agent will:
-- Apply fixes to DataStoreManager.lua and ServerMain.server.lua (Priority 1)
-- Verify Rojo, StyLua, Selene, and `git diff --check` PASS (deterministic validation)
-- Update AUTONOMOUS_RECOVERY.md with evidence before requesting independent review/QA
-- Prioritize independent review/QA confirmation before marking persistence or Milestone 2 complete
+The current worktree repairs the Run #38 QA findings and the actual DataStore/session defects found during source verification. Rojo, `stylua --check src`, and `selene src` pass on the current source; `git diff --check` is rerun after final docs. TestEZ and Roblox runtime tests remain unexecuted. The recovery marker stays OPEN until independent review/QA evidence is recorded. Do not manually commit or push this work.

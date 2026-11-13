@@ -13,6 +13,7 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 ### Server modules
 
 - src/server/ServerMain.server.lua — server startup and player lifecycle orchestration.
+- src/server/CharacterSpawner.lua — post-load character spawn/restore and validated respawn requests.
 - src/server/HabitatManager.lua — per-server UserId-to-habitat-folder registry and allocation/removal helpers (not yet a complete spawn/restore lifecycle).
 - src/server/WorldBuilder.lua — provides `init()` for the ServerMain startup path and creates world instances beneath each supplied habitat folder.
 - src/server/ResourceManager.lua — resource node interactions and rewards.
@@ -25,13 +26,16 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 ### Shared modules
 
 - src/shared/Constants.lua — item, plant, creature, quest, and upgrade definitions.
+- src/shared/CharacterSpawnData.lua — DataStore-safe spawn vector encoding and validation.
 - src/shared/PlantRules.lua — production plant/plot interaction validation.
 - src/shared/EconomyRules.lua — production inventory and capacity validation.
 - src/shared/PocketHabitat.spec.lua — TestEZ specifications for shared production rules.
+- src/shared/Tests/CharacterSpawn.spec.lua — TestEZ specifications for spawn defaults and coordinate serialization.
 
 ### Client modules
 
 - src/client/ProximityHandler.client.lua — client-side ProximityPrompt interaction wiring and remote invocation. Inspect current source for other client controllers before extending the client architecture.
+- src/client/CharacterManager.client.lua — requests server respawn after the local Humanoid dies.
 
 ### Project and tooling
 
@@ -42,25 +46,21 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 
 ## Current runtime architecture and known limitations
 
-Run #32 committed checkpoint `1af27d2aade0922f57ec4333bf5d5331366d7b9b`. Its static checks passed, but no Roblox runtime/Studio test ran. Its source audit is historical; the current worktree has since corrected the missing `WorldBuilder.init()` API and several habitat/interaction integration defects. The game is still not verified playable.
+The current local worktree repairs the Run #38 character-lifecycle and persistence findings. Static checks do not prove Roblox server, network, or DataStore behavior; `docs/AUTONOMOUS_RECOVERY.md` remains OPEN pending independent pipeline review/QA.
 
 Current source facts:
 
-- `HabitatManager` tracks each player's habitat and active grid slot per server, spaces 100-stud bounds by 25 studs, reuses released slots, and sets `BaseOffset` and `OwnerUserId` attributes. It does not spawn characters or restore saved world state.
-- `ServerMain.server.lua` calls APIs present in their modules, connects `PlayerAdded` before processing already-connected players, and guards duplicate per-user initialization. It still has no character spawn/respawn routing.
-- `QuestManager.init()` registers the quest-claim callback; ServerMain does not override it with the nonexistent `QuestManager.claimQuest` method.
-- `WorldBuilder.buildHabitat` applies the base offset to local geometry once. Resource node IDs are assigned to both the resource Part (used by server lookup) and its prompt.
-- `ResourceManager` resolves a node Part inside the calling player's registered habitat, checks server-measured distance and the per-user cooldown, grants before starting cooldown, and clears cooldown state on departure.
-- `PlantManager` resolves plots under the caller's registered habitat and validates session, index/action rules, character, and distance before mutation. The plot data schema and generated plot count still need reconciliation.
-- `ProximityHandler.client.lua` only binds prompts beneath the local player's habitat, discovers existing and newly added prompts, and disconnects connections when that habitat is removed.
+- `ServerMain.server.lua` disables `Players.CharacterAutoLoads` before loading modules, initializes resource/plant/quest handlers, acquires saved player data before allocating a habitat, and only then spawns/restores a character and sends session data.
+- `CharacterSpawner` loads with `Player:LoadCharacterAsync()`, validates saved position against the assigned habitat bounds, and tracks position/orientation in session memory. The client requests respawn on local Humanoid death; the server requires an active session and habitat, a dead/absent character, a request interval, cooldown, and no active respawn.
+- `DataStoreManager` uses the existing `PlayerDataStoreV1` store and `player_<UserId>` keys. It atomically acquires an owner-token lease, renews and saves the live session every 120 seconds, and atomically persists/releases on departure or shutdown. The lease lasts 300 seconds. Transient final-release failures retain session memory and receive two bounded delayed retries. Failed loads, live foreign leases, malformed records, and future schema versions fail closed.
+- `characterSpawnData` remains a pair of `Vector3` values in memory and is encoded as `{x, y, z}` numeric tables before DataStore writes. Saved coordinates are bounded to the player's habitat on restoration. The current design does not save Roblox Instances.
+- `HabitatManager` tracks per-server player habitat slots, offsets each habitat, and exposes the server-owned habitat lookup used by interactions.
+- `ResourceManager` and `PlantManager` register remote handlers in `init()` and validate player session, habitat membership, and server-measured distance. `QuestManager.init()` owns the claim callback.
+- `WorldBuilder` builds static habitat geometry. Saved plot, plant, upgrade effects, and creature runtime are not fully reconstructed from the loaded session yet.
 - `CreatureManager` runtime state and movement are still not fully player/habitat-scoped.
-- `DataStoreManager` now uses `UpdateAsync` for both lease acquisition/renewal and saves, with atomic ownership-checked updates that write current in-memory data. It properly imports `RemoteEvents` and implements bounded, chaining lease renewal with cancellation. The `releaseSession` method propagates save failures and retains in-memory state when final save fails. These Priority 1 and 2 recovery defects have been fixed and verified through deterministic CI.
-- `ServerMain` now uses the correct `game:BindToClose(onBindToClose)` syntax (with colon). The startup API mismatch and missing `WorldBuilder.init()` calls have been resolved. Unused `Workspace` and `Constants` locals have been removed from the durable source where appropriate.
-- The current source changes have not yet been run in TestEZ, Roblox engine/Studio, multiplayer, DataStore integration/stress, or manual playtests. A generated .rbxl file is not runtime verification.
+- No TestEZ runner, Roblox Studio/engine, multiplayer, or DataStore integration test has been executed for the current changes. The generated `.rbxl` is only a Rojo build artifact.
 
-Run #32 QA reported QA_BLOCKER: NO, but its final source still contained the missing startup API, overlapping habitat offsets, and incorrect claims about spawning. The historical review note `project-state/review-opencode-8-fixes.md` is not proof of manual testing; current verification status is recorded in `docs/TESTING.md`.
-
-Re-check all facts against the current source before making changes. The canonical source audit and ordered repair plan are in `project-state/run-32-audit.md`.
+Earlier run notes below are historical. The source currently uses `PlayerDataStoreV1`; prior documentation referring to `PocketHabitat_v2_PlayerData` did not match the implementation and must not be used to infer a second store or migration.
 
 ## Target player-owned habitat architecture
 
@@ -111,9 +111,9 @@ An upgrade can be purchased only when its effect is implemented. Its effect must
 
 ## Persistence architecture
 
-The existing data key is PocketHabitat_v2_PlayerData. Preserve compatibility.
+The current source uses the `PlayerDataStoreV1` DataStore and `player_<UserId>` keys. Preserve that current source format unless a deliberate migration is designed and tested.
 
-The target session protocol uses atomic UpdateAsync to acquire an owner token and expiring lease. Each server maintains a unique session token per player. All DataStore operations require this token for server validation. The token is renewed automatically every 4 minutes via background task.delay() and released on PlayerRemoving or session conflict. Each live server has a unique session token. Saves must confirm that token/lease ownership inside an atomic update; stale servers must not overwrite a newer session. Lease renewal and release must verify the token. Use bounded retry/backoff and distinguish:
+The implemented session protocol uses atomic UpdateAsync to acquire an owner token and expiring lease. Each server maintains a unique session token per player. Saves and renewals verify that token inside an atomic update; renewal occurs every 120 seconds for a 300-second lease, and release persists data before clearing the lock. A stale server must not overwrite a newer session. The implementation uses bounded transient renewal retries and distinguishes:
 - A successfully read missing key (new player).
 - A successfully read valid existing record.
 - A malformed/incompatible record.
@@ -122,7 +122,7 @@ The target session protocol uses atomic UpdateAsync to acquire an owner token an
 - A lost/expired lease.
 - A failed save/release operation.
 
-Only the first case may initialize default player data. Add explicit schema validation and migrations; never serialize Roblox Instances or other non-serializable runtime objects.
+Only the first case may initialize default player data. The current implementation rejects malformed records and future envelope schema versions, normalizes legacy fields, and encodes spawn coordinates as numeric tables. Broader schema validation/migration, injected DataStore failure tests, and Roblox runtime verification remain outstanding. Never serialize Roblox Instances or other non-serializable runtime objects.
 
 ## Remote and interaction boundaries
 

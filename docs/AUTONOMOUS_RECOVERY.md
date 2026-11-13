@@ -2,9 +2,11 @@
 
 RECOVERY_STATUS: OPEN
 
-- **Agent run:** Continuing Run #37 source recovery on fresh start
+The Run #38 QA source findings have been repaired in the current worktree and Rojo, StyLua, and Selene pass. Recovery remains OPEN until independent pipeline review/QA is recorded; Roblox Studio, multiplayer, and DataStore runtime gaps remain explicitly outstanding.
+
+- **Agent run:** Follow-up to Run #38 QA recovery findings
 - **Date:** 2026-11-12
-- **Recovery status:** Source-level fixes are present, but independent review and QA remain pending
+- **Recovery status:** Source repairs pass deterministic validation; independent review and QA remain pending
 
 ## Priority 1 — Repair the deterministic validation failures
 
@@ -224,6 +226,34 @@ PASS: Selene src
 
 ---
 
+# Pocket Habitat — Run #38 follow-up recovery pass
+
+- **Date:** 2026-11-12
+- **Status:** Source repairs implemented; independent review/QA and Roblox runtime verification remain pending.
+- **Recovery marker:** OPEN.
+
+## Findings addressed in current source
+
+1. **Duplicate/early character initialization:** `ServerMain.server.lua` disables automatic character loading before requiring modules, initializes gameplay handlers, loads/locks player data, allocates the habitat, and calls the character spawn/restore path once before syncing data.
+2. **Respawn remote abuse:** `CharacterSpawner.lua` requires an active data session and assigned habitat, accepts only a dead or absent character, enforces an attempt interval and successful-respawn cooldown, and prevents concurrent spawn calls. The client requests respawn on Humanoid death; no client-supplied position or owner is trusted.
+3. **Stale/non-serializable spawn persistence:** Character CFrame/position/orientation are refreshed in session memory during play and before save. DataStore records encode coordinates as numeric tables and normalize them back to `Vector3`; restored positions must fit the player's own habitat bounds.
+4. **Underlying persistence mismatch found during source verification:** Current source had not acquired a lease before exposing a session and defaulted after failed reads. `DataStoreManager.lua` now acquires/renews/saves/releases through owner-checked `UpdateAsync`, rejects service errors/foreign active leases/malformed records/future envelope versions, periodically persists live session data during lease renewal, and retains in-memory state after a failed final release with bounded retries for transient release errors.
+5. **Startup/cleanup integration:** `ServerMain` initializes resource/plant/quest handlers, cleans per-player runtime state, and uses bounded `BindToClose` cleanup. `CharacterSpawnData.lua` now owns the production numeric-vector codec, with TestEZ cases for round-trip and malformed coordinates; the CharacterSpawn spec uses TestEZ `describe`/`it`.
+
+## Verification evidence and remaining work
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated `build/pocket-habitat.rbxl`.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS on the current source and documentation state.
+- TestEZ has not been executed; no compatible `run-in-roblox`, `luau`, or `lune` runner was available.
+- Independent pipeline review and QA have not been performed in this workspace; do not mark this recovery RESOLVED without that evidence.
+- Roblox engine/Studio startup, respawn, multiplayer isolation, DataStore lock contention, save/rejoin/failure recovery, and shutdown tests remain NOT RUN.
+
+This follow-up does not establish a playable or release-ready checkpoint.
+
+---
+
 # Pocket Habitat — unresolved autonomous recovery work
 
 - Run: 38
@@ -284,6 +314,82 @@ QA_BLOCKER: YES
 
 ## Release-Readiness Assessment
 **NOT READY.** The current checkpoint has satisfied deterministic CI requirements but fails to meet the project's own mandatory policy for independent QA and runtime verification. The checkpoint is fundamentally unverified against real-world engine behavior and multiplayer conditions. Do not proceed to the next milestone until the recovery note is formally closed.
+
+## Evidence: pocket-habitat-validation.log
+
+Building project 'Pocket Habitat'
+Built project to pocket-habitat.rbxl
+PASS: Rojo build -> build/pocket-habitat.rbxl
+PASS: StyLua check src
+Results:
+0 errors
+0 warnings
+0 parse errors
+PASS: Selene src
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 38
+- Cycle: 4
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+QA blocker repair or independent re-check could not complete. Inspect the attached reports and resolve the blocker before treating this work as complete.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-qa-46.log
+
+[0m
+> qa · command-a-plus
+[0m→ [0mRead src/server/DataStoreManager.lua 
+> qa · command-a-plus
+[0m→ [0mRead src/server/ServerMain.server.lua 
+> qa · command-a-plus
+[0m→ [0mRead src/server/CharacterSpawner.lua 
+> qa · command-a-plus
+QA_BLOCKER: YES
+
+**Critical Finding: Character position persistence bug causing data loss**
+
+- **Severity:** Critical / High
+- **Files/Functions:** `src/server/CharacterSpawner.lua` - `monitorCharacter()` (line 55) and `spawnOrRestoreCharacter()` (line 118)
+- **Concrete Evidence:** Both functions call `DataStoreManager.updateCharacterSpawnData(player, rootPart.CFrame)`. The target function signature is `updateCharacterSpawnData(player, position, orientation)` (line 149). When passed a `CFrame`, the implementation treats it as `position` and falls back to default `Vector3.new(0,5,0)` because `typeof(position) == "Vector3"` check fails. This overwrites saved spawn coordinates with defaults every 5 seconds and after each spawn, discarding actual player position.
+- **Player Impact:** Saved character positions are lost after any respawn or rejoin. Players will spawn at the default habitat location instead of their saved location, breaking persistence, progression tracking, and habitat ownership experience.
+- **Recommended Action:** 
+  1. Replace incorrect calls with proper arguments: `DataStoreManager.updateCharacterSpawnData(player, rootPart.Position, orientationVector)`.
+  2. Extract orientation vector from CFrame or compute separately before calling.
+  3. Either remove `monitorCharacter` entirely (periodic updates not required) or implement correct update logic.
+  4. Add unit tests to verify round-trip persistence of spawn coordinates.
+
+**Additional Verified Issues**
+
+- **DataStore race condition:** `DataStoreManager.acquireSession` uses `SetAsync` without atomic conflict resolution, potentially allowing multiple servers to claim the same session token. This could cause session state overwrites. (Medium severity)
+- **Load error handling:** `ServerMain.onPlayerAdded` treats any `sessionData` as success, masking actual DataStore failures. (Low severity)
+
+**Automated Checks Status**
+
+- ✅ `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASSED
+- ✅ `stylua --check src`: PASSED (0 errors, 0 warnings)
+- ✅ `selene src`: PASSED (0 errors, 0 warnings, 0 parse errors)
+- ✅ `git diff --check`: PASSED
+- ❌ TestEZ: NOT EXECUTED (no compatible runner available)
+- ❌ Roblox Engine/Studio: NOT EXECUTED (no runtime verification)
+- ❌ Multiplayer/DataStore integration: NOT EXECUTED
+
+**Requires Roblox Studio verification**
+
+- Actual DataStore lease contention behavior under real load
+- Multiplayer session handover and player migration scenarios
+- Client respawn request latency and edge cases
+- BindToClose cleanup timing with multiple concurrent players
+
+**Release-readiness assessment**
+
+The checkpoint is **not release-ready**. While static validation passes, the critical character position persistence bug will cause immediate player data loss in any live environment. The bug must be fixed and verified before any playtesting or milestone completion. Independent code review and TestEZ execution remain outstanding prerequisites.
 
 ## Evidence: pocket-habitat-validation.log
 

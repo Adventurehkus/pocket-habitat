@@ -24,51 +24,47 @@ Status labels:
 
 ## Milestone 1 — Playable prototype loop
 
-**Status: CHARACTER SPAWN IMPLEMENTED; PLAYABILITY PARTIALLY VERIFIED; SAVE/RESTORE ADDED.**
+**Status: SOURCE FLOW IMPLEMENTED; PLAYABILITY AND SAVE/RESTORE RUNTIME-UNVERIFIED.**
 
 Source modules contain resource gathering, planting/watering/harvesting, inventory/currency, quests, creature discovery, and client prompt handling. However:
-- `ServerMain` and `WorldBuilder` now expose matching `init()` APIs in source. Roblox server startup has not been tested.
-- No Roblox engine or Studio test was run in Run #32.
+- `ServerMain` disables automatic character loading, acquires player data before habitat allocation, and spawns/restores a character from the loaded session. Roblox server startup has not been tested.
+- Respawn is requested by the client on Humanoid death and validated/cooldown-limited on the server. Roblox behavior has not been tested.
+- No Roblox engine or Studio test has been run for this recovery pass.
 - Do not call this prototype playable until client interactions work end to end, two clients can play without interference, and save/rejoin is verified.
 
 Acceptance criteria:
-- [x] Server starts without runtime errors; all server systems/remotes/player lifecycle handlers initialize. (API mismatch fixed in source; engine test pending)
-- [ ] A new player joins and spawns correctly. (Character spawn/respawn not yet implemented)
-- [x] A player can gather, plant, water, harvest, earn rewards, and receive feedback in Roblox Studio. (Partially implemented)
-- [x] All actions are server-authoritative and fail safely. (Implemented with ownership validation)
-- [x] Full-inventory and failed-reward cases do not produce cooldown-only failures, item loss, or duplicate rewards. (Fixed cooldown management)
-- [x] Quest and upgrade actions reflect real server-side gameplay. (Source exists, not yet verified)
-- [x] The experience works in a two-client server. (Not yet tested)
+- [ ] Server starts without runtime errors; all server systems/remotes/player lifecycle handlers initialize. (Source wiring exists; engine test pending)
+- [ ] A new player joins and spawns correctly. (Source flow exists; engine test pending)
+- [ ] A player can gather, plant, water, harvest, earn rewards, and receive feedback in Roblox Studio. (Source paths exist; runtime unverified)
+- [ ] All actions are server-authoritative and fail safely. (Several source checks exist; full audit and runtime validation pending)
+- [ ] Full-inventory and failed-reward cases do not produce cooldown-only failures, item loss, or duplicate rewards. (Runtime/concurrency tests pending)
+- [ ] Quest and upgrade actions reflect real server-side gameplay. (Source exists, not yet verified)
+- [ ] The experience works in a two-client server. (Not yet tested)
 - [ ] Save/rejoin behavior is verified without overwriting data. (DataStore lease/save code exists but runtime verification pending)
 
 ## Milestone 2 — Personal habitats and multiplayer/data reliability
 
-**Status: CORE DATASTORE LIFECYCLE FIXED; RUNTIME VERIFICATION PENDING.**
+**Status: SOURCE RECOVERY IMPLEMENTED; INDEPENDENT REVIEW/QA AND RUNTIME VERIFICATION PENDING.**
 
-Habitat allocation and source-level ownership validation exist. DataStore session-lease code has been corrected for Priority 1 and Priority 2 defects; source-level correctness is verified by deterministic CI. Roblox runtime tests remain outstanding.
+Habitat allocation and source-level ownership validation exist. The current recovery work adds atomic DataStore lease acquisition, renewal/save/release, fail-closed loads, serializable character position state, and a single post-load spawn path. The current source has not yet received independent review/QA or Roblox runtime verification.
 
 This milestone establishes the defining Pocket Habitat experience: every player has an independent, persistent world.
 
 ### DataStore Manager and Session Lifecycle
-**Status: SOURCE-LEVEL FIXED; RUNTIME VERIFICATION PENDING (AUTONOMOUS_RECOVERY.md Priority 1 & 2)**
+**Status: RECOVERY SOURCE REPAIRED; INDEPENDENT REVIEW/QA AND RUNTIME VERIFICATION PENDING**
 
 The DataStoreManager module has been repaired to match source-level expectations:
-- [x] RemoteEvents import and usage verified in production (Priority 2.1)
-- [x] savePlayerData writes current in-memory data in UpdateAsync (Priority 2.2)
-- [x] Atomic ownership-checked UpdateAsync for lease acquisition and renewal (Priority 2.3)
-- [x] releaseSession propagates save failures and retains in-memory state (Priority 2.4)
-- [x] Bounded, recurring lease renewal with cancellation and token checks (Priority 2.5)
-- [x] Shutdown releases sessions per player with proper save propagation (Priority 2.6)
+- [x] RemoteEvents import and usage is present in source.
+- [x] `UpdateAsync` acquires and renews an owner-token lease and writes current session data.
+- [x] Failed loads, live locks, malformed records, and unsupported schema versions fail closed instead of creating defaults.
+- [x] `releaseSession` atomically persists current data and only clears memory after confirmed release.
+- [x] Lease renewal recurs every 120 seconds with a five-minute lease and bounded transient retries.
+- [x] PlayerRemoving and BindToClose call per-player release; shutdown wait is bounded.
+- [x] Character spawn data is periodically refreshed in memory and encoded as numeric tables for persistence.
+- [ ] Independent review/QA confirms the source repairs.
+- [ ] Roblox DataStore/runtime tests verify contention, renewal, save/rejoin, failure handling, and shutdown.
 
-Source-level defects identified in Run #34 and verified by autonomous recovery in current run have been corrected and substantiated through deterministic CI checks. Independent code review and QA are pending to confirm these fixes before marking persistence and Milestone 2 implementations verified.
-
-Accepted source-level repairs (AUTONOMOUS_RECOVERY.md Priority 1 & 2, verified by this run):
-- compilation style errors fixed in ServerMain.server.lua
-- project formatting applied via stylua
-- unused variables removed
-- DateSyncManager and DataStoreManager session behavior made atomic and recovery-safe
-
-The remaining acceptance items under "Persistence safety" are engine/runtime specific:
+The preceding source-level items are present, but this pass still requires independent code review and QA before the recovery record can be closed. Runtime-specific acceptance remains:
 - [ ] Real-time session contention and stale token rejection in production (Race-positive assertion test pending)
 - [ ] Persistent modified in-memory data across load/save cycles in production (Save/reload test pending)
 - [ ] Failed Get/Update/Set operations retain in-memory state in production (Persistence-failure simulation test pending)
@@ -86,8 +82,8 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 - [x] Apply the habitat transform exactly once to baseplate, resource nodes, leaves/berries, plot parts/borders, paths, pond, and all future instances. (Implemented in WorldBuilder)
 - [x] Add server-owned OwnerUserId metadata for diagnostics; authorization must still use server registry/Player identity.
 - [x] Make allocation idempotent and safe against duplicate folders/registry entries. (Implemented in HabitatManager; runtime-unverified)
-- [ ] Spawn characters at their own habitat and handle every respawn. (Not yet implemented)
-- [ ] Restore plots/plants/upgrades/world state from validated saved data before the player can interact. (DataStore restoration not yet implemented)
+- [ ] Verify characters spawn at their own habitat and every respawn uses the existing habitat. (Source flow implemented; runtime test pending)
+- [ ] Restore plots/plants/upgrades/world state from validated saved data before the player can interact. (Not implemented)
 - [ ] Ensure leave and BindToClose cleanup disconnects/destroys only that player's runtime objects and handles failed final saves safely. (Session release exists in source; final cleanup behavior verified by runtime test pending)
 
 ### Prompt, plot, and resource ownership
@@ -166,11 +162,11 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** The current source-level fixes for the startup race, respawn validation, and persistence/session safety have passed the deterministic gates. Independent review and QA remain outstanding before the recovery note can be cleared. The remaining tasks are:
+**Immediate priority:** Independent review and QA of the current lifecycle/persistence recovery fixes, followed by any required repair. The remaining tasks are:
 
-1. Obtain independent code review and QA confirmation of the recovery fixes.
-2. Persist a validated checkpoint through the authorized workflow after review and QA.
-3. Verify character spawn/respawn and persistence in Roblox Studio and multiplayer.
-4. Scope CreatureManager runtime to each player's habitat and verify cleanup after recovery is closed.
+1. Complete independent review and QA; keep `AUTONOMOUS_RECOVERY.md` OPEN until confirmed.
+2. Execute TestEZ, Roblox Studio startup, two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests when a supported runner is available.
+3. Implement restore of plot/world progression from validated session data.
+4. Scope CreatureManager runtime to each player's habitat and clean it up with the session.
 
 Do not mark persistence or Milestone 2 complete while runtime verification is outstanding. Static CI gates are green, but runtime release readiness requires Roblox Studio/multiplayer/DataStore testing. Consult docs/PROJECT_STATE.md for current facts and docs/AUTONOMOUS_RECOVERY.md for the explicit runtime gaps checklist.
