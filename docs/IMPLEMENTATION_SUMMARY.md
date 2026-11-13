@@ -1,94 +1,36 @@
-# Implementation Summary - Current Run
+# Implementation Summary — Recovery Follow-up
 
-## Progress Summary
+## Progress
 
-### Source-Level Recovery - ✅ COMPLETED
+Repaired the Run #38 cycle-5 persistence path after verifying that the source did not match the recorded recovery claims:
 
-**Priority 1 - Deterministic Validation Failures:** RESOLVED
-- ✅ `WorldBuilder.init()` function present and functional in ServerMain.server.lua
-- ✅ Unused `Workspace` and `Constants` locals removed
-- ✅ `game:BindToClose(onBindToClose)` syntax fixed with proper colon syntax
-- ✅ Project-owned source formatting applied via stylua
+- Player join now acquires the save lease and data atomically through `UpdateAsync`; failed reads, active foreign leases, malformed records, and unsupported schemas do not create a gameplay session.
+- Session lookups return `nil` without an active lease. New and migrated data matches the live gameplay schema.
+- Saves and renewals require the stored owner token; renewals persist current data. Final release persists and clears the lock atomically, retaining in-memory data after failure.
+- Spawn orientation now uses Euler angles consistently, with migration for old unit look-vector values.
+- Client sync accepts both initial session payloads and direct gameplay data updates.
 
-**Deterministic validation gates:** ALL PASS
-- ✅ Rojo build: `build/pocket-habitat.rbxl` generated successfully
-- ✅ StyLua check src: zero errors, warnings, or parse errors
-- ✅ Selene src: zero errors, warnings, or parse errors
-- ✅ Git diff check: all repository changes are clean
+This is source-level recovery only. No Roblox runtime behavior is verified.
 
-**Priority 2 - DataStoreManager Persistence Fixes:** SOURCE-LEVEL RESOLVED
-All DataStoreManager fixes are present in current source:
+## Files changed
 
-1. ✅ RemoteEvents import: Present and functional
-2. ✅ Current in-memory data persistence: `savePlayerData` writes current in-memory `data` to store
-3. ✅ Atomic ownership-checked UpdateAsync: Lease acquisition uses ownership-checked UpdateAsync
-4. ✅ Retain in-memory state after failed save: `releaseSession` preserves in-memory data on failure
-5. HALease renewal chaining: Proper cancellation and chaining implemented
-6. ✅ Shutdown behavior: Bounded BindToClose cleanup with save failure propagation
+- `src/server/DataStoreManager.lua` — fail-closed data normalization, atomic lease lifecycle, live-data save/renew/release, and serializable spawn coordinates.
+- `src/server/CharacterSpawner.lua` — save the Euler orientation format consumed by spawn restoration.
+- `src/client/ClientMain.client.lua` — consume session-wrapped and direct gameplay sync payloads.
+- `src/shared/Tests/CharacterSpawn.spec.lua` — assert new session defaults match the live gameplay schema.
+- `docs/AUTONOMOUS_RECOVERY.md`, `docs/PROJECT_STATE.md`, `docs/ROADMAP.md`, `docs/TECHNICAL_ARCHITECTURE.md`, `docs/TESTING.md` — current recovery evidence, status, and next task.
 
-### Runtime Verification - ⚠️ OUTSTANDING
+## Verification
 
-**Missing Runtime Evidence:**
-- ❌ Roblox Studio/server startup tests: Not executed
-- ❌ TestEZ suite execution: No compatible runner available
-- ❌ Multiplayer (two-client) testing: Not executed
-- ❌ DataStore integration/stress tests: Not executed
-- ❌ Manual playtesting: Not executed
-- ❌ Save/rejoin, lease contention, and shutdown behavior: Not verified
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; artifact generated locally.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after final source and documentation edits.
+- TestEZ: NOT RUN; no compatible runner is installed.
+- Independent review/QA: NOT RUN for this follow-up. The cycle-5 review attempt did not produce an approval.
+- Roblox Studio, multiplayer, DataStore, shutdown, and manual tests: NOT RUN.
+- Artifact upload: NOT performed or confirmed.
 
-### Character Spawn Persistence Analysis - ✅ SOURCE-LEVEL CORRECT
+## Recovery and next task
 
-Based on source code inspection:
-- ✅ `CharacterSpawner.lua` `monitorCharacter()` (line 55): Correctly calls `DataStoreManager.updateCharacterSpawnData(player, rootPart.Position, rootPart.CFrame.LookVector)`
-- ✅ `CharacterSpawner.lua` `spawnOrRestoreCharacter()` (line 122): Correctly calls `DataStoreManager.updateCharacterSpawnData(player, rootPart.Position, rootPart.CFrame.LookVector)`
-- ✅ `DataStoreManager.lua` `updateCharacterSpawnData()` function signature: `function DataStoreManager.updateCharacterSpawnData(player, position, orientation)` - expects Vector3, not CFrame
-
-## Recovery Document Analysis
-
-**Current Status:** `RECOVERY_STATUS: OPEN`
-
-**Recovery remains open because:**
-1. ✅ **Source-level fixes confirmed:** All automation-resolvable open items are fixed in current source
-2. ❓ **Independent review/QA pending:** Required for recovery resolution
-3. ❓ **Runtime verification outstanding:** Roblox Studio, multiplayer, DataStore tests not executed
-
-**Recovery Status:** Source-level work is complete, but recovery marker requires:
-1. Independent pipeline review/QA confirmation
-2. Runtime verification evidence (explicitly recorded as not yet executed)
-
-## Evidence Status
-
-### Deterministic Validation (COMPLETED)
-- ✅ Rojo build: `build/pocket-habitat.rbxl` generated
-- ✅ StyLua formatting check: All project-owned source formatted correctly
-- ✅ Selene linting: Zero errors or warnings
-- ✅ Git diff validation: All changes are valid and clean
-
-### Runtime Verification (NOT EXECUTED)
-- ❌ Roblox Studio/engine simulation: Not available in current environment
-- ❌ TestEZ execution: No compatible runner available
-- ❌ Multiplayer testing: Requires separate environment
-- ❌ DataStore integration: Requires actual Roblox service access
-- ❌ Manual playtesting: Requires user interaction in Roblox Studio
-
-## Next Steps
-
-To mark this recovery as RESOLVED:
-
-1. **Independent Review Required:** Obtain independent code review and QA confirmation that source fixes meet quality standards
-2. **Runtime Verification:** Execute Roblox Studio startup, two-client multiplayer, DataStore save/rejoin, and shutdown behavior tests (explicitly recorded as not yet executed per workflow policy)
-
-**Project State Continues:**
-- ✅ Core recovery items are source-level fixed
-- ⚠️ Runtime verification gaps remain documented as outstanding
-- ⚠️ Independent review/QA confirmation is the final requirement for recovery resolution
-
-## Release Readiness
-
-**Current assessment:** NOT release-ready
-- Source-level recovery fixes are complete
-- Deterministic CI passes
-- Runtime verification evidence is outstanding (per recovery policy)
-- Independent review/QA confirmation is pending
-
-**Next milestone:** Execute TestEZ suites with compatible runner and Roblox runtime verification when available, then mark recovery as RESOLVED with independent review/QA evidence.
+`docs/AUTONOMOUS_RECOVERY.md` remains **OPEN**. Obtain valid independent review/QA of the complete current diff, repair any findings, and rerun deterministic validation. Then use a compatible TestEZ runner and Roblox Studio two-client/DataStore testing. Do not start unrelated feature work or claim release readiness before recovery review and runtime verification.

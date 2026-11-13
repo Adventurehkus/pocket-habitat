@@ -44,23 +44,26 @@ Acceptance criteria:
 
 ## Milestone 2 — Personal habitats and multiplayer/data reliability
 
-**Status: SOURCE RECOVERY IMPLEMENTED; INDEPENDENT REVIEW/QA AND RUNTIME VERIFICATION PENDING.**
+**Status: SOURCE RECOVERY REPAIRED IN CURRENT WORKTREE; INDEPENDENT REVIEW/QA AND RUNTIME VERIFICATION PENDING.**
 
 Habitat allocation and source-level ownership validation exist. The current recovery work adds atomic DataStore lease acquisition, renewal/save/release, fail-closed loads, serializable character position state, and a single post-load spawn path. The current source has not yet received independent review/QA or Roblox runtime verification.
 
 This milestone establishes the defining Pocket Habitat experience: every player has an independent, persistent world.
 
 ### DataStore Manager and Session Lifecycle
-**Status: RECOVERY SOURCE REPAIRED; INDEPENDENT REVIEW/QA AND RUNTIME VERIFICATION PENDING**
+**Status: RECOVERY SOURCE REPAIRED IN CURRENT WORKTREE; INDEPENDENT REVIEW/QA AND RUNTIME VERIFICATION PENDING**
 
-The DataStoreManager module has been repaired to match source-level expectations:
+The DataStoreManager module now implements:
 - [x] RemoteEvents import and usage is present in source.
-- [x] `UpdateAsync` acquires and renews an owner-token lease and writes current session data.
-- [x] Failed loads, live locks, malformed records, and unsupported schema versions fail closed instead of creating defaults.
-- [x] `releaseSession` atomically persists current data and only clears memory after confirmed release.
-- [x] Lease renewal recurs every 120 seconds with a five-minute lease and bounded transient retries.
+- [x] `loadPlayerData` atomically acquires an owner-token lease with `UpdateAsync`; `getSession` does not fabricate data when no session exists.
+- [x] Failed loads, live locks, malformed records, user-id mismatches, and future schema versions fail closed instead of creating defaults.
+- [x] Saves and lease renewals write current in-memory data only when the stored owner token matches.
+- [x] `releaseSession` atomically persists current data and clears the lock only after a confirmed update; failed releases retain memory and retry a bounded number of times.
+- [x] Lease renewal recurs every 120 seconds with a five-minute lease and bounded retries before expiry.
 - [x] PlayerRemoving and BindToClose call per-player release; shutdown wait is bounded.
-- [x] Character spawn data is periodically refreshed in memory and encoded as numeric tables for persistence.
+- [x] Gameplay defaults include the current four-plot/quest/economy/discovery schema; legacy `currency` and spawn-vector shapes are normalized.
+- [x] Character spawn data is periodically refreshed in memory, stored as numeric tables, and restores Euler orientation consistently.
+- [x] The client handles both session-load payloads and direct gameplay data updates.
 - [ ] Independent review/QA confirms the source repairs.
 - [ ] Roblox DataStore/runtime tests verify contention, renewal, save/rejoin, failure handling, and shutdown.
 
@@ -162,6 +165,6 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Execute TestEZ suites with compatible runner and complete independent review/QA of the current lifecycle/persistence recovery fixes. Do not start unrelated feature work or close recovery while that confirmation is pending. After independent review/QA, execute Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests to complete recovery resolution.
+**Immediate priority:** Obtain valid independent review/QA of the complete current recovery diff and address any blockers. Keep recovery OPEN and do not start unrelated feature work until review/QA confirms the source changes. Then execute TestEZ through a compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
 
 Do not mark persistence or Milestone 2 complete while runtime verification is outstanding. Static CI gates are green, but runtime release readiness requires Roblox Studio/multiplayer/DataStore testing. Consult docs/PROJECT_STATE.md for current facts and docs/AUTONOMOUS_RECOVERY.md for the explicit runtime gaps checklist.

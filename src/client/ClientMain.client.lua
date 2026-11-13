@@ -325,19 +325,17 @@ RemoteEvents.Notification.OnClientEvent:Connect(function(msg: string)
 end)
 
 RemoteEvents.SyncData.OnClientEvent:Connect(function(data: any)
-    if not data then
+    if type(data) ~= "table" then
         return
     end
 
-    -- Update UI with session data
     if data.sessionToken then
-        -- Store session token for future operations
         clientSessionToken = data.sessionToken
     end
 
-    if data.playerData then
-        local playerData = data.playerData
-        bellsLabel.Text = "Bells: " .. tostring(playerData.bells) .. " 🔔"
+    local playerData = data.playerData or data.data or data
+    if type(playerData) == "table" and type(playerData.inventory) == "table" then
+        bellsLabel.Text = "Bells: " .. tostring(playerData.bells or 0) .. " 🔔"
 
         if playerData.currentQuest and Constants.QUESTS[playerData.currentQuest] then
             questLabel.Text = "Quest: " .. Constants.QUESTS[playerData.currentQuest].title

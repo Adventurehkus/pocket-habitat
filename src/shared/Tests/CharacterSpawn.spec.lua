@@ -15,6 +15,10 @@ return function()
             local spawnData = data.characterSpawnData
 
             expect(data.userId).to.equal(12345)
+            expect(data.bells).to.equal(0)
+            expect(#data.plots).to.equal(4)
+            expect(type(data.inventory)).to.equal("table")
+            expect(type(data.questsCompleted)).to.equal("table")
             expect(typeof(spawnData.position)).to.equal("Vector3")
             expect(spawnData.position).to.equal(Vector3.new(0, 5, 0))
             expect(spawnData.orientation).to.equal(Vector3.zero)

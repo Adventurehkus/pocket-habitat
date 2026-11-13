@@ -71,6 +71,22 @@ Checks actually run on the current source:
 
 These are static/source checks only; they do not prove the Roblox runtime path works.
 
+## Recovery follow-up — 2026-11-13
+
+Source inspection of the cycle-5 checkpoint found that the documented lease flow was not connected to the join path: `loadPlayerData` used `GetAsync`, exposed defaults after errors, and created an in-memory session without calling `acquireSession`; `getSession` also fabricated default data, saves did not require a matching stored lock, and release left the persistent lock in place. The follow-up rewrote the manager around atomic `UpdateAsync` acquisition/renewal/save/release, strict record normalization, active-session-only lookups, schema-compatible gameplay defaults, and numeric spawn serialization. Character orientation storage/restoration now uses the same Euler-angle representation, and client data sync handles both session and gameplay payloads.
+
+Checks actually run after the source changes:
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated `build/pocket-habitat.rbxl`.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after final source and documentation edits.
+- TestEZ: NOT RUN; no compatible `run-in-roblox`, `luau`, or `lune` executable is installed.
+- Independent review/QA: NOT RUN for this follow-up; the latest recorded cycle-5 review route failed and did not return an approval. The prior QA's CFrame-callsite finding does not match the inspected cycle-5 source.
+- Roblox engine/Studio, multiplayer, DataStore contention/failure/rejoin, shutdown, and manual tests: NOT RUN.
+
+The recovery marker remains OPEN. Static source checks are not runtime evidence.
+
 ## Latest verified gameplay pipeline run
 
 ### Run #32 — 2026-11-11

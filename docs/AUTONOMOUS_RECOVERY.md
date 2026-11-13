@@ -2,7 +2,7 @@
 
 RECOVERY_STATUS: OPEN
 
-The Run #38 QA source findings have been repaired in the current worktree and Rojo, StyLua, and Selene pass. Recovery remains OPEN until independent pipeline review/QA is recorded; Roblox Studio, multiplayer, and DataStore runtime gaps remain explicitly outstanding.
+Run #38 recovery work remains OPEN. Cycle 5 did not produce a trustworthy independent review decision. The current follow-up repaired additional DataStore lifecycle defects found by comparing the source against the recovery claims; Rojo, StyLua, Selene, and `git diff --check` pass for the source changes. This follow-up has not received independent review/QA. Roblox Studio, multiplayer, TestEZ, and DataStore runtime gaps remain outstanding.
 
 - **Agent run:** Follow-up to Run #38 QA recovery findings
 - **Date:** 2026-11-12
@@ -583,3 +583,186 @@ index e80778e..17beb86 100644
      end
  
      if RemoteEvents and RemoteEvents.SyncData then
+---
+
+## 2026-11-13 follow-up — persistence defects repaired; independent review pending
+
+The cycle-5 report is not an approval: `opencode-review-55.log` exhausted the configured Cohere route without returning a review, and `opencode-qa-46.log` reported a `CFrame` argument at callsites that already pass `rootPart.Position` and a `Vector3`. Source inspection found more consequential defects in the persisted cycle-5 source than the report captured:
+
+1. `ServerMain.onPlayerAdded` called `loadPlayerData`, but that function used `GetAsync`, exposed defaults after read failures, and created an active in-memory session without invoking the existing `acquireSession` method. Concurrent servers therefore were not excluded before gameplay started.
+2. `getSession` manufactured fresh default tables for players without a loaded session, allowing gameplay code to mutate data that was neither leased nor persisted.
+3. `savePlayerData` permitted updates when the stored record had no lock owner, while `releaseSession` only called save and removed local memory; it never atomically cleared the stored lock.
+4. `renewSession` only changed an in-memory timestamp. There was no recurring persistent lease renewal.
+5. Default data used `currency`, `quests`, and `plants`, but live gameplay reads `bells`, `questsCompleted`, `currentQuest`, `creaturesDiscovered`, and `plots`. New sessions did not receive the plots required by the game.
+6. Character position updates used a look vector for `orientation`, while restoration interpreted it as Euler angles. The current source stores Euler angles consistently and migrates older unit look vectors.
+7. Initial session sync used a `data` field, while the UI expected `playerData`; later gameplay updates sent the player data directly.
+
+The current worktree now:
+- Acquires the per-user `PlayerDataStoreV1` lease and data through atomic `UpdateAsync` before exposing a session; distinguishes missing records from failed reads, active foreign leases, malformed data, and unsupported schema versions.
+- Fails closed for missing sessions, validates user ownership and live data fields, normalizes legacy currency/spawn formats, and provides four initial plot records.
+- Writes live data only when the stored owner token matches, renews and saves the lease every 120 seconds (five-minute lease), and atomically persists/releases on departure with bounded retries. Failed release retains in-memory data.
+- Encodes spawn vectors as numeric tables and uses Euler degrees for saved orientation; syncs client-compatible `playerData` and supports direct gameplay payloads.
+
+**Verification evidence for this follow-up:**
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; artifact generated at `build/pocket-habitat.rbxl`.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after final source and documentation changes.
+- TestEZ: NOT RUN; no compatible `run-in-roblox`, `luau`, or `lune` runner is available.
+- Independent review/QA of this follow-up: NOT RUN. The cycle-5 review attempt failed without a decision; do not mark this recovery resolved.
+- Roblox Studio/server, multiplayer, DataStore contention/failure/rejoin, shutdown, and manual tests: NOT RUN.
+
+**Remaining recovery requirements:** Obtain valid independent review/QA of the complete current diff and repair any findings. Keep recovery OPEN until that evidence and final deterministic validation are recorded. Runtime testing remains outstanding even after source review and must not be reported as passed.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 38
+- Cycle: 6
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 6 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-review-62.log
+
+[0m
+> reviewer · command-a-reasoning
+[93m[1m! [0mretrying (attempt 2): You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits at 'https://dashboard.cohere.com/api-keys'. Contact us on 'https://discord.gg/XW44jPfYJu' or email us at support@cohere.com with any questions
+[93m[1m! [0mretrying (attempt 3): You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits at 'https://dashboard.cohere.com/api-keys'. Contact us on 'https://discord.gg/XW44jPfYJu' or email us at support@cohere.com with any questions
+[93m[1m! [0mretrying (attempt 4): You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits at 'https://dashboard.cohere.com/api-keys'. Contact us on 'https://discord.gg/XW44jPfYJu' or email us at support@cohere.com with any questions
+[93m[1m! [0mretrying (attempt 5): You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits at 'https://dashboard.cohere.com/api-keys'. Contact us on 'https://discord.gg/XW44jPfYJu' or email us at support@cohere.com with any questions
+[93m[1m! [0mretrying (attempt 6): You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits at 'https://dashboard.cohere.com/api-keys'. Contact us on 'https://discord.gg/XW44jPfYJu' or email us at support@cohere.com with any questions
+[93m[1m! [0mretrying (attempt 7): You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits at 'https://dashboard.cohere.com/api-keys'. Contact us on 'https://discord.gg/XW44jPfYJu' or email us at support@cohere.com with any questions
+[93m[1m! [0mretrying (attempt 8): You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits at 'https://dashboard.cohere.com/api-keys'. Contact us on 'https://discord.gg/XW44jPfYJu' or email us at support@cohere.com with any questions
+[93m[1m! [0mretrying (attempt 9): You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits at 'https://dashboard.cohere.com/api-keys'. Contact us on 'https://discord.gg/XW44jPfYJu' or email us at support@cohere.com with any questions
+[93m[1m! [0mretrying (attempt 10): You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits at 'https://dashboard.cohere.com/api-keys'. Contact us on 'https://discord.gg/XW44jPfYJu' or email us at support@cohere.com with any questions
+[93m[1m! [0mretrying (attempt 11): You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits at 'https://dashboard.cohere.com/api-keys'. Contact us on 'https://discord.gg/XW44jPfYJu' or email us at support@cohere.com with any questions
+[91m[1mError: [0mYou are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits at 'https://dashboard.cohere.com/api-keys'. Contact us on 'https://discord.gg/XW44jPfYJu' or email us at support@cohere.com with any questions
+
+## Evidence: pocket-habitat-implementation.diff
+
++    else
++        warn(
++            "Failed to renew player session for "
++                .. tostring(player.UserId)
++                .. ": "
++                .. tostring(renewError)
++        )
++    end
++    return renewed
+ end
+ 
+-function DataStoreManager.releaseSession(player, sessionToken)
++function DataStoreManager.releaseSession(player: Player, sessionToken: string?): boolean
+     local session = activeSessions[player]
+     if not session then
+         return true
+     end
+-
+-    if sessionToken and session.sessionToken ~= sessionToken then
++    if sessionToken ~= nil and session.sessionToken ~= sessionToken then
+         warn("Session token mismatch while releasing player session: " .. tostring(player.UserId))
+         return false
+     end
+ 
+-    local saved = DataStoreManager.savePlayerData(player, session.sessionToken)
+-    if not saved then
+-        warn(
+-            "Failed to persist player data during release for user "
+-                .. tostring(player.UserId)
+-                .. "; in-memory data retained."
+-        )
++    session.releasing = true
++    cancelRenewal(session)
++    local deadline = os.clock() + 10
++    while session.busy and os.clock() < deadline do
++        task.wait(0.1)
++    end
++    if session.busy then
++        session.releasing = false
++        if player.Parent then
++            scheduleRenewal(player, session)
++        end
++        warn("Timed out waiting to release player session for " .. tostring(player.UserId))
+         return false
+     end
+ 
+-    activeSessions[player] = nil
+-    return true
+-end
++    session.busy = true
++    captureCharacterSpawnData(player, session)
++    local released = false
++    local releaseError: string? = nil
++    for attempt = 1, RELEASE_ATTEMPTS do
++        released, releaseError = updateStoredSession(player, session, true)
++        if released or releaseError == "Session lock lost or stale" then
++            break
++        end
++        if attempt < RELEASE_ATTEMPTS then
++            task.wait(attempt)
++        end
++    end
++    session.busy = false
+ 
+-function DataStoreManager.handleClientSessionRequest(player)
+-    local session = activeSessions[player]
+-    if not session then
+-        -- Default to empty session until acquisition
+-        return makeDefaultSessionData(player.UserId)
++    if released then
++        activeSessions[player] = nil
++        return true
+     end
+ 
+-    if RemoteEvents and RemoteEvents.SyncData then
+-        RemoteEvents.SyncData:FireClient(player, {
+-            sessionToken = session.sessionToken,
+-            data = session.data,
+-        })
++    session.releasing = false
++    if player.Parent then
++        scheduleRenewal(player, session)
++    end
++    warn(
++        "Failed to persist and release player session for "
++            .. tostring(player.UserId)
++            .. "; in-memory data retained: "
++            .. tostring(releaseError)
++    )
++    return false
++end
++
++function DataStoreManager.handleClientSessionRequest(player: Player): any?
++    local session = activeSessions[player]
++    if not session or session.releasing or os.time() >= session.leaseExpiresAt then
++        return nil
+     end
+ 
++    RemoteEvents.SyncData:FireClient(player, {
++        sessionToken = session.sessionToken,
++        playerData = session.data,
++    })
+     return session.data
+ end
+ 
+diff --git a/src/shared/Tests/CharacterSpawn.spec.lua b/src/shared/Tests/CharacterSpawn.spec.lua
+index 5c846c2..bc97660 100644
+--- a/src/shared/Tests/CharacterSpawn.spec.lua
++++ b/src/shared/Tests/CharacterSpawn.spec.lua
+@@ -15,6 +15,10 @@ return function()
+             local spawnData = data.characterSpawnData
+ 
+             expect(data.userId).to.equal(12345)
++            expect(data.bells).to.equal(0)
++            expect(#data.plots).to.equal(4)
++            expect(type(data.inventory)).to.equal("table")
++            expect(type(data.questsCompleted)).to.equal("table")
+             expect(typeof(spawnData.position)).to.equal("Vector3")
+             expect(spawnData.position).to.equal(Vector3.new(0, 5, 0))
+             expect(spawnData.orientation).to.equal(Vector3.zero)

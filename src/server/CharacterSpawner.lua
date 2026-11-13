@@ -52,10 +52,11 @@ local function monitorCharacter(player: Player, character: Model)
         while player.Parent and player.Character == character do
             local rootPart = character:FindFirstChild("HumanoidRootPart")
             if rootPart and rootPart:IsA("BasePart") then
+                local x, y, z = rootPart.CFrame:ToOrientation()
                 DataStoreManager.updateCharacterSpawnData(
                     player,
                     rootPart.Position,
-                    rootPart.CFrame.LookVector
+                    Vector3.new(math.deg(x), math.deg(y), math.deg(z))
                 )
             end
             task.wait(5)
@@ -119,7 +120,12 @@ local function spawnOrRestoreCharacter(player: Player, spawnData): Model?
 
     rootPart.CFrame = CFrame.new(position)
         * CFrame.Angles(math.rad(orientation.X), math.rad(orientation.Y), math.rad(orientation.Z))
-    DataStoreManager.updateCharacterSpawnData(player, rootPart.Position, rootPart.CFrame.LookVector)
+    local x, y, z = rootPart.CFrame:ToOrientation()
+    DataStoreManager.updateCharacterSpawnData(
+        player,
+        rootPart.Position,
+        Vector3.new(math.deg(x), math.deg(y), math.deg(z))
+    )
     monitorCharacter(player, character)
     return character
 end
