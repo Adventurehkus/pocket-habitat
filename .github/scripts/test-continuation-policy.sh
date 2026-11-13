@@ -61,6 +61,13 @@ observed="$(observe_explicit_quota_reset_epoch "$tmp_log" 1000)"
 printf 'Please retry in 4s\n' > "$tmp_log"
 observed="$(observe_explicit_quota_reset_epoch "$tmp_log" 1000)"
 [[ "$observed" -eq 0 ]]
+printf 'Daily quota resets in 2d\n' > "$tmp_log"
+observed="$(observe_explicit_quota_reset_epoch "$tmp_log" 1000)"
+[[ "$observed" -eq 173800 ]]
+printf 'Daily quota resets at 2026-11-14T01:00:00+01:00\n' > "$tmp_log"
+observed="$(observe_explicit_quota_reset_epoch "$tmp_log" 0)"
+expected="$(date -u -d '2026-11-14T00:00:00Z' +%s)"
+[[ "$observed" -eq "$expected" ]]
 rm -f "$tmp_log"
 
 # Daily quota exhaustion learned in earlier runs is retained only for known pools.
