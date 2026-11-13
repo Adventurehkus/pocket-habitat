@@ -322,3 +322,5 @@ The scheduler also accepts explicit reset timestamps/durations from provider res
 ### Verification status
 
 A local shell reproduction passed timezone-aware UTC/Pacific midnight calculation, earliest-provider selection, calendar-month handling, Groq RPD header parsing, and explicit reset-hint parsing. The complete GitHub Actions workflow, active-command timeout, checkpoint-at-cutoff path, and child-run cutoff propagation have not yet been exercised in a fresh live run. The committed regression test runs in the workflow preflight on the next dispatch; do not mark the full reset handoff live-verified before inspecting that run.
+
+The reset-hint parser also handles durations expressed in days and absolute ISO timestamps carrying explicit timezone offsets. The parser logic for both forms passed a local regression reproduction on 2026-11-13. The committed Bash test suite includes those cases for the next workflow preflight.
