@@ -284,3 +284,21 @@ A configured model is only a possible route; it is not proof of available quota 
 ## Data and privacy
 
 Repository instructions and relevant code/diff content are sent to whichever external provider the workflow selects. Never place secrets, tokens, private credentials, or confidential user data in prompts or source files. Treat third-party free model routes as external processing; follow provider privacy terms and do not assume free endpoints are private or local.
+
+## Automatic continuation across fresh workflow runs — 2026-11-13
+
+The workflow on `main` now supports a bounded run chain for recoverable per-run limits:
+
+- If implementation cannot complete because its routes are blocked by per-model run-call caps, cooldowns, or temporary provider failures, and at least one daily quota pool remains eligible, the workflow can queue a fresh `workflow_dispatch` run.
+- It can also hand off after the explicit per-run total-call or autonomous-round budget is reached, provided eligible pools remain.
+- The next run checks out the newest `ai/game-build` checkpoint, continues the same task/recovery context, and resets run-local call counters, cooldowns, round counters, and wait budgets.
+- Confirmed daily/shared quota-pool exhaustion is carried to the next run, so an already-exhausted pool is not needlessly retried during the same chain.
+- The chain is capped at 8 additional runs or 24 hours, whichever comes first.
+- A successful implementation call that repeatedly produces no repository diff is not automatically retried in a fresh run. Genuine no-progress, validation/review/QA failures, checkpoint-persistence failures, cancellation, and other hard stops are not continuation triggers.
+- Dispatch happens only after the current checkpoint-persistence step succeeds, only on the original workflow attempt, and only when the run has not been cancelled.
+
+### Local policy test coverage
+
+`.github/scripts/test-continuation-policy.sh` covers eligible and ineligible stop reasons, quota-target/no-eligible-pool exits, no-progress-loop prevention, continuation-count and wall-clock limits, and carry-forward of known exhausted quota-pool IDs. The helper/test scripts were run locally with Bash and passed: `PASS: automatic continuation policy and cross-run quota-state tests`.
+
+**Integration status:** The workflow and dispatch step have been committed, but the complete GitHub Actions handoff has not yet been exercised by a fresh live run. The next eligible run is required to verify the `GITHUB_TOKEN` dispatch permission, GitHub queue/concurrency behavior, child input propagation, and end-to-end resume. Do not describe cross-run continuation as live-verified until that run and its child are inspected.
