@@ -5,8 +5,8 @@
 - **Gameplay repository:** Adventurehkus/pocket-habitat
 - **Gameplay branch:** ai/game-build
 - **Last persisted source checkpoint:** `bcf4255` (Run #38 cycle 9 recovery checkpoint; current follow-up edits are uncommitted and not persisted).
-- **Documentation pipeline:** Main workflow configuration at `3490233f6af9084dbc518d8b06936dff5190cfc0`
-- **Current workflow policy:** 100% of currently eligible quota pools; repeated implementation/review/repair/validation/QA cycles; cross-cycle retries for recoverable agent/provider/code errors; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`.
+- **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation (latest continuation commit: `b14e4111669b60be46cf52eca0b917a25cf67853`).
+- **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion is carried forward; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`.
 - **Verification boundary:** The current worktree adds shutdown-scoped synchronous retries for failed session release. Current deterministic checks pass; independent pipeline review/QA, TestEZ, and Roblox engine tests remain pending.
 
 This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
@@ -64,9 +64,11 @@ These items exist in source but are not equivalent to a verified end-to-end Robl
 
 ## Autonomous workflow status
 
-The workflow policy is described in the guide and historical run records. Do not treat this local implementation pass as an independent review/QA cycle or a persisted validated checkpoint.
+The `main` workflow now supports a bounded cross-run continuation chain. When a run stops because of per-run model-call caps/cooldowns or the explicit total-call/round budget, it may queue a fresh workflow run if eligible quota pools remain. The child run checks out the latest `ai/game-build` checkpoint and reuses the original task and recovery note; run-local counters/cooldowns reset while confirmed exhausted daily quota pools are carried forward. The chain is limited to 8 additional runs or 24 hours.
 
-The current source worktree must first receive independent review and QA through the authorized pipeline. The current recovery marker stays OPEN until that evidence exists. The current follow-up is uncommitted; no manual commit, push, or workflow persistence was performed by this pass.
+The continuation policy helper and its Bash tests are stored under `.github/scripts/` on `ai/game-build`. Local policy tests passed. The full GitHub Actions dispatch/child-run integration has not yet been exercised, so this mechanism is implemented but not yet live-verified. See `docs/TESTING.md` and `docs/AUTONOMOUS_AGENT_GUIDE.md`.
+
+Do not confuse this workflow change with gameplay verification. The current recovery marker stays OPEN until the gameplay diff receives independent review/QA and the outstanding runtime tests are completed. The current gameplay follow-up is still uncommitted/unpersisted as described by the source snapshot above; this workflow-policy change does not validate or close that recovery work.
 
 ## Run #32 findings and current status
 
