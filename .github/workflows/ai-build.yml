@@ -8,6 +8,11 @@ on:
         required: true
         type: string
         default: "Read the project state and roadmap. Complete the highest-priority unfinished task, then keep advancing through meaningful reviewed vertical slices until the workflow's daily-quota target or a hard safety budget is reached."
+      exhausted_quota_pools:
+        description: "Internal quota state carried between automatic continuation runs; leave empty for a normal manual run."
+        required: false
+        type: string
+        default: ""
       continuation_count:
         description: "Internal continuation counter; leave at 0 for a normal manual run."
         required: false
@@ -102,6 +107,7 @@ jobs:
           TASK: ${{ inputs.task }}
           CONTINUATION_COUNT: ${{ inputs.continuation_count }}
           CHAIN_STARTED_AT: ${{ inputs.chain_started_at }}
+          EXHAUSTED_QUOTA_POOLS: ${{ inputs.exhausted_quota_pools }}
           NO_COLOR: "1"
         shell: bash
         run: |
@@ -283,6 +289,23 @@ jobs:
           for model in "${MODEL_CHAIN[@]}"; do
             pool_key="$(quota_pool_for_model "$model")"
             QUOTA_POOL_KEYS["$pool_key"]="1"
+          done
+
+          # Carry explicit daily-quota exhaustion across fresh workflow runs.
+          # Run-local call counters/cooldowns reset, but exhausted daily pools
+          # must not be probed again during the same continuation chain.
+          source "$GITHUB_WORKSPACE/.github/scripts/continuation-policy.sh"
+          load_exhausted_quota_pool_keys "$EXHAUSTED_QUOTA_POOLS" QUOTA_POOL_KEYS DAILY_QUOTA_POOLS
+          PREVIOUSLY_EXHAUSTED_POOL_COUNT="${#DAILY_QUOTA_POOLS[@]}"
+          for pool_key in "${!DAILY_QUOTA_POOLS[@]}"; do
+            for model in "${MODEL_CHAIN[@]}"; do
+              [[ "$(quota_pool_for_model "$model")" == "$pool_key" ]] || continue
+              MODEL_BLOCKED["$model"]="daily quota exhausted in an earlier run of this continuation chain"
+              provider="$(provider_for_model "$model")"
+              if [[ "$pool_key" == provider:* ]]; then
+                PROVIDER_BLOCKED["$provider"]="daily quota exhausted in an earlier run of this continuation chain"
+              fi
+            done
           done
 
           refresh_quota_counts() {
@@ -1939,7 +1962,7 @@ jobs:
           # per-run call cap, or the per-run round cap can start a fresh run.
           # A successful model that repeatedly makes no changes is a real
           # development stall and must remain a visible failure, not a loop.
-          source "$GITHUB_WORKSPACE/.github/scripts/continuation-policy.sh"
+          EXHAUSTED_QUOTA_POOLS_NEXT="$(serialize_exhausted_quota_pool_keys DAILY_QUOTA_POOLS QUOTA_POOL_KEYS)"
           if should_auto_continue_after_run \
             "$AUTONOMOUS_STOP_REASON" \
             "$QUOTA_TARGET_REACHED" \
@@ -1990,6 +2013,7 @@ jobs:
             echo "- Models configured: ${#MODEL_CHAIN[@]}"
             echo "- Quota pools: ${#QUOTA_POOL_KEYS[@]}"
             echo "- Daily quota pools exhausted: ${DAILY_QUOTA_POOL_EXHAUSTED_COUNT}"
+            echo "- Previously exhausted pools carried from earlier chain runs: ${PREVIOUSLY_EXHAUSTED_POOL_COUNT}"
             echo "- Eligible quota pools remaining: ${ELIGIBLE_QUOTA_POOL_COUNT}"
             echo "- Permanently ineligible quota pools: ${INELIGIBLE_QUOTA_POOL_COUNT}"
             echo "- Quota exhaustion: ${QUOTA_EXHAUSTION_PERCENT}% (target: ${QUOTA_EXHAUSTION_TARGET_PERCENT}%)"
@@ -2048,6 +2072,7 @@ jobs:
           echo "auto_continue=$AUTO_CONTINUE" >> "$GITHUB_OUTPUT"
           echo "next_continuation_count=$((CONTINUATION_COUNT + 1))" >> "$GITHUB_OUTPUT"
           echo "chain_started_at=$CHAIN_STARTED_AT" >> "$GITHUB_OUTPUT"
+          echo "exhausted_quota_pools=$EXHAUSTED_QUOTA_POOLS_NEXT" >> "$GITHUB_OUTPUT"
 
           exit "$PIPELINE_EXIT"
 
@@ -2093,12 +2118,13 @@ jobs:
           retention-days: 14
 
       - name: Dispatch fresh continuation run
-        if: always() && steps.pipeline.outputs.auto_continue == 'true'
+        if: always() && github.run_attempt == 1 && steps.pipeline.outputs.auto_continue == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TASK: ${{ inputs.task }}
           NEXT_CONTINUATION_COUNT: ${{ steps.pipeline.outputs.next_continuation_count }}
           CHAIN_STARTED_AT: ${{ steps.pipeline.outputs.chain_started_at }}
+          EXHAUSTED_QUOTA_POOLS: ${{ steps.pipeline.outputs.exhausted_quota_pools }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2108,5 +2134,6 @@ jobs:
             --ref main \
             --raw-field "task=$TASK" \
             --raw-field "continuation_count=$NEXT_CONTINUATION_COUNT" \
-            --raw-field "chain_started_at=$CHAIN_STARTED_AT"
+            --raw-field "chain_started_at=$CHAIN_STARTED_AT" \
+            --raw-field "exhausted_quota_pools=$EXHAUSTED_QUOTA_POOLS"
           echo "::notice::Continuation run $NEXT_CONTINUATION_COUNT was dispatched. It will start after the current run releases the workflow concurrency lock."
