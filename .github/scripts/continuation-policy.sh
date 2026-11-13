@@ -49,3 +49,43 @@ should_auto_continue_after_run() {
 
   return 0
 }
+
+# Load only quota-pool IDs that still exist in the configured model registry.
+# The comma-separated state is carried as a workflow_dispatch input between
+# linked runs, avoiding repeated probes of pools already exhausted in this chain.
+load_exhausted_quota_pool_keys() {
+  local encoded="${1:-}"
+  local known_name="$2"
+  local exhausted_name="$3"
+  local -n known_ref="$known_name"
+  local -n exhausted_ref="$exhausted_name"
+  local pool_key
+  local -a incoming=()
+
+  [[ -n "$encoded" ]] || return 0
+  IFS=',' read -r -a incoming <<< "$encoded"
+  for pool_key in "${incoming[@]}"; do
+    [[ -n "${known_ref[$pool_key]:-}" ]] || continue
+    exhausted_ref["$pool_key"]="1"
+  done
+}
+
+serialize_exhausted_quota_pool_keys() {
+  local exhausted_name="$1"
+  local known_name="$2"
+  local -n exhausted_ref="$exhausted_name"
+  local -n known_ref="$known_name"
+  local pool_key
+  local -a keys=()
+
+  for pool_key in "${!exhausted_ref[@]}"; do
+    [[ -n "${known_ref[$pool_key]:-}" ]] || continue
+    keys+=("$pool_key")
+  done
+
+  if (( ${#keys[@]} == 0 )); then
+    printf ''
+  else
+    printf '%s\n' "${keys[@]}" | sort | paste -sd, -
+  fi
+}
