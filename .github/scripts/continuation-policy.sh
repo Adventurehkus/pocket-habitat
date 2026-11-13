@@ -210,7 +210,7 @@ if absolute:
 duration = re.findall(
     r"(?:quota|daily allocation|daily limit).{0,80}?"
     r"(?:resets?|resetting)\s+(?:in|after)\s+"
-    r"((?:\d+(?:\.\d+)?h)?(?:\d+(?:\.\d+)?m)?(?:\d+(?:\.\d+)?s))",
+    r"((?:\d+(?:\.\d+)?[dhms])+)",
     text,
     re.I,
 )
