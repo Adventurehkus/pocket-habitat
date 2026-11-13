@@ -6,7 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RemoteEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RemoteEvents"))
 
 local PLAYER_DATA_STORE = "PlayerDataStoreV1"
-local activeSessions = {}
+local activeSessions: { [Player]: { data: any, sessionToken: string, lastModified: number } } = {}
 
 local function makeDefaultSessionData(userId: number)
     return {
@@ -87,30 +87,31 @@ function DataStoreManager.getSession(player)
 end
 
 function DataStoreManager.acquireSession(player, token)
-    local sessionToken = token or tostring(os.clock()) .. "_" .. tostring(player.UserId)
+    local sessionToken = token or (tostring(os.clock()) .. "_" .. tostring(player.UserId))
     local dataKey = "player_" .. tostring(player.UserId)
     local playerDataStore = DataStoreService:GetDataStore(PLAYER_DATA_STORE)
 
     local success, result = pcall(function()
-        local current = playerDataStore:GetAsync(dataKey)
-        if
-            type(current) == "table"
-            and type(current.lockOwner) == "string"
-            and current.lockOwner ~= sessionToken
-        then
-            return nil
-        end
+        return playerDataStore:UpdateAsync(dataKey, function(current)
+            if
+                type(current) == "table"
+                and type(current.lockOwner) == "string"
+                and current.lockOwner ~= sessionToken
+            then
+                local timeSince = os.time() - (current.lastModified or 0)
+                if timeSince < 600 then -- 10 minute lease
+                    error("Session already owned by another server")
+                end
+            end
 
-        local freshData = current and type(current.data) == "table" and current.data
-            or makeDefaultSessionData(player.UserId)
-        local leaseValue = {
-            data = freshData,
-            lockOwner = sessionToken,
-            lastModified = os.time(),
-        }
-
-        playerDataStore:SetAsync(dataKey, leaseValue)
-        return leaseValue
+            local freshData = current and type(current.data) == "table" and current.data
+                or makeDefaultSessionData(player.UserId)
+            return {
+                data = freshData,
+                lockOwner = sessionToken,
+                lastModified = os.time(),
+            }
+        end)
     end)
 
     if not success or not result then
@@ -169,15 +170,6 @@ function DataStoreManager.savePlayerData(player, sessionToken)
     local suppliedToken = sessionToken or session.sessionToken
     if session.sessionToken ~= suppliedToken then
         return false
-    end
-
-    if player.Character and player.Character.PrimaryPart then
-        local position = player.Character.PrimaryPart.Position
-        local lookVector = player.Character.PrimaryPart.CFrame.LookVector
-        session.data.characterSpawnData = {
-            position = position,
-            orientation = Vector3.new(lookVector.X, lookVector.Y, lookVector.Z),
-        }
     end
 
     local dataKey = "player_" .. tostring(player.UserId)
@@ -243,12 +235,8 @@ end
 function DataStoreManager.handleClientSessionRequest(player)
     local session = activeSessions[player]
     if not session then
-        session = {
-            data = makeDefaultSessionData(player.UserId),
-            sessionToken = tostring(os.clock()) .. "_" .. tostring(player.UserId),
-            lastModified = os.time(),
-        }
-        activeSessions[player] = session
+        -- Default to empty session until acquisition
+        return makeDefaultSessionData(player.UserId)
     end
 
     if RemoteEvents and RemoteEvents.SyncData then

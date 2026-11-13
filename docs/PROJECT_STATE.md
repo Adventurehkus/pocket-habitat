@@ -19,7 +19,7 @@ The current source implements a single server-owned join flow: automatic charact
 
 **Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` remains OPEN. This workspace has not run the required independent pipeline review/QA confirmation. The new TestEZ-shaped character-default spec and existing shared-rule specs were not executed because no compatible runner is available. Roblox Studio, multiplayer, save/rejoin, lease contention, failed DataStore calls, and shutdown behavior remain unverified.
 
-**Current highest-priority task:** Run independent review and QA against the current source and recovery fixes, then address any new blockers. Do not start unrelated feature work or close recovery while that confirmation is pending. Afterward, prioritize supported TestEZ execution and Roblox Studio two-client/DataStore lifecycle testing.
+**Current highest-priority task:** Execute TestEZ suites with compatible runner and complete independent review/QA of the current lifecycle/persistence recovery fixes. Do not start unrelated feature work or close recovery while that confirmation is pending. After independent review/QA, execute Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests to complete recovery resolution.
 
 ## Historical workflow — Run #32
 

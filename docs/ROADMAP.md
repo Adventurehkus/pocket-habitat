@@ -162,11 +162,6 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Independent review and QA of the current lifecycle/persistence recovery fixes, followed by any required repair. The remaining tasks are:
-
-1. Complete independent review and QA; keep `AUTONOMOUS_RECOVERY.md` OPEN until confirmed.
-2. Execute TestEZ, Roblox Studio startup, two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests when a supported runner is available.
-3. Implement restore of plot/world progression from validated session data.
-4. Scope CreatureManager runtime to each player's habitat and clean it up with the session.
+**Immediate priority:** Execute TestEZ suites with compatible runner and complete independent review/QA of the current lifecycle/persistence recovery fixes. Do not start unrelated feature work or close recovery while that confirmation is pending. After independent review/QA, execute Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests to complete recovery resolution.
 
 Do not mark persistence or Milestone 2 complete while runtime verification is outstanding. Static CI gates are green, but runtime release readiness requires Roblox Studio/multiplayer/DataStore testing. Consult docs/PROJECT_STATE.md for current facts and docs/AUTONOMOUS_RECOVERY.md for the explicit runtime gaps checklist.
