@@ -25,6 +25,7 @@ assert_policy() {
 # Run-local limits may hand off while quota pools remain, but never within the
 # five-minute guard before the earliest known quota reset.
 assert_policy true no_implementation_progress false 6 true 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy true total_model_call_budget false 6 false 0 "$START" 2699 "$MAX_RUNS" "$MAX_SECONDS" 3000 300
 assert_policy false no_implementation_progress false 6 true 0 "$START" 2700 "$MAX_RUNS" "$MAX_SECONDS" 3000 300
 assert_policy false no_implementation_progress false 6 true 0 "$START" 3000 "$MAX_RUNS" "$MAX_SECONDS" 3000 300
 assert_policy false no_implementation_progress false 6 false 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
@@ -34,7 +35,7 @@ assert_policy false no_implementation_progress true 6 true 0 "$START" "$NOW" "$M
 assert_policy false no_implementation_progress false 0 true 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
 assert_policy false recovery_checkpoint_persistence_failed false 6 true 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
 assert_policy false total_model_call_budget false 6 false 8 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
-assert_policy false total_model_call_budget false 6 false 0 "$START" "$((NOW - MAX_SECONDS))" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy false total_model_call_budget false 6 false 0 "$START" "$((START + MAX_SECONDS))" "$MAX_RUNS" "$MAX_SECONDS" 0 300
 assert_policy true total_model_call_budget false 2 false 0 "$((NOW + 60))" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
 
 # Reset scheduler: UTC-provider schedules precede Pacific midnight when near it.
