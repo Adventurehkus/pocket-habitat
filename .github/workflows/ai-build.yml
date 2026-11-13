@@ -8,9 +8,20 @@ on:
         required: true
         type: string
         default: "Read the project state and roadmap. Complete the highest-priority unfinished task, then keep advancing through meaningful reviewed vertical slices until the workflow's daily-quota target or a hard safety budget is reached."
+      continuation_count:
+        description: "Internal continuation counter; leave at 0 for a normal manual run."
+        required: false
+        type: number
+        default: 0
+      chain_started_at:
+        description: "Internal continuation-chain start time (Unix seconds); leave empty for a normal manual run."
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: roblox-ai-build
@@ -51,6 +62,10 @@ jobs:
           jq -e '.providers.google.models and .providers.cohere.models and .providers.openrouter.models and .providers["cloudflare-workers-ai"].models' opencode.json >/dev/null
           echo "OpenCode provider/model registry is valid JSON and required provider sections exist."
 
+      - name: Test automatic continuation policy
+        shell: bash
+        run: bash .github/scripts/test-continuation-policy.sh
+
       - name: Install OpenCode
         shell: bash
         run: |
@@ -85,6 +100,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           TASK: ${{ inputs.task }}
+          CONTINUATION_COUNT: ${{ inputs.continuation_count }}
+          CHAIN_STARTED_AT: ${{ inputs.chain_started_at }}
           NO_COLOR: "1"
         shell: bash
         run: |
@@ -144,6 +161,18 @@ jobs:
           AUTONOMOUS_STOP_REASON=""
           NO_PROGRESS_ROUNDS=0
           PIPELINE_EXIT=0
+          CONTINUATION_COUNT="${CONTINUATION_COUNT:-0}"
+          if [[ ! "$CONTINUATION_COUNT" =~ ^[0-9]+$ ]]; then
+            echo "::warning::Invalid continuation counter; starting a new continuation chain."
+            CONTINUATION_COUNT=0
+          fi
+          CHAIN_STARTED_AT="${CHAIN_STARTED_AT:-}"
+          if [[ ! "$CHAIN_STARTED_AT" =~ ^[0-9]+$ ]]; then
+            CHAIN_STARTED_AT="$(date -u +%s)"
+          fi
+          MAX_CONTINUATION_RUNS=8
+          MAX_CONTINUATION_CHAIN_SECONDS=86400
+          IMPLEMENTATION_RETRYABLE_RUN_LIMIT=false
           # Each run continues through coherent implementation/review/QA
           # cycles until every currently eligible quota pool is confirmed exhausted.
           # These hard caps protect the 350-minute Actions job from unbounded use.
@@ -726,6 +755,7 @@ jobs:
             local attempt_key cooldown_until provider_cooldown earliest_cooldown now wait_seconds
             local remaining_stage remaining_total failure_class stage_deadline
             local stage_calls stage_temp_events temp_failure_count pool_key role_name
+            local stage_run_cap_skips stage_cooldown_skips
             local -a command_args=()
 
             STAGE_STATUS["$stage"]="EXHAUSTED"
@@ -749,6 +779,11 @@ jobs:
             stage_deadline=$(( $(date +%s) + STAGE_TEMP_WAIT_BUDGET_SECONDS ))
             stage_calls=0
             stage_temp_events=0
+            stage_run_cap_skips=0
+            stage_cooldown_skips=0
+            if [[ "$stage" == "implementation" ]]; then
+              IMPLEMENTATION_RETRYABLE_RUN_LIMIT=false
+            fi
 
             while true; do
               earliest_cooldown=0
@@ -771,6 +806,7 @@ jobs:
                 fi
                 if [[ "${MODEL_RUN_CALLS[$model]:-0}" -ge "$MAX_MODEL_CALLS_PER_MODEL" ]]; then
                   MODEL_RUN_CAP_REACHED["$model"]="per-model run call budget reached"
+                  stage_run_cap_skips=$((stage_run_cap_skips + 1))
                   continue
                 fi
                 if [[ "$TOTAL_MODEL_CALLS" -ge "$MAX_TOTAL_MODEL_CALLS" ]]; then
@@ -786,6 +822,7 @@ jobs:
                   cooldown_until="$provider_cooldown"
                 fi
                 if [[ "$cooldown_until" -gt "$now" ]]; then
+                  stage_cooldown_skips=$((stage_cooldown_skips + 1))
                   if [[ "$earliest_cooldown" -eq 0 || "$cooldown_until" -lt "$earliest_cooldown" ]]; then
                     earliest_cooldown="$cooldown_until"
                   fi
@@ -972,6 +1009,15 @@ jobs:
 
               break
             done
+
+            if [[ "$stage" == "implementation" ]] && {
+              (( stage_run_cap_skips > 0 )) ||
+              (( stage_cooldown_skips > 0 )) ||
+              (( stage_temp_events > 0 ));
+            }; then
+              IMPLEMENTATION_RETRYABLE_RUN_LIMIT=true
+              echo "::notice::Implementation was blocked by run-local call caps or temporary provider limits; a fresh run may retry those routes."
+            fi
 
             if [[ "$stage_temp_events" -gt 0 ]]; then
               STAGE_STATUS["$stage"]="TEMPORARY_LIMIT_BUDGET_EXHAUSTED"
@@ -1882,8 +1928,53 @@ jobs:
             PIPELINE_EXIT=1
           fi
           refresh_quota_counts
-          if [[ "$QUOTA_TARGET_REACHED" != "true" && "$AUTONOMOUS_STOP_REASON" != "no_meaningful_progress" ]]; then
-            echo "::warning::The run stopped before the ${QUOTA_EXHAUSTION_TARGET_PERCENT}% daily quota-pool target. Stop reason: $AUTONOMOUS_STOP_REASON."
+          CURRENT_TIME="$(date -u +%s)"
+          CHAIN_ELAPSED_SECONDS=$((CURRENT_TIME - CHAIN_STARTED_AT))
+          if (( CHAIN_ELAPSED_SECONDS < 0 )); then
+            CHAIN_ELAPSED_SECONDS=0
+          fi
+          AUTO_CONTINUE=false
+          AUTO_CONTINUE_REASON="The stop condition is not an eligible run-local limit."
+          # Only retryable implementation availability barriers, the global
+          # per-run call cap, or the per-run round cap can start a fresh run.
+          # A successful model that repeatedly makes no changes is a real
+          # development stall and must remain a visible failure, not a loop.
+          source "$GITHUB_WORKSPACE/.github/scripts/continuation-policy.sh"
+          if should_auto_continue_after_run \
+            "$AUTONOMOUS_STOP_REASON" \
+            "$QUOTA_TARGET_REACHED" \
+            "$ELIGIBLE_QUOTA_POOL_COUNT" \
+            "$IMPLEMENTATION_RETRYABLE_RUN_LIMIT" \
+            "$CONTINUATION_COUNT" \
+            "$CHAIN_STARTED_AT" \
+            "$CURRENT_TIME" \
+            "$MAX_CONTINUATION_RUNS" \
+            "$MAX_CONTINUATION_CHAIN_SECONDS"; then
+            AUTO_CONTINUE=true
+            case "$AUTONOMOUS_STOP_REASON" in
+              no_implementation_progress)
+                AUTO_CONTINUE_REASON="run-local model caps or temporary cooldowns blocked implementation while daily quota pools remain"
+                ;;
+              total_model_call_budget)
+                AUTO_CONTINUE_REASON="per-run total model-call budget reached while daily quota pools remain"
+                ;;
+              autonomous_round_budget)
+                AUTO_CONTINUE_REASON="per-run autonomous-round budget reached while daily quota pools remain"
+                ;;
+            esac
+            echo "::notice::Queueing a fresh run to resume from the latest persisted checkpoint: $AUTO_CONTINUE_REASON."
+          else
+            if [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
+              AUTO_CONTINUE_REASON="100% of currently eligible quota pools reached; no continuation needed"
+            elif [[ "$ELIGIBLE_QUOTA_POOL_COUNT" -eq 0 ]]; then
+              AUTO_CONTINUE_REASON="no eligible daily quota pools remain"
+            elif [[ "$CONTINUATION_COUNT" -ge "$MAX_CONTINUATION_RUNS" ]]; then
+              AUTO_CONTINUE_REASON="maximum continuation count ($MAX_CONTINUATION_RUNS) reached"
+            elif (( CHAIN_ELAPSED_SECONDS >= MAX_CONTINUATION_CHAIN_SECONDS )); then
+              AUTO_CONTINUE_REASON="24-hour continuation-chain safety window reached"
+            elif [[ "$AUTONOMOUS_STOP_REASON" == "no_implementation_progress" && "$IMPLEMENTATION_RETRYABLE_RUN_LIMIT" != "true" ]]; then
+              AUTO_CONTINUE_REASON="models ran but failed to produce source changes; automatic retry would risk a no-progress loop"
+            fi
           fi
           echo "Autonomous cycles completed: $AUTONOMOUS_ROUNDS_COMPLETED"
           echo "Total model calls: $TOTAL_MODEL_CALLS/$MAX_TOTAL_MODEL_CALLS"
@@ -1903,6 +1994,10 @@ jobs:
             echo "- Permanently ineligible quota pools: ${INELIGIBLE_QUOTA_POOL_COUNT}"
             echo "- Quota exhaustion: ${QUOTA_EXHAUSTION_PERCENT}% (target: ${QUOTA_EXHAUSTION_TARGET_PERCENT}%)"
             echo "- Quota target reached: ${QUOTA_TARGET_REACHED}"
+            echo "- Automatic continuation requested: ${AUTO_CONTINUE}"
+            echo "- Continuation chain: ${CONTINUATION_COUNT}/${MAX_CONTINUATION_RUNS}"
+            echo "- Continuation chain elapsed: ${CHAIN_ELAPSED_SECONDS}s / ${MAX_CONTINUATION_CHAIN_SECONDS}s"
+            echo "- Continuation decision: ${AUTO_CONTINUE_REASON}"
             echo "- Autonomous cycles completed: ${AUTONOMOUS_ROUNDS_COMPLETED}/${MAX_AUTONOMOUS_ROUNDS}"
             echo "- Total model calls: ${TOTAL_MODEL_CALLS}/${MAX_TOTAL_MODEL_CALLS}"
             echo "- Reviewed and validated cycle checkpoints pushed: ${PERSISTED_CYCLE_CHECKPOINTS}"
@@ -1950,6 +2045,9 @@ jobs:
           cat "$USAGE_LOG"
           echo "===== PIPELINE REPORT ====="
           cat "$RUN_REPORT"
+          echo "auto_continue=$AUTO_CONTINUE" >> "$GITHUB_OUTPUT"
+          echo "next_continuation_count=$((CONTINUATION_COUNT + 1))" >> "$GITHUB_OUTPUT"
+          echo "chain_started_at=$CHAIN_STARTED_AT" >> "$GITHUB_OUTPUT"
 
           exit "$PIPELINE_EXIT"
 
@@ -1993,3 +2091,22 @@ jobs:
             ${{ runner.temp }}/opencode-*.log
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Dispatch fresh continuation run
+        if: always() && steps.pipeline.outputs.auto_continue == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TASK: ${{ inputs.task }}
+          NEXT_CONTINUATION_COUNT: ${{ steps.pipeline.outputs.next_continuation_count }}
+          CHAIN_STARTED_AT: ${{ steps.pipeline.outputs.chain_started_at }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${GH_TOKEN:?GitHub token is unavailable; cannot dispatch continuation}"
+          gh workflow run ai-build.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            --raw-field "task=$TASK" \
+            --raw-field "continuation_count=$NEXT_CONTINUATION_COUNT" \
+            --raw-field "chain_started_at=$CHAIN_STARTED_AT"
+          echo "::notice::Continuation run $NEXT_CONTINUATION_COUNT was dispatched. It will start after the current run releases the workflow concurrency lock."
