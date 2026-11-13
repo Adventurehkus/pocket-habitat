@@ -291,7 +291,7 @@ The workflow on `main` now supports a bounded run chain for recoverable per-run 
 
 - If implementation cannot complete because its routes are blocked by per-model run-call caps, cooldowns, or temporary provider failures, and at least one daily quota pool remains eligible, the workflow can queue a fresh `workflow_dispatch` run.
 - It can also hand off after the explicit per-run total-call or autonomous-round budget is reached, provided eligible pools remain.
-- The next run checks out the newest `ai/game-build` checkpoint, continues the same task/recovery context, and resets run-local call counters, cooldowns, round counters, and wait budgets.
+- The next run checks out the newest `ai/game-build` checkpoint, re-reads the same task/recovery context, uses the continuation prompt instead of restarting the original first-pass prompt, and resets run-local call counters, cooldowns, round counters, and wait budgets.
 - Confirmed daily/shared quota-pool exhaustion is carried to the next run, so an already-exhausted pool is not needlessly retried during the same chain.
 - The chain is capped at 8 additional runs or 24 hours, whichever comes first.
 - A successful implementation call that repeatedly produces no repository diff is not automatically retried in a fresh run. Genuine no-progress, validation/review/QA failures, checkpoint-persistence failures, cancellation, and other hard stops are not continuation triggers.
