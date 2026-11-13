@@ -100,6 +100,22 @@ Checks actually run after the source changes:
 
 The recovery marker remains OPEN. Static source checks are not runtime evidence.
 
+## Recovery follow-up — bounded failed-release retries — 2026-11-13
+
+Source inspection found that a failed final session release restarted periodic lease renewal for a departing player. A live server could therefore renew an orphaned lease indefinitely and prevent that user from reacquiring a session. `DataStoreManager` now retains the session data and schedules up to three release-only retries after transient failures (5, 15, and 30 seconds); it does not renew the departing lease. If the stored token has already been replaced, the stale in-memory session is discarded without writing. Exhausted retries leave the lease to expire naturally. This behavior is source-level only.
+
+Checks actually run after the code change:
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated locally.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after the final documentation edits.
+- TestEZ: NOT RUN; no compatible `run-in-roblox`, `luau`, or `lune` runner is installed.
+- Independent review/QA of this change: NOT RUN in this implementation pass; the recovery report has no trustworthy approval for the current accumulated diff.
+- Roblox engine/Studio, multiplayer, DataStore failure/rejoin/contention, shutdown, and manual tests: NOT RUN.
+
+Keep recovery OPEN. The generated Rojo artifact and static checks do not prove the retry behavior works in Roblox or DataStore runtime.
+
 ## Latest verified gameplay pipeline run
 
 ### Run #32 — 2026-11-11

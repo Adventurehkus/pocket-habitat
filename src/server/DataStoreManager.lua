@@ -14,6 +14,7 @@ local SESSION_LEASE_DURATION = 300
 local RENEW_INTERVAL = 120
 local LEGACY_LEASE_DURATION = 600
 local RELEASE_ATTEMPTS = 3
+local RELEASE_RETRY_DELAYS = { 5, 15, 30 }
 local activeSessions: {
     [Player]: {
         data: any,
@@ -21,6 +22,8 @@ local activeSessions: {
         lastModified: number,
         leaseExpiresAt: number,
         renewalTask: thread?,
+        releaseRetryTask: thread?,
+        releaseRetryCount: number,
         busy: boolean,
         releasing: boolean,
     },
@@ -343,6 +346,13 @@ local function cancelRenewal(session)
     end
 end
 
+local function cancelReleaseRetry(session)
+    if session.releaseRetryTask then
+        task.cancel(session.releaseRetryTask)
+        session.releaseRetryTask = nil
+    end
+end
+
 local function scheduleRenewal(player: Player, session, delaySeconds: number?)
     cancelRenewal(session)
     if session.releasing or activeSessions[player] ~= session then
@@ -368,6 +378,25 @@ local function scheduleRenewal(player: Player, session, delaySeconds: number?)
                 return
             end
             scheduleRenewal(player, session, math.min(30, session.leaseExpiresAt - os.time()))
+        end
+    end)
+end
+
+local function scheduleReleaseRetry(player: Player, session)
+    if
+        session.releaseRetryTask
+        or session.releaseRetryCount >= #RELEASE_RETRY_DELAYS
+        or activeSessions[player] ~= session
+    then
+        return
+    end
+
+    session.releaseRetryCount += 1
+    local delaySeconds = RELEASE_RETRY_DELAYS[session.releaseRetryCount]
+    session.releaseRetryTask = task.delay(delaySeconds, function()
+        session.releaseRetryTask = nil
+        if activeSessions[player] == session then
+            DataStoreManager.releaseSession(player, session.sessionToken)
         end
     end)
 end
@@ -552,6 +581,8 @@ function DataStoreManager.loadPlayerData(
         lastModified = result.lastModified,
         leaseExpiresAt = result.leaseExpiresAt,
         renewalTask = nil,
+        releaseRetryTask = nil,
+        releaseRetryCount = 0,
         busy = false,
         releasing = false,
     }
@@ -687,16 +718,14 @@ function DataStoreManager.releaseSession(player: Player, sessionToken: string?):
 
     session.releasing = true
     cancelRenewal(session)
+    cancelReleaseRetry(session)
     local deadline = os.clock() + 10
     while session.busy and os.clock() < deadline do
         task.wait(0.1)
     end
     if session.busy then
-        session.releasing = false
-        if player.Parent then
-            scheduleRenewal(player, session)
-        end
         warn("Timed out waiting to release player session for " .. tostring(player.UserId))
+        scheduleReleaseRetry(player, session)
         return false
     end
 
@@ -716,14 +745,19 @@ function DataStoreManager.releaseSession(player: Player, sessionToken: string?):
     session.busy = false
 
     if released then
+        cancelReleaseRetry(session)
         activeSessions[player] = nil
         return true
     end
 
-    session.releasing = false
-    if player.Parent then
-        scheduleRenewal(player, session)
+    if releaseError == "Session lock lost or stale" then
+        cancelReleaseRetry(session)
+        activeSessions[player] = nil
+        warn("Session ownership was lost before release for " .. tostring(player.UserId))
+        return false
     end
+
+    scheduleReleaseRetry(player, session)
     warn(
         "Failed to persist and release player session for "
             .. tostring(player.UserId)

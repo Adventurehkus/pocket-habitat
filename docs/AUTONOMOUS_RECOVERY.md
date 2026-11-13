@@ -606,6 +606,25 @@ The "Critical Finding" from the cycle-7 review regarding the `BindToClose` shutd
 
 Runtime persistence and lifecycle verification remain outstanding, as previously documented.
 
+## 2026-11-13 follow-up — stop renewing orphaned sessions after failed release
+
+Source inspection found that `DataStoreManager.releaseSession` restarted the normal lease-renewal loop after a failed final save whenever the `Player` still had a parent. Once the player had left, that loop could continue renewing the orphaned session and prevent a rejoin from acquiring the same user's data indefinitely.
+
+`src/server/DataStoreManager.lua` now retains the in-memory session and schedules up to three release-only retries at 5, 15, and 30 seconds after a transient failure. The failed-release path does not restart normal lease renewal. If `UpdateAsync` confirms that the stored lock belongs to a newer session, the stale local session is discarded rather than retried or written. After all retries are exhausted, the in-memory data remains in the current process and the persistent lease may expire naturally; successful recovery in a live DataStore/runtime remains unverified.
+
+The cycle-7 reviewer claim that the `BindToClose` pending count cannot decrease is not supported by the current source: each spawned shutdown task calls `cleanupPlayer(player)` and decrements `pending` after it returns. Do not reapply the reported shutdown-loop change.
+
+Checks after the source change:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated locally.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after the final documentation edits.
+- TestEZ: NOT RUN; no compatible `run-in-roblox`, `luau`, or `lune` runner is available.
+- Independent review/QA of the current accumulated diff: NOT RUN in this implementation pass; the recovery report has no trustworthy approval.
+- Roblox engine/Studio, multiplayer, DataStore failure/rejoin/contention, shutdown, and manual tests: NOT RUN.
+
+**Recovery remains OPEN.** The current source change passes deterministic static checks but has not received independent review/QA or runtime verification. Do not treat this as a validated or playable checkpoint.
+
 ## Evidence status
 
 - ✅ Source-level recovery fixes are IMPLEMENTED and verified
@@ -868,3 +887,140 @@ index 9b3259f..03f6956 100644
  
  ---
  
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 38
+- Cycle: 9
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 9 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-implementation.diff
+
++- Independent review/QA of this change: NOT RUN in this implementation pass; the recovery report has no trustworthy approval for the current accumulated diff.
++- Roblox engine/Studio, multiplayer, DataStore failure/rejoin/contention, shutdown, and manual tests: NOT RUN.
++
++Keep recovery OPEN. The generated Rojo artifact and static checks do not prove the retry behavior works in Roblox or DataStore runtime.
++
+ ## Latest verified gameplay pipeline run
+ 
+ ### Run #32 — 2026-11-11
+diff --git a/src/server/DataStoreManager.lua b/src/server/DataStoreManager.lua
+index bc3a272..77361b4 100644
+--- a/src/server/DataStoreManager.lua
++++ b/src/server/DataStoreManager.lua
+@@ -14,6 +14,7 @@ local SESSION_LEASE_DURATION = 300
+ local RENEW_INTERVAL = 120
+ local LEGACY_LEASE_DURATION = 600
+ local RELEASE_ATTEMPTS = 3
++local RELEASE_RETRY_DELAYS = { 5, 15, 30 }
+ local activeSessions: {
+     [Player]: {
+         data: any,
+@@ -21,6 +22,8 @@ local activeSessions: {
+         lastModified: number,
+         leaseExpiresAt: number,
+         renewalTask: thread?,
++        releaseRetryTask: thread?,
++        releaseRetryCount: number,
+         busy: boolean,
+         releasing: boolean,
+     },
+@@ -343,6 +346,13 @@ local function cancelRenewal(session)
+     end
+ end
+ 
++local function cancelReleaseRetry(session)
++    if session.releaseRetryTask then
++        task.cancel(session.releaseRetryTask)
++        session.releaseRetryTask = nil
++    end
++end
++
+ local function scheduleRenewal(player: Player, session, delaySeconds: number?)
+     cancelRenewal(session)
+     if session.releasing or activeSessions[player] ~= session then
+@@ -372,6 +382,25 @@ local function scheduleRenewal(player: Player, session, delaySeconds: number?)
+     end)
+ end
+ 
++local function scheduleReleaseRetry(player: Player, session)
++    if
++        session.releaseRetryTask
++        or session.releaseRetryCount >= #RELEASE_RETRY_DELAYS
++        or activeSessions[player] ~= session
++    then
++        return
++    end
++
++    session.releaseRetryCount += 1
++    local delaySeconds = RELEASE_RETRY_DELAYS[session.releaseRetryCount]
++    session.releaseRetryTask = task.delay(delaySeconds, function()
++        session.releaseRetryTask = nil
++        if activeSessions[player] == session then
++            DataStoreManager.releaseSession(player, session.sessionToken)
++        end
++    end)
++end
++
+ local function updateStoredSession(player: Player, session, release: boolean): (boolean, string?)
+     local store, storeError = getDataStore()
+     if not store then
+@@ -552,6 +581,8 @@ function DataStoreManager.loadPlayerData(
+         lastModified = result.lastModified,
+         leaseExpiresAt = result.leaseExpiresAt,
+         renewalTask = nil,
++        releaseRetryTask = nil,
++        releaseRetryCount = 0,
+         busy = false,
+         releasing = false,
+     }
+@@ -687,16 +718,14 @@ function DataStoreManager.releaseSession(player: Player, sessionToken: string?):
+ 
+     session.releasing = true
+     cancelRenewal(session)
++    cancelReleaseRetry(session)
+     local deadline = os.clock() + 10
+     while session.busy and os.clock() < deadline do
+         task.wait(0.1)
+     end
+     if session.busy then
+-        session.releasing = false
+-        if player.Parent then
+-            scheduleRenewal(player, session)
+-        end
+         warn("Timed out waiting to release player session for " .. tostring(player.UserId))
++        scheduleReleaseRetry(player, session)
+         return false
+     end
+ 
+@@ -716,14 +745,19 @@ function DataStoreManager.releaseSession(player: Player, sessionToken: string?):
+     session.busy = false
+ 
+     if released then
++        cancelReleaseRetry(session)
+         activeSessions[player] = nil
+         return true
+     end
+ 
+-    session.releasing = false
+-    if player.Parent then
+-        scheduleRenewal(player, session)
++    if releaseError == "Session lock lost or stale" then
++        cancelReleaseRetry(session)
++        activeSessions[player] = nil
++        warn("Session ownership was lost before release for " .. tostring(player.UserId))
++        return false
+     end
++
++    scheduleReleaseRetry(player, session)
+     warn(
+         "Failed to persist and release player session for "
+             .. tostring(player.UserId)
