@@ -4,10 +4,10 @@
 
 - **Gameplay repository:** Adventurehkus/pocket-habitat
 - **Gameplay branch:** ai/game-build
-- **Last persisted source checkpoint:** `0d8d4f5` (Run #38 cycle 8 recovery checkpoint; current recovery edits are uncommitted and not persisted).
+- **Last persisted source checkpoint:** `bcf4255` (Run #38 cycle 9 recovery checkpoint; current follow-up edits are uncommitted and not persisted).
 - **Documentation pipeline:** Main workflow configuration at `3490233f6af9084dbc518d8b06936dff5190cfc0`
 - **Current workflow policy:** 100% of currently eligible quota pools; repeated implementation/review/repair/validation/QA cycles; cross-cycle retries for recoverable agent/provider/code errors; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`.
-- **Verification boundary:** The current worktree also adds bounded release-only retries after failed session release. Rojo build, StyLua, Selene, and `git diff --check` pass for this source edit; independent review/QA, TestEZ, and Roblox engine tests remain pending.
+- **Verification boundary:** The current worktree adds shutdown-scoped synchronous retries for failed session release. Current deterministic checks pass; independent pipeline review/QA, TestEZ, and Roblox engine tests remain pending.
 
 This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
 
@@ -17,9 +17,9 @@ The current source implements a server-owned join flow: automatic character load
 
 `DataStoreManager` uses `UpdateAsync` for session acquisition, lease renewal, saving, and release. A failed operation, active foreign lease, malformed record, or unsupported schema does not expose a fabricated default session. The five-minute lease is renewed every two minutes with current session data. Existing legacy fields are normalized to the live gameplay schema; spawn vectors are serialized as numeric tables. Final release is atomic and bounded. If it fails transiently, the in-memory session is retained and up to three release-only retries are scheduled at 5, 15, and 30 seconds; the departing session is not renewed indefinitely. A stale-token release is discarded because the server no longer owns that data. These are source-level changes only; Roblox engine and actual DataStore behavior have not been tested.
 
-**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` remains OPEN. The cycle-7 `BindToClose` review finding was not supported by source: spawned cleanup tasks decrement the shared pending count. Source inspection found and fixed a separate release-failure issue: renewal previously continued for a departing player and could keep an orphan lease alive indefinitely. The new bounded release retries pass static checks, but this current diff has no valid independent review/QA decision. TestEZ, Roblox Studio, multiplayer, save/rejoin, lease contention, failed DataStore calls, and shutdown behavior remain unverified.
+**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` remains OPEN. The cycle-7 `BindToClose` review finding was not supported by source: spawned cleanup tasks decrement the shared pending count. Source inspection found that normal failed-release retries were scheduled asynchronously and were not awaited by `BindToClose`; shutdown now makes bounded synchronous release attempts against the existing absolute deadline. This source change passes deterministic checks, but has no valid independent pipeline review/QA decision. TestEZ, Roblox Studio, multiplayer, save/rejoin, lease contention, failed DataStore calls, and shutdown behavior remain unverified.
 
-**Current highest-priority task:** Obtain valid independent review/QA of the current recovery diff and repair any source findings. Keep recovery OPEN until that evidence and deterministic checks are recorded. Then execute TestEZ through a compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
+**Current highest-priority task:** Obtain valid independent review/QA of the accumulated recovery diff and repair any source findings. Keep recovery OPEN until that evidence and deterministic checks are recorded. Then execute TestEZ through a compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
 
 ## Historical workflow — Run #32
 
@@ -66,7 +66,7 @@ These items exist in source but are not equivalent to a verified end-to-end Robl
 
 The workflow policy is described in the guide and historical run records. Do not treat this local implementation pass as an independent review/QA cycle or a persisted validated checkpoint.
 
-The current source worktree must first receive independent review and QA through the authorized pipeline. The current recovery marker stays OPEN until that evidence exists. No manual commit, push, or workflow persistence was performed by this pass.
+The current source worktree must first receive independent review and QA through the authorized pipeline. The current recovery marker stays OPEN until that evidence exists. The current follow-up is uncommitted; no manual commit, push, or workflow persistence was performed by this pass.
 
 ## Run #32 findings and current status
 
@@ -109,4 +109,4 @@ See `docs/TESTING.md` for "Checkpoint-push retry regression coverage — local r
 
 ## Recovery checkpoint
 
-The current worktree repairs the Run #38 QA findings, the DataStore/session defects found during source verification, and the `BindToClose` wait deadline. Rojo, `stylua --check src`, `selene src`, and `git diff --check` pass for the current source/documentation state. TestEZ and Roblox runtime tests remain unexecuted. The recovery marker stays OPEN until independent review/QA evidence is recorded. Do not manually commit or push this work.
+The current worktree repairs the Run #38 QA findings, the DataStore/session defects found during source verification, the `BindToClose` wait deadline, and shutdown handling for asynchronous failed-release retries. Rojo, `stylua --check src`, `selene src`, and `git diff --check` pass for the current source/documentation state. TestEZ and Roblox runtime tests remain unexecuted. The recovery marker stays OPEN until independent review/QA evidence is recorded. Do not manually commit or push this work.

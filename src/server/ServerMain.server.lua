@@ -97,16 +97,17 @@ for _, player in ipairs(Players:GetPlayers()) do
 end
 
 game:BindToClose(function()
+    local deadline = os.clock() + 25
     local pending = 0
     for _, player in ipairs(Players:GetPlayers()) do
         pending += 1
         task.spawn(function()
             cleanupPlayer(player)
+            DataStoreManager.releaseSession(player, nil, deadline)
             pending -= 1
         end)
     end
 
-    local deadline = os.clock() + 25
     while pending > 0 do
         local remaining = deadline - os.clock()
         if remaining <= 0 then

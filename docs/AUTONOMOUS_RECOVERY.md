@@ -2,7 +2,7 @@
 
 RECOVERY_STATUS: OPEN
 
-Run #38 recovery work remains OPEN. Cycles 5 and 6 did not produce a trustworthy independent review decision. Follow-up source inspection also found a shutdown deadline loop defect; it is repaired below. Independent review/QA, TestEZ, Roblox Studio, multiplayer, and DataStore runtime gaps remain outstanding.
+Run #38 recovery work remains OPEN. Cycles 5 and 6 did not produce a trustworthy independent review decision. Follow-up source inspections found and repaired a shutdown deadline loop defect and a gap where delayed final-release retries were not awaited during shutdown. Independent review/QA, TestEZ, Roblox Studio, multiplayer, and DataStore runtime gaps remain outstanding.
 
 - **Agent run:** Follow-up to Run #38 QA recovery findings
 - **Date:** 2026-11-12
@@ -22,6 +22,21 @@ Checks run after the source change:
 - TestEZ, independent review/QA, Roblox Studio, multiplayer, DataStore, and shutdown runtime tests: NOT RUN.
 
 Recovery remains OPEN. Do not treat this correction or static validation as independent approval or runtime verification.
+
+## 2026-11-13 follow-up — run failed-release retries during shutdown
+
+Source inspection found that `DataStoreManager.releaseSession` schedules later retries after a transient final-release failure and returns immediately. `ServerMain`'s `BindToClose` cleanup task then decremented its pending count, so shutdown could finish before any scheduled retry ran. The normal delayed retry path remains for `PlayerRemoving`; shutdown now calls `releaseSession` again after cleanup with the existing absolute deadline. That mode cancels delayed retries and makes up to the configured release attempts synchronously, honoring the remaining time between attempts and avoiding retries scheduled beyond shutdown.
+
+Changed `src/server/DataStoreManager.lua` (`releaseSession`) and `src/server/ServerMain.server.lua` (`BindToClose`). The retry limit and timing are bounded by the existing 25-second shutdown deadline; an individual Roblox DataStore request can still yield beyond that deadline. This corrects source control flow but does not establish DataStore or shutdown runtime behavior.
+
+Current worktree checks after the change:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ, independent pipeline review/QA, Roblox Studio/server, multiplayer, DataStore, and shutdown runtime tests: NOT RUN.
+
+Recovery remains OPEN: the accumulated diff still lacks valid independent pipeline review/QA, and Roblox runtime evidence is outstanding. Do not treat static validation as approval or as proof that the shutdown deadline bounds a yielding DataStore API call.
 
 ## Priority 1 — Repair the deterministic validation failures
 
@@ -1024,3 +1039,140 @@ index bc3a272..77361b4 100644
      warn(
          "Failed to persist and release player session for "
              .. tostring(player.UserId)
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 38
+- Cycle: 10
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 10 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-implementation.diff
+
++- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
++- `git diff --check`: PASS.
++- TestEZ: NOT RUN; no `run-in-roblox`, `luau`, or `lune` runner is installed.
++- Independent pipeline review/QA: NOT RUN in this implementation pass; recovery remains OPEN.
++- Roblox engine/Studio, multiplayer, DataStore, shutdown, and manual tests: NOT RUN.
++
++The deadline cannot cancel an individual yielding DataStore request. Runtime shutdown/persistence remains unverified; the local `.rbxl` build is not a playable-game or release-readiness test.
++
+ ## Latest verified gameplay pipeline run
+ 
+ ### Run #32 — 2026-11-11
+diff --git a/src/server/DataStoreManager.lua b/src/server/DataStoreManager.lua
+index 77361b4..f093d1d 100644
+--- a/src/server/DataStoreManager.lua
++++ b/src/server/DataStoreManager.lua
+@@ -706,7 +706,11 @@ function DataStoreManager.renewSession(player: Player, sessionToken: string?): b
+     return renewed
+ end
+ 
+-function DataStoreManager.releaseSession(player: Player, sessionToken: string?): boolean
++function DataStoreManager.releaseSession(
++    player: Player,
++    sessionToken: string?,
++    shutdownDeadline: number?
++): boolean
+     local session = activeSessions[player]
+     if not session then
+         return true
+@@ -719,13 +723,15 @@ function DataStoreManager.releaseSession(player: Player, sessionToken: string?):
+     session.releasing = true
+     cancelRenewal(session)
+     cancelReleaseRetry(session)
+-    local deadline = os.clock() + 10
++    local deadline = math.min(os.clock() + 10, shutdownDeadline or math.huge)
+     while session.busy and os.clock() < deadline do
+         task.wait(0.1)
+     end
+     if session.busy then
+         warn("Timed out waiting to release player session for " .. tostring(player.UserId))
+-        scheduleReleaseRetry(player, session)
++        if not shutdownDeadline then
++            scheduleReleaseRetry(player, session)
++        end
+         return false
+     end
+ 
+@@ -733,16 +739,36 @@ function DataStoreManager.releaseSession(player: Player, sessionToken: string?):
+     captureCharacterSpawnData(player, session)
+     local released = false
+     local releaseError: string? = nil
+-    for attempt = 1, RELEASE_ATTEMPTS do
++    local didAttemptRelease = false
++    local maxAttempts = RELEASE_ATTEMPTS
++    if shutdownDeadline then
++        maxAttempts += #RELEASE_RETRY_DELAYS
++    end
++    for attempt = 1, maxAttempts do
++        if shutdownDeadline and os.clock() >= shutdownDeadline then
++            break
++        end
++
++        didAttemptRelease = true
+         released, releaseError = updateStoredSession(player, session, true)
+         if released or releaseError == "Session lock lost or stale" then
+             break
+         end
+-        if attempt < RELEASE_ATTEMPTS then
+-            task.wait(attempt)
++        if attempt < maxAttempts then
++            local delaySeconds = if attempt < RELEASE_ATTEMPTS
++                then attempt
++                else RELEASE_RETRY_DELAYS[attempt - RELEASE_ATTEMPTS + 1]
++            local remaining = if shutdownDeadline then shutdownDeadline - os.clock() else math.huge
++            if remaining <= delaySeconds then
++                break
++            end
++            task.wait(delaySeconds)
+         end
+     end
+     session.busy = false
++    if not didAttemptRelease then
++        releaseError = "Shutdown deadline elapsed before session release"
++    end
+ 
+     if released then
+         cancelReleaseRetry(session)
+@@ -757,7 +783,9 @@ function DataStoreManager.releaseSession(player: Player, sessionToken: string?):
+         return false
+     end
+ 
+-    scheduleReleaseRetry(player, session)
++    if not shutdownDeadline then
++        scheduleReleaseRetry(player, session)
++    end
+     warn(
+         "Failed to persist and release player session for "
+             .. tostring(player.UserId)
+diff --git a/src/server/ServerMain.server.lua b/src/server/ServerMain.server.lua
+index c7323c9..e99c3b3 100644
+--- a/src/server/ServerMain.server.lua
++++ b/src/server/ServerMain.server.lua
+@@ -97,16 +97,17 @@ for _, player in ipairs(Players:GetPlayers()) do
+ end
+ 
+ game:BindToClose(function()
++    local deadline = os.clock() + 25
+     local pending = 0
+     for _, player in ipairs(Players:GetPlayers()) do
+         pending += 1
+         task.spawn(function()
+             cleanupPlayer(player)
++            DataStoreManager.releaseSession(player, nil, deadline)
+             pending -= 1
+         end)
+     end
+ 
+-    local deadline = os.clock() + 25
+     while pending > 0 do
+         local remaining = deadline - os.clock()
+         if remaining <= 0 then

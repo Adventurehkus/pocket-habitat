@@ -3,15 +3,15 @@
 ## Current source state
 
 - Gameplay branch: `ai/game-build`.
-- Persisted baseline: `0d8d4f5` (Run #38 cycle 8 recovery checkpoint).
-- Current recovery source and documentation edits are uncommitted; no manual commit or push was made.
+- Persisted baseline: `bcf4255` (Run #38 cycle 9 recovery checkpoint).
+- Current shutdown retry source and documentation edits are uncommitted; no manual commit or push was made.
 - Recovery remains OPEN in `docs/AUTONOMOUS_RECOVERY.md`; this is not a validated or release-ready checkpoint.
 
 ## Implementation
 
 The current source implements server-owned session loading and character spawn/respawn, per-player habitat allocation, gameplay interactions, and `DataStoreManager` lease acquisition/renewal/save/release using owner-token-checked `UpdateAsync`. Player data loads fail closed on service errors, active foreign leases, malformed records, and unsupported schema versions. Spawn positions are serialized to numeric tables and restored only within the assigned habitat.
 
-This follow-up fixed a source-level release failure: after a transient final save error, the manager previously restarted lease renewal for a departing player, which could indefinitely preserve an orphaned lease. It now retains in-memory data and schedules at most three release-only retries at 5, 15, and 30 seconds. It does not renew the departing lease; if another owner has acquired the record, the stale local session is discarded without writing.
+The preceding follow-up fixed a source-level release failure: after a transient final save error, the manager previously restarted lease renewal for a departing player, which could indefinitely preserve an orphaned lease. It now retains in-memory data and schedules at most three release-only retries at 5, 15, and 30 seconds. This pass found that those delayed retries were not awaited during server shutdown. `BindToClose` now performs bounded synchronous release attempts within its absolute deadline after normal cleanup; it does not depend on delayed retry tasks surviving process shutdown.
 
 ## Verification
 
@@ -20,7 +20,7 @@ This follow-up fixed a source-level release failure: after a transient final sav
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
 - `git diff --check`: PASS after the final documentation edits.
 - TestEZ: NOT RUN; no compatible `run-in-roblox`, `luau`, or `lune` runner is available.
-- Independent review/QA of the current accumulated diff: NOT RUN in this implementation pass; the recovery report has no trustworthy approval.
+- Independent pipeline review/QA of the current accumulated diff: NOT RUN in this implementation pass; the recovery report has no trustworthy approval.
 - Roblox Studio/server, multiplayer, DataStore, shutdown, and manual tests: NOT RUN.
 
 ## Open risks and next task

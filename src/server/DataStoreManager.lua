@@ -706,7 +706,11 @@ function DataStoreManager.renewSession(player: Player, sessionToken: string?): b
     return renewed
 end
 
-function DataStoreManager.releaseSession(player: Player, sessionToken: string?): boolean
+function DataStoreManager.releaseSession(
+    player: Player,
+    sessionToken: string?,
+    shutdownDeadline: number?
+): boolean
     local session = activeSessions[player]
     if not session then
         return true
@@ -719,13 +723,15 @@ function DataStoreManager.releaseSession(player: Player, sessionToken: string?):
     session.releasing = true
     cancelRenewal(session)
     cancelReleaseRetry(session)
-    local deadline = os.clock() + 10
+    local deadline = math.min(os.clock() + 10, shutdownDeadline or math.huge)
     while session.busy and os.clock() < deadline do
         task.wait(0.1)
     end
     if session.busy then
         warn("Timed out waiting to release player session for " .. tostring(player.UserId))
-        scheduleReleaseRetry(player, session)
+        if not shutdownDeadline then
+            scheduleReleaseRetry(player, session)
+        end
         return false
     end
 
@@ -733,16 +739,36 @@ function DataStoreManager.releaseSession(player: Player, sessionToken: string?):
     captureCharacterSpawnData(player, session)
     local released = false
     local releaseError: string? = nil
-    for attempt = 1, RELEASE_ATTEMPTS do
+    local didAttemptRelease = false
+    local maxAttempts = RELEASE_ATTEMPTS
+    if shutdownDeadline then
+        maxAttempts += #RELEASE_RETRY_DELAYS
+    end
+    for attempt = 1, maxAttempts do
+        if shutdownDeadline and os.clock() >= shutdownDeadline then
+            break
+        end
+
+        didAttemptRelease = true
         released, releaseError = updateStoredSession(player, session, true)
         if released or releaseError == "Session lock lost or stale" then
             break
         end
-        if attempt < RELEASE_ATTEMPTS then
-            task.wait(attempt)
+        if attempt < maxAttempts then
+            local delaySeconds = if attempt < RELEASE_ATTEMPTS
+                then attempt
+                else RELEASE_RETRY_DELAYS[attempt - RELEASE_ATTEMPTS + 1]
+            local remaining = if shutdownDeadline then shutdownDeadline - os.clock() else math.huge
+            if remaining <= delaySeconds then
+                break
+            end
+            task.wait(delaySeconds)
         end
     end
     session.busy = false
+    if not didAttemptRelease then
+        releaseError = "Shutdown deadline elapsed before session release"
+    end
 
     if released then
         cancelReleaseRetry(session)
@@ -757,7 +783,9 @@ function DataStoreManager.releaseSession(player: Player, sessionToken: string?):
         return false
     end
 
-    scheduleReleaseRetry(player, session)
+    if not shutdownDeadline then
+        scheduleReleaseRetry(player, session)
+    end
     warn(
         "Failed to persist and release player session for "
             .. tostring(player.UserId)

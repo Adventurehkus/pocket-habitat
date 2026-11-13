@@ -116,6 +116,20 @@ Checks actually run after the code change:
 
 Keep recovery OPEN. The generated Rojo artifact and static checks do not prove the retry behavior works in Roblox or DataStore runtime.
 
+## Recovery follow-up — shutdown release retries — 2026-11-13
+
+Source inspection found that delayed failed-release retries might not run after `BindToClose`'s cleanup task returned. Shutdown now makes bounded synchronous release attempts after normal cleanup and respects the same absolute deadline; normal `PlayerRemoving` retries remain delayed.
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated locally (62,536 bytes).
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; no `run-in-roblox`, `luau`, or `lune` runner is installed.
+- Independent pipeline review/QA: NOT RUN in this implementation pass; recovery remains OPEN.
+- Roblox engine/Studio, multiplayer, DataStore, shutdown, and manual tests: NOT RUN.
+
+The deadline cannot cancel an individual yielding DataStore request. Runtime shutdown/persistence remains unverified; the local `.rbxl` build is not a playable-game or release-readiness test.
+
 ## Latest verified gameplay pipeline run
 
 ### Run #32 — 2026-11-11

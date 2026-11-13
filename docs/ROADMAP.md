@@ -60,7 +60,7 @@ The DataStoreManager module now implements:
 - [x] Saves and lease renewals write current in-memory data only when the stored owner token matches.
 - [x] `releaseSession` atomically persists current data and clears the lock only after a confirmed update; transient failures retain memory and schedule up to three release-only retries (5/15/30 seconds) without renewing the departing lease. (Static checks pass; runtime unverified)
 - [x] Lease renewal recurs every 120 seconds with a five-minute lease and bounded retries before expiry.
-- [x] PlayerRemoving and BindToClose call per-player release; shutdown wait uses a single absolute deadline in source (runtime behavior unverified).
+- [x] PlayerRemoving and BindToClose call per-player release; shutdown retries are attempted synchronously within one absolute deadline after normal cleanup (runtime behavior unverified).
 - [x] Gameplay defaults include the current four-plot/quest/economy/discovery schema; legacy `currency` and spawn-vector shapes are normalized.
 - [x] Character spawn data is periodically refreshed in memory, stored as numeric tables, and restores Euler orientation consistently.
 - [x] The client handles both session-load payloads and direct gameplay data updates.
@@ -165,6 +165,6 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Obtain valid independent review/QA of the current recovery diff, including the bounded failed-release retry change, and address any source blockers. The cycle-7 `BindToClose` finding was not supported by source: shutdown-spawned cleanup tasks decrement the pending count. Keep recovery OPEN and do not start unrelated feature work until review/QA confirms the current source. Then execute TestEZ through a compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
+**Immediate priority:** Obtain valid independent review/QA of the accumulated recovery diff, including synchronous shutdown-scoped retries after failed release, and address any source blockers. The cycle-7 `BindToClose` finding was not supported by source: shutdown-spawned cleanup tasks decrement the pending count. Keep recovery OPEN and do not start unrelated feature work until review/QA confirms the current source. Then execute TestEZ through a compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
 
 Do not mark persistence or Milestone 2 complete while runtime verification is outstanding. Static CI gates are green, but runtime release readiness requires Roblox Studio/multiplayer/DataStore testing. Consult docs/PROJECT_STATE.md for current facts and docs/AUTONOMOUS_RECOVERY.md for the explicit runtime gaps checklist.
