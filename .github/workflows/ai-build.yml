@@ -23,6 +23,11 @@ on:
         required: false
         type: string
         default: ""
+      quota_reset_cutoff_epoch:
+        description: "Internal earliest provider quota-reset time carried between continuation runs; leave empty for a normal manual run."
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -108,6 +113,7 @@ jobs:
           CONTINUATION_COUNT: ${{ inputs.continuation_count }}
           CHAIN_STARTED_AT: ${{ inputs.chain_started_at }}
           EXHAUSTED_QUOTA_POOLS: ${{ inputs.exhausted_quota_pools }}
+          QUOTA_RESET_CUTOFF_EPOCH: ${{ inputs.quota_reset_cutoff_epoch }}
           NO_COLOR: "1"
         shell: bash
         run: |
@@ -178,6 +184,7 @@ jobs:
           fi
           MAX_CONTINUATION_RUNS=8
           MAX_CONTINUATION_CHAIN_SECONDS=86400
+          QUOTA_RESET_BUFFER_SECONDS=300
           IMPLEMENTATION_RETRYABLE_RUN_LIMIT=false
           # Each run continues through coherent implementation/review/QA
           # cycles until every currently eligible quota pool is confirmed exhausted.
@@ -295,6 +302,40 @@ jobs:
           # Run-local call counters/cooldowns reset, but exhausted daily pools
           # must not be probed again during the same continuation chain.
           source "$GITHUB_WORKSPACE/.github/scripts/continuation-policy.sh"
+          QUOTA_RESET_CUTOFF_EPOCH="${QUOTA_RESET_CUTOFF_EPOCH:-}"
+          if [[ ! "$QUOTA_RESET_CUTOFF_EPOCH" =~ ^[0-9]+$ ]] || (( QUOTA_RESET_CUTOFF_EPOCH == 0 )); then
+            QUOTA_RESET_CUTOFF_EPOCH="$(calculate_earliest_quota_reset_epoch "$(date -u +%s)" "${MODEL_CHAIN[@]}")"
+            QUOTA_RESET_CUTOFF_SOURCE="provider reset schedule"
+          else
+            QUOTA_RESET_CUTOFF_SOURCE="carried from previous continuation run"
+          fi
+          if (( QUOTA_RESET_CUTOFF_EPOCH > 0 )); then
+            QUOTA_RESET_CUTOFF_AT_UTC="$(date -u -d "@$QUOTA_RESET_CUTOFF_EPOCH" '+%Y-%m-%dT%H:%M:%SZ')"
+            QUOTA_RESET_MODEL_DEADLINE_EPOCH=$((QUOTA_RESET_CUTOFF_EPOCH - QUOTA_RESET_BUFFER_SECONDS))
+            echo "::notice::Earliest known quota reset: $QUOTA_RESET_CUTOFF_AT_UTC; model calls stop at least $((QUOTA_RESET_BUFFER_SECONDS / 60)) minutes beforehand."
+          else
+            QUOTA_RESET_CUTOFF_AT_UTC="unknown"
+            QUOTA_RESET_MODEL_DEADLINE_EPOCH=0
+            echo "::warning::No configured provider exposed a known quota-reset schedule; the normal continuation safety limits still apply."
+          fi
+          quota_reset_cutoff_reached() {
+            [[ "${QUOTA_RESET_MODEL_DEADLINE_EPOCH:-0}" =~ ^[0-9]+$ ]] || return 1
+            (( QUOTA_RESET_MODEL_DEADLINE_EPOCH > 0 )) || return 1
+            (( $(date -u +%s) >= QUOTA_RESET_MODEL_DEADLINE_EPOCH ))
+          }
+          update_observed_quota_reset() {
+            local observed_epoch="$1"
+            local source_name="$2"
+            [[ "$observed_epoch" =~ ^[0-9]+$ ]] || return 0
+            (( observed_epoch > 0 )) || return 0
+            if (( QUOTA_RESET_CUTOFF_EPOCH == 0 || observed_epoch < QUOTA_RESET_CUTOFF_EPOCH )); then
+              QUOTA_RESET_CUTOFF_EPOCH="$observed_epoch"
+              QUOTA_RESET_CUTOFF_AT_UTC="$(date -u -d "@$QUOTA_RESET_CUTOFF_EPOCH" '+%Y-%m-%dT%H:%M:%SZ')"
+              QUOTA_RESET_CUTOFF_SOURCE="$source_name"
+              QUOTA_RESET_MODEL_DEADLINE_EPOCH=$((QUOTA_RESET_CUTOFF_EPOCH - QUOTA_RESET_BUFFER_SECONDS))
+              echo "::notice::An earlier provider quota reset was observed: $QUOTA_RESET_CUTOFF_AT_UTC ($source_name); new model calls stop before the five-minute safety buffer."
+            fi
+          }
           load_exhausted_quota_pool_keys "$EXHAUSTED_QUOTA_POOLS" QUOTA_POOL_KEYS DAILY_QUOTA_POOLS
           PREVIOUSLY_EXHAUSTED_POOL_COUNT="${#DAILY_QUOTA_POOLS[@]}"
           for pool_key in "${!DAILY_QUOTA_POOLS[@]}"; do
@@ -779,6 +820,7 @@ jobs:
             local remaining_stage remaining_total failure_class stage_deadline
             local stage_calls stage_temp_events temp_failure_count pool_key role_name
             local stage_run_cap_skips stage_cooldown_skips
+            local model_timeout_seconds model_deadline observed_reset
             local -a command_args=()
 
             STAGE_STATUS["$stage"]="EXHAUSTED"
@@ -810,8 +852,20 @@ jobs:
 
             while true; do
               earliest_cooldown=0
+              if quota_reset_cutoff_reached; then
+                AUTONOMOUS_STOP_REASON="quota_reset_cutoff_reached"
+                STAGE_STATUS["$stage"]="QUOTA_RESET_CUTOFF"
+                echo "::notice::Stopping stage $stage before the earliest known provider quota reset ($QUOTA_RESET_CUTOFF_AT_UTC)."
+                break
+              fi
 
               for model in "${candidates[@]}"; do
+                if quota_reset_cutoff_reached; then
+                  AUTONOMOUS_STOP_REASON="quota_reset_cutoff_reached"
+                  STAGE_STATUS["$stage"]="QUOTA_RESET_CUTOFF"
+                  echo "::notice::No additional model request will start inside the quota-reset safety window."
+                  break
+                fi
                 provider="$(provider_for_model "$model")"
                 attempt_key="$stage|$model"
 
@@ -914,13 +968,56 @@ jobs:
                   command_args+=("$prompt")
                 fi
 
-                if "${command_args[@]}" 2>&1 | tee "$log_file"; then
+                model_timeout_seconds=0
+                if (( QUOTA_RESET_MODEL_DEADLINE_EPOCH > 0 )); then
+                  now="$(date -u +%s)"
+                  model_timeout_seconds=$((QUOTA_RESET_MODEL_DEADLINE_EPOCH - now))
+                  if (( model_timeout_seconds <= 0 )); then
+                    AUTONOMOUS_STOP_REASON="quota_reset_cutoff_reached"
+                    STAGE_STATUS["$stage"]="QUOTA_RESET_CUTOFF"
+                    echo "::notice::Model call not started: the five-minute quota-reset safety window has begun."
+                    echo "::endgroup::"
+                    break
+                  fi
+                fi
+
+                # Bound every active model process by the earliest known reset
+                # minus the safety buffer. A slow call cannot run through the
+                # provider's next quota day/month boundary.
+                if (( model_timeout_seconds > 0 )); then
+                  if timeout --signal=TERM --kill-after=10s "${model_timeout_seconds}s" "${command_args[@]}" 2>&1 | tee "$log_file"; then
+                    status=0
+                  else
+                    status=$?
+                  fi
+                elif "${command_args[@]}" 2>&1 | tee "$log_file"; then
                   status=0
                 else
                   status=$?
                 fi
                 echo "::endgroup::"
                 STAGE_LOG["$stage"]="$log_file"
+
+                now="$(date -u +%s)"
+                if [[ "$provider" == "groq" ]]; then
+                  observed_reset="$(observe_groq_daily_reset_epoch "$log_file" "$now")"
+                  update_observed_quota_reset "$observed_reset" "Groq X-RateLimit-Reset-Requests response header"
+                fi
+                observed_reset="$(observe_explicit_quota_reset_epoch "$log_file" "$now")"
+                update_observed_quota_reset "$observed_reset" "explicit quota-reset timestamp returned by provider"
+
+                if (( status == 124 )) && quota_reset_cutoff_reached; then
+                  AUTONOMOUS_STOP_REASON="quota_reset_cutoff_reached"
+                  STAGE_STATUS["$stage"]="QUOTA_RESET_CUTOFF"
+                  echo "::warning::The active model call was terminated at the quota-reset safety deadline."
+                  return 1
+                fi
+                if quota_reset_cutoff_reached; then
+                  AUTONOMOUS_STOP_REASON="quota_reset_cutoff_reached"
+                  STAGE_STATUS["$stage"]="QUOTA_RESET_CUTOFF"
+                  echo "::notice::The stage finished at the quota-reset safety deadline; no further model calls will be started."
+                  return 1
+                fi
 
                 if [[ "$status" -eq 0 ]]; then
                   MODEL_ATTEMPTED["$model"]="1"
@@ -1004,6 +1101,9 @@ jobs:
                 esac
               done
 
+              if [[ "$AUTONOMOUS_STOP_REASON" == "quota_reset_cutoff_reached" ]]; then
+                break
+              fi
               if [[ "$TOTAL_MODEL_CALLS" -ge "$MAX_TOTAL_MODEL_CALLS" ]]; then
                 AUTONOMOUS_STOP_REASON="total_model_call_budget"
                 break
@@ -1020,6 +1120,16 @@ jobs:
                 fi
                 if [[ "$wait_seconds" -gt "$remaining_total" ]]; then
                   wait_seconds="$remaining_total"
+                fi
+                if (( QUOTA_RESET_MODEL_DEADLINE_EPOCH > 0 )); then
+                  quota_remaining=$((QUOTA_RESET_MODEL_DEADLINE_EPOCH - now))
+                  if (( quota_remaining <= 0 )); then
+                    AUTONOMOUS_STOP_REASON="quota_reset_cutoff_reached"
+                    break
+                  fi
+                  if (( wait_seconds > quota_remaining )); then
+                    wait_seconds="$quota_remaining"
+                  fi
                 fi
                 if [[ "$wait_seconds" -gt 0 ]]; then
                   echo "::notice::All currently available alternatives are cooling down. Waiting ${wait_seconds}s, then automatically retrying this stage."
@@ -1523,6 +1633,12 @@ jobs:
           REPAIR_PROVIDER=""
 
           for ((round=1; round<=MAX_AUTONOMOUS_ROUNDS; round++)); do
+            if quota_reset_cutoff_reached; then
+              AUTONOMOUS_STOP_REASON="quota_reset_cutoff_reached"
+              PIPELINE_EXIT=1
+              echo "::notice::The autonomous chain is stopping before the earliest known quota reset ($QUOTA_RESET_CUTOFF_AT_UTC)."
+              break
+            fi
             ACTIVE_ROUND="$round"
             SAFE_TO_PERSIST=false
             echo "safe_to_persist=false" >> "$GITHUB_OUTPUT"
@@ -1580,6 +1696,18 @@ jobs:
             run_stage "implementation" "build" "$CURRENT_IMPLEMENT_PROMPT" "${IMPLEMENT_MODELS[@]}"
             IMPLEMENT_RESULT=$?
             IMPLEMENT_PROVIDER="${STAGE_PROVIDER[implementation]:-}"
+
+            if [[ "$AUTONOMOUS_STOP_REASON" == "quota_reset_cutoff_reached" ]]; then
+              refresh_diff
+              write_recovery_context "The autonomous chain reached its earliest known provider quota-reset safety deadline ($QUOTA_RESET_CUTOFF_AT_UTC). Model work was stopped at least $((QUOTA_RESET_BUFFER_SECONDS / 60)) minutes before that reset. Resume this task after the provider quota window resets; the current diff is not independently reviewed or QA-approved." "$DIFF_FILE"
+              if ! persist_recovery_checkpoint; then
+                AUTONOMOUS_STOP_REASON="recovery_checkpoint_persistence_failed"
+                echo "::error::Could not persist the quota-window recovery checkpoint."
+              fi
+              PIPELINE_EXIT=1
+              echo "::endgroup::"
+              break
+            fi
 
             if [[ "$IMPLEMENT_RESULT" -ne 0 ]]; then
               echo "::warning::No implementation route completed this attempt. Retaining the current recovery task and retrying eligible routes in a later cycle."
@@ -1975,7 +2103,9 @@ jobs:
             "$CHAIN_STARTED_AT" \
             "$CURRENT_TIME" \
             "$MAX_CONTINUATION_RUNS" \
-            "$MAX_CONTINUATION_CHAIN_SECONDS"; then
+            "$MAX_CONTINUATION_CHAIN_SECONDS" \
+            "$QUOTA_RESET_CUTOFF_EPOCH" \
+            "$QUOTA_RESET_BUFFER_SECONDS"; then
             AUTO_CONTINUE=true
             case "$AUTONOMOUS_STOP_REASON" in
               no_implementation_progress)
@@ -1998,6 +2128,8 @@ jobs:
               AUTO_CONTINUE_REASON="maximum continuation count ($MAX_CONTINUATION_RUNS) reached"
             elif (( CHAIN_ELAPSED_SECONDS >= MAX_CONTINUATION_CHAIN_SECONDS )); then
               AUTO_CONTINUE_REASON="24-hour continuation-chain safety window reached"
+            elif (( QUOTA_RESET_CUTOFF_EPOCH > 0 && CURRENT_TIME >= QUOTA_RESET_CUTOFF_EPOCH - QUOTA_RESET_BUFFER_SECONDS )); then
+              AUTO_CONTINUE_REASON="earliest provider quota reset safety window reached"
             elif [[ "$AUTONOMOUS_STOP_REASON" == "no_implementation_progress" && "$IMPLEMENTATION_RETRYABLE_RUN_LIMIT" != "true" ]]; then
               AUTO_CONTINUE_REASON="models ran but failed to produce source changes; automatic retry would risk a no-progress loop"
             fi
@@ -2022,6 +2154,10 @@ jobs:
             echo "- Quota exhaustion: ${QUOTA_EXHAUSTION_PERCENT}% (target: ${QUOTA_EXHAUSTION_TARGET_PERCENT}%)"
             echo "- Quota target reached: ${QUOTA_TARGET_REACHED}"
             echo "- Automatic continuation requested: ${AUTO_CONTINUE}"
+            echo "- Earliest known quota reset: ${QUOTA_RESET_CUTOFF_AT_UTC}"
+            echo "- Reset source: ${QUOTA_RESET_CUTOFF_SOURCE:-provider calendar schedule}"
+            echo "- Model-call cutoff: $(if (( QUOTA_RESET_MODEL_DEADLINE_EPOCH > 0 )); then date -u -d "@$QUOTA_RESET_MODEL_DEADLINE_EPOCH" '+%Y-%m-%dT%H:%M:%SZ'; else echo 'unknown'; fi)"
+            echo "- Quota-reset safety buffer: ${QUOTA_RESET_BUFFER_SECONDS}s"
             echo "- Continuation chain: ${CONTINUATION_COUNT}/${MAX_CONTINUATION_RUNS}"
             echo "- Continuation chain elapsed: ${CHAIN_ELAPSED_SECONDS}s / ${MAX_CONTINUATION_CHAIN_SECONDS}s"
             echo "- Continuation decision: ${AUTO_CONTINUE_REASON}"
@@ -2076,6 +2212,7 @@ jobs:
           echo "next_continuation_count=$((CONTINUATION_COUNT + 1))" >> "$GITHUB_OUTPUT"
           echo "chain_started_at=$CHAIN_STARTED_AT" >> "$GITHUB_OUTPUT"
           echo "exhausted_quota_pools=$EXHAUSTED_QUOTA_POOLS_NEXT" >> "$GITHUB_OUTPUT"
+          echo "quota_reset_cutoff_epoch=$QUOTA_RESET_CUTOFF_EPOCH" >> "$GITHUB_OUTPUT"
 
           exit "$PIPELINE_EXIT"
 
@@ -2129,6 +2266,7 @@ jobs:
           NEXT_CONTINUATION_COUNT: ${{ steps.pipeline.outputs.next_continuation_count }}
           CHAIN_STARTED_AT: ${{ steps.pipeline.outputs.chain_started_at }}
           EXHAUSTED_QUOTA_POOLS: ${{ steps.pipeline.outputs.exhausted_quota_pools }}
+          QUOTA_RESET_CUTOFF_EPOCH: ${{ steps.pipeline.outputs.quota_reset_cutoff_epoch }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2139,5 +2277,6 @@ jobs:
             --raw-field "task=$TASK" \
             --raw-field "continuation_count=$NEXT_CONTINUATION_COUNT" \
             --raw-field "chain_started_at=$CHAIN_STARTED_AT" \
-            --raw-field "exhausted_quota_pools=$EXHAUSTED_QUOTA_POOLS"
+            --raw-field "exhausted_quota_pools=$EXHAUSTED_QUOTA_POOLS" \
+            --raw-field "quota_reset_cutoff_epoch=$QUOTA_RESET_CUTOFF_EPOCH"
           echo "::notice::Continuation run $NEXT_CONTINUATION_COUNT was dispatched. It will start after the current run releases the workflow concurrency lock."
