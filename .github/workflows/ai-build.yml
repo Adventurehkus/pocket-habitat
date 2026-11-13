@@ -2077,6 +2077,7 @@ jobs:
           exit "$PIPELINE_EXIT"
 
       - name: Persist work to GitHub
+        id: persist
         if: always() && steps.pipeline.outputs.safe_to_persist == 'true'
         shell: bash
         run: |
@@ -2118,7 +2119,7 @@ jobs:
           retention-days: 14
 
       - name: Dispatch fresh continuation run
-        if: always() && github.run_attempt == 1 && steps.pipeline.outputs.auto_continue == 'true'
+        if: always() && !cancelled() && github.run_attempt == 1 && steps.pipeline.outputs.auto_continue == 'true' && steps.persist.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
           TASK: ${{ inputs.task }}
