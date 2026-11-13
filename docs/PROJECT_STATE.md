@@ -5,7 +5,7 @@
 - **Gameplay repository:** Adventurehkus/pocket-habitat
 - **Gameplay branch:** ai/game-build
 - **Last persisted source checkpoint:** `bcf4255` (Run #38 cycle 9 recovery checkpoint; current follow-up edits are uncommitted and not persisted).
-- **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation (latest continuation commit: `b14e4111669b60be46cf52eca0b917a25cf67853`).
+- **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation (latest continuation commit: `b6ffbf70a0ce1fa8fbdecea2f88f31d980a46a17`).
 - **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion is carried forward; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`.
 - **Verification boundary:** The current worktree adds shutdown-scoped synchronous retries for failed session release. Current deterministic checks pass; independent pipeline review/QA, TestEZ, and Roblox engine tests remain pending.
 
