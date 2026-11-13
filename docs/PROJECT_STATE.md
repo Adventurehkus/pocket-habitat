@@ -5,8 +5,8 @@
 - **Gameplay repository:** Adventurehkus/pocket-habitat
 - **Gameplay branch:** ai/game-build
 - **Last persisted source checkpoint:** `bcf4255` (Run #38 cycle 9 recovery checkpoint; current follow-up edits are uncommitted and not persisted).
-- **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation (latest continuation commit: `b6ffbf70a0ce1fa8fbdecea2f88f31d980a46a17`).
-- **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion is carried forward; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`.
+- **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation and earliest quota-reset cutoff (latest workflow commit: `b6589c50330fbf08c21134f99cd672f18a536adb`).
+- **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion and the earliest reset timestamp are carried forward; model calls stop five minutes before the earliest known reset; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`.
 - **Verification boundary:** The current worktree adds shutdown-scoped synchronous retries for failed session release. Current deterministic checks pass; independent pipeline review/QA, TestEZ, and Roblox engine tests remain pending.
 
 This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
@@ -64,9 +64,11 @@ These items exist in source but are not equivalent to a verified end-to-end Robl
 
 ## Autonomous workflow status
 
-The `main` workflow now supports a bounded cross-run continuation chain. When a run stops because of per-run model-call caps/cooldowns or the explicit total-call/round budget, it may queue a fresh workflow run if eligible quota pools remain. The child run checks out the latest `ai/game-build` checkpoint and reuses the original task and recovery note; run-local counters/cooldowns reset while confirmed exhausted daily quota pools are carried forward. The chain is limited to 8 additional runs or 24 hours.
+The `main` workflow supports a bounded cross-run continuation chain. When a run stops because of per-run model-call caps/cooldowns or the explicit total-call/round budget, it may queue a fresh workflow run if eligible quota pools remain. The child run checks out the latest `ai/game-build` checkpoint and reuses the original task and recovery note; run-local counters/cooldowns reset while confirmed exhausted quota pools are carried forward. The chain is limited to 8 additional runs or 24 hours.
 
-The continuation policy helper and its Bash tests are stored under `.github/scripts/` on `ai/game-build`. Local policy tests passed. The full GitHub Actions dispatch/child-run integration has not yet been exercised, so this mechanism is implemented but not yet live-verified. See `docs/TESTING.md` and `docs/AUTONOMOUS_AGENT_GUIDE.md`.
+The workflow now also carries the earliest known provider quota-reset timestamp across child runs. It stops new model calls five minutes before that timestamp and wraps active model processes in a timeout so an in-flight call cannot continue past the cutoff. It uses Gemini's Pacific-midnight daily boundary, OpenRouter/Cloudflare's published UTC daily boundary, Copilot's calendar-month UTC boundary, Groq's RPD reset header when visible (with a UTC fallback), and a conservative UTC month-start proxy for Cohere because Cohere does not document an exact trial-key reset boundary. Explicit provider reset hints can move the deadline earlier. See `docs/TESTING.md` for provider references and limitations.
+
+The continuation and reset policy helper/tests are stored under `.github/scripts/` on `ai/game-build`. A local shell reproduction passed the timezone schedule and reset-hint parsing checks. The exact workflow preflight test, active-command timeout, checkpoint-at-cutoff path, and live child-run integration have not yet been exercised in GitHub Actions. This is implemented but not yet live-verified. See `docs/TESTING.md` and `docs/AUTONOMOUS_AGENT_GUIDE.md`.
 
 Do not confuse this workflow change with gameplay verification. The current recovery marker stays OPEN until the gameplay diff receives independent review/QA and the outstanding runtime tests are completed. The current gameplay follow-up is still uncommitted/unpersisted as described by the source snapshot above; this workflow-policy change does not validate or close that recovery work.
 
