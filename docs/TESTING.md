@@ -304,11 +304,11 @@ The workflow on `main` now supports a bounded run chain for recoverable per-run 
 **Integration status:** The workflow and dispatch step have been committed, but the complete GitHub Actions handoff has not yet been exercised by a fresh live run. The next eligible run is required to verify the `GITHUB_TOKEN` dispatch permission, GitHub queue/concurrency behavior, child input propagation, and end-to-end resume. Do not describe cross-run continuation as live-verified until that run and its child are inspected.
 
 
-## Earliest provider quota-reset cutoff — 2026-11-13
+## Reverted experiment: provider quota-reset cutoff — 2026-11-13
 
-The workflow now computes the earliest known reset boundary across configured provider routes and carries that absolute timestamp through every automatic continuation run. Model requests stop five minutes before the boundary. Active model commands are wrapped in a deadline-aware timeout, and the current diff/recovery report is checkpointed before the run ends. No further child run is dispatched inside the five-minute window.
+**Status: REVERTED.** This section is historical documentation of a temporary experiment, not current workflow behavior. Main workflow commit `647b5bd885d673dca3e31bb5b518e8b8da746800` restores the pre-cutoff continuation policy. Current runs do not calculate provider reset boundaries, terminate model requests ahead of a reset, or block continuation because a reset is approaching.
 
-Reset sources used by the scheduler:
+Provider reset sources considered during the reverted experiment:
 
 - Google Gemini requests-per-day quotas: midnight Pacific Time. <https://ai.google.dev/gemini-api/docs/rate-limits>
 - OpenRouter free-model daily request counter: current UTC day; its daily account-key limits also reset at midnight UTC. <https://openrouter.ai/docs/api/api-reference/api-keys/create-keys> <https://github.com/OpenRouterTeam/docs/blob/main/api_reference/limits.mdx>
@@ -317,10 +317,8 @@ Reset sources used by the scheduler:
 - GitHub Copilot included monthly AI credits: 00:00 UTC on the first day of the calendar month. <https://docs.github.com/en/copilot/concepts/billing-and-usage/individuals/billing>
 - Cohere trial keys: the documented allowance is 1,000 calls per month, but the referenced rate-limit documentation does not specify an exact reset timezone or boundary. The workflow uses 00:00 UTC on the first of the month as a conservative proxy; this is not a provider-confirmed per-key reset timestamp. <https://docs.cohere.com/v2/docs/rate-limits>
 
-The scheduler also accepts explicit reset timestamps/durations from provider responses and moves the cutoff earlier when a trustworthy earlier reset is observed. The chosen earliest timestamp, its source, the model-call cutoff, and the 300-second safety buffer are written into the run report.
+During the experiment, the scheduler also accepted explicit reset timestamps/durations from provider responses and moved the cutoff earlier when a trustworthy earlier reset was observed. This logic is no longer active.
 
 ### Verification status
 
-A local shell reproduction passed timezone-aware UTC/Pacific midnight calculation, earliest-provider selection, calendar-month handling, Groq RPD header parsing, and explicit reset-hint parsing. The complete GitHub Actions workflow, active-command timeout, checkpoint-at-cutoff path, and child-run cutoff propagation have not yet been exercised in a fresh live run. The committed regression test runs in the workflow preflight on the next dispatch; do not mark the full reset handoff live-verified before inspecting that run.
-
-The reset-hint parser also handles durations expressed in days and absolute ISO timestamps carrying explicit timezone offsets. The parser logic for both forms passed a local regression reproduction on 2026-11-13. The committed Bash test suite includes those cases for the next workflow preflight.
+Before removal, a local shell reproduction passed timezone-aware UTC/Pacific midnight calculation, earliest-provider selection, calendar-month handling, Groq RPD header parsing, and explicit reset-hint parsing. The full GitHub Actions cutoff path was not live-verified. The reset-schedule helper functions and regression assertions have since been removed from `.github/scripts/continuation-policy.sh` and `.github/scripts/test-continuation-policy.sh`; the current preflight tests cover bounded continuation and cross-run exhausted-pool carry-forward only. These historical tests are not current verification of active functionality.
