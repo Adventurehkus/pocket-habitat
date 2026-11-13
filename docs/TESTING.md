@@ -73,6 +73,19 @@ These are static/source checks only; they do not prove the Roblox runtime path w
 
 ## Recovery follow-up — 2026-11-13
 
+An additional inspection found that `ServerMain.server.lua` reset a five-second nested deadline on every shutdown-loop iteration, delaying checks of the nominal 25-second overall cap. The nested loop is replaced with a wait bounded by the remaining time to one absolute deadline. This is source-level validation only; Roblox `BindToClose` behavior remains untested.
+
+Checks run after that source correction:
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated locally.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after the source and documentation updates.
+- TestEZ: NOT RUN; no compatible runner is installed.
+- Independent review/QA and Roblox engine/Studio, multiplayer, DataStore, shutdown, and manual tests: NOT RUN.
+
+The existing recovery follow-up also found that the persisted source had not acquired a lease before exposing a session, could fabricate defaults after failed reads, and lacked atomic lock release/recurring renewal. The DataStore and spawn persistence work remains awaiting valid independent review/QA and runtime testing.
+
 Source inspection of the cycle-5 checkpoint found that the documented lease flow was not connected to the join path: `loadPlayerData` used `GetAsync`, exposed defaults after errors, and created an in-memory session without calling `acquireSession`; `getSession` also fabricated default data, saves did not require a matching stored lock, and release left the persistent lock in place. The follow-up rewrote the manager around atomic `UpdateAsync` acquisition/renewal/save/release, strict record normalization, active-session-only lookups, schema-compatible gameplay defaults, and numeric spawn serialization. Character orientation storage/restoration now uses the same Euler-angle representation, and client data sync handles both session and gameplay payloads.
 
 Checks actually run after the source changes:

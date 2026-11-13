@@ -107,14 +107,12 @@ game:BindToClose(function()
     end
 
     local deadline = os.clock() + 25
-    while pending > 0 and os.clock() < deadline do
-        task.wait(0.1)
-        -- Add a timeout for each individual cleanupPlayer call to prevent hanging
-        -- Use a shorter timeout than the overall deadline
-        local checkDeadline = os.clock() + 5
-        while pending > 0 and os.clock() < checkDeadline do
-            task.wait(0.1)
+    while pending > 0 do
+        local remaining = deadline - os.clock()
+        if remaining <= 0 then
+            break
         end
+        task.wait(math.min(0.1, remaining))
     end
     if pending > 0 then
         warn("Timed out while releasing player sessions during server shutdown")

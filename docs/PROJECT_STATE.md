@@ -4,10 +4,10 @@
 
 - **Gameplay repository:** Adventurehkus/pocket-habitat
 - **Gameplay branch:** ai/game-build
-- **Last persisted source checkpoint:** `e68d764` (Run #38 cycle 5 recovery checkpoint; current changes are uncommitted and not persisted).
+- **Last persisted source checkpoint:** `3d9fa59` (Run #38 cycle 6 recovery checkpoint; current changes are uncommitted and not persisted).
 - **Documentation pipeline:** Main workflow configuration at `3490233f6af9084dbc518d8b06936dff5190cfc0`
 - **Current workflow policy:** 100% of currently eligible quota pools; repeated implementation/review/repair/validation/QA cycles; cross-cycle retries for recoverable agent/provider/code errors; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`.
-- **Verification boundary:** The current worktree repairs additional persistence defects found while verifying the cycle-5 report. Static checks pass for the source changes; independent review/QA and Roblox engine tests remain pending.
+- **Verification boundary:** The current worktree also corrects the `BindToClose` deadline loop found during recovery verification. Rojo, StyLua, and Selene pass after this source change; independent review/QA, TestEZ, and Roblox engine tests remain pending.
 
 This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
 
@@ -17,7 +17,7 @@ The current source implements a server-owned join flow: automatic character load
 
 `DataStoreManager` uses `UpdateAsync` for session acquisition, lease renewal, saving, and release. A failed operation, active foreign lease, malformed record, or unsupported schema does not expose a fabricated default session. The five-minute lease is renewed every two minutes with current session data. Existing legacy fields are normalized to the live gameplay schema; spawn vectors are serialized as numeric tables. Final release is atomic and bounded, and failed saves retain in-memory data. These are source-level changes only; Roblox engine and actual DataStore behavior have not been tested.
 
-**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` remains OPEN. Run #38 cycle 5 did not produce a trustworthy independent review decision, and its QA report's position-call finding was stale relative to the source it purported to inspect. This follow-up independently found and repaired additional DataStore lifecycle defects. The current changes have not received pipeline review/QA. TestEZ, Roblox Studio, multiplayer, save/rejoin, lease contention, failed DataStore calls, and shutdown behavior remain unverified.
+**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` remains OPEN. Cycles 5 and 6 did not produce a trustworthy independent review decision, and cycle 5's QA report's position-call finding was stale relative to the source it purported to inspect. Follow-up source inspection repaired DataStore lifecycle defects and the shutdown wait deadline. The current changes have not received valid pipeline review/QA. TestEZ, Roblox Studio, multiplayer, save/rejoin, lease contention, failed DataStore calls, and shutdown behavior remain unverified.
 
 **Current highest-priority task:** Obtain valid independent review/QA of the complete current recovery diff and repair any findings. Do not start unrelated feature work or close recovery while that confirmation is pending. Then execute TestEZ with a compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
 
@@ -77,7 +77,7 @@ Character startup/respawn and session persistence have been repaired in current 
 Current remaining risks and gaps:
 
 1. The current recovery diff has not received valid independent review/QA.
-2. Character lifecycle, lease contention/renewal, persistence, and shutdown have no Roblox runtime verification.
+2. Character lifecycle, lease contention/renewal, persistence, and shutdown have no Roblox runtime verification; the shutdown deadline loop is corrected in source but untested in-engine.
 3. TestEZ has not been executed; persistence and concurrency behaviors need test coverage.
 4. Saved plot/world progression is not restored before interactions.
 5. Creature runtime is not fully scoped to each player's habitat.
@@ -109,4 +109,4 @@ See `docs/TESTING.md` for "Checkpoint-push retry regression coverage — local r
 
 ## Recovery checkpoint
 
-The current worktree repairs the Run #38 QA findings and the actual DataStore/session defects found during source verification. Rojo, `stylua --check src`, and `selene src` pass on the current source; `git diff --check` is rerun after final docs. TestEZ and Roblox runtime tests remain unexecuted. The recovery marker stays OPEN until independent review/QA evidence is recorded. Do not manually commit or push this work.
+The current worktree repairs the Run #38 QA findings, the DataStore/session defects found during source verification, and the `BindToClose` wait deadline. Rojo, `stylua --check src`, `selene src`, and `git diff --check` pass for the current source/documentation state. TestEZ and Roblox runtime tests remain unexecuted. The recovery marker stays OPEN until independent review/QA evidence is recorded. Do not manually commit or push this work.

@@ -1,5 +1,16 @@
 # Implementation Summary — Recovery Follow-up
 
+## 2026-11-13 shutdown deadline correction
+
+`src/server/ServerMain.server.lua` no longer resets a nested five-second timeout while waiting for `BindToClose` player cleanup. It checks a single absolute 25-second deadline and caps each wait to the time remaining. This prevents a repeated five-second inner wait from extending shutdown well beyond the intended cap.
+
+- Rojo build: PASS; `build/pocket-habitat.rbxl` generated locally.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after source and documentation updates.
+- TestEZ, independent review/QA, and Roblox runtime/shutdown tests: NOT RUN.
+- Recovery remains OPEN; this source-level fix is not runtime-validated.
+
 ## Progress
 
 Repaired the Run #38 cycle-5 persistence path after verifying that the source did not match the recorded recovery claims:

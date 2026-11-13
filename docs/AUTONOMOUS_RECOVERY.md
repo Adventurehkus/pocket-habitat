@@ -2,11 +2,26 @@
 
 RECOVERY_STATUS: OPEN
 
-Run #38 recovery work remains OPEN. Cycle 5 did not produce a trustworthy independent review decision. The current follow-up repaired additional DataStore lifecycle defects found by comparing the source against the recovery claims; Rojo, StyLua, Selene, and `git diff --check` pass for the source changes. This follow-up has not received independent review/QA. Roblox Studio, multiplayer, TestEZ, and DataStore runtime gaps remain outstanding.
+Run #38 recovery work remains OPEN. Cycles 5 and 6 did not produce a trustworthy independent review decision. Follow-up source inspection also found a shutdown deadline loop defect; it is repaired below. Independent review/QA, TestEZ, Roblox Studio, multiplayer, and DataStore runtime gaps remain outstanding.
 
 - **Agent run:** Follow-up to Run #38 QA recovery findings
 - **Date:** 2026-11-12
 - **Recovery status:** Source repairs pass deterministic validation; independent review and QA remain pending
+
+## 2026-11-13 follow-up — enforce the shutdown deadline
+
+Source inspection found that the `BindToClose` loop in `src/server/ServerMain.server.lua` created a fresh five-second deadline inside every 0.1-second outer iteration. That nested wait could prevent the outer 25-second shutdown deadline from being checked promptly, allowing shutdown to exceed its stated bound substantially.
+
+The loop now checks the single absolute 25-second deadline on every iteration and waits for no longer than the remaining time. It still warns if player cleanup remains pending at the deadline. This is a source-level correction; cleanup behavior in Roblox shutdown has not been exercised.
+
+Checks run after the source change:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated locally.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after the source and documentation updates.
+- TestEZ, independent review/QA, Roblox Studio, multiplayer, DataStore, and shutdown runtime tests: NOT RUN.
+
+Recovery remains OPEN. Do not treat this correction or static validation as independent approval or runtime verification.
 
 ## Priority 1 — Repair the deterministic validation failures
 
@@ -766,3 +781,37 @@ index 5c846c2..bc97660 100644
              expect(typeof(spawnData.position)).to.equal("Vector3")
              expect(spawnData.position).to.equal(Vector3.new(0, 5, 0))
              expect(spawnData.orientation).to.equal(Vector3.zero)
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 38
+- Cycle: 7
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+The independent reviewer found actionable defects, but no repair model completed a fix in this cycle. Resolve the attached findings before unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-review-67.log
+
+[0m
+> reviewer · gemini-3.1-flash-lite
+REVIEW_FINDINGS: YES
+
+### Finding 1 (CRITICAL)
+**File:** `src/server/ServerMain.server.lua` (lines 107-119)
+
+**What the code does:** The new implementation of `game:BindToClose` provides a loop that checks if `pending > 0` and waits for a total of 25 seconds. However, it fails to perform any actual work within the loop.
+
+**Why it is wrong:** The previous implementation contained an inner loop (which was flawed, as noted in the documentation) that at least implies attempts to clean up or monitor player state. The new implementation effectively does nothing but `task.wait()` while checking a variable `pending` that is never decremented or updated *inside* the loop. Unless `pending` is a variable updated by a separate `thread` (which `BindToClose` blocks on execution, as it is synchronous/blocking in this context), this loop will either infinite-wait (if `pending` never changes) or immediately exit (if `pending` is already 0), rendering the shutdown cleanup non-functional.
+
+**Player Impact:** When the server shuts down, player data will not be persisted or released, leading to data loss, abandoned leases in the `DataStore`, and corruption for players attempting to rejoin.
+
+**Recommended Correction:** The `BindToClose` loop must actually trigger the `cleanupPlayer` logic for each player or monitor the completion of individual asynchronous release tasks spawned by `PlayerRemoving` or the shutdown sequence itself. Simply waiting on a `pending` count without a mechanism to drive that count to zero is a logic error.
+
+### Summary
+The shutdown logic in `src/server/ServerMain.server.lua` has been simplified, but in the process, the mechanism that actually performs the cleanup has been lost. The loop currently waits for a `pending` variable that is not updated within the scope, failing to persist player data during server shutdown. This requires an immediate fix to ensure player sessions are properly released and data is saved to the `DataStore` before the server terminates.
