@@ -319,9 +319,9 @@ jobs:
             echo "::warning::No configured provider exposed a known quota-reset schedule; the normal continuation safety limits still apply."
           fi
           quota_reset_cutoff_reached() {
-            [[ "${QUOTA_RESET_MODEL_DEADLINE_EPOCH:-0}" =~ ^[0-9]+$ ]] || return 1
-            (( QUOTA_RESET_MODEL_DEADLINE_EPOCH > 0 )) || return 1
-            (( $(date -u +%s) >= QUOTA_RESET_MODEL_DEADLINE_EPOCH ))
+            [[ "${QUOTA_RESET_CUTOFF_EPOCH:-0}" =~ ^[0-9]+$ ]] || return 1
+            (( QUOTA_RESET_CUTOFF_EPOCH > 0 )) || return 1
+            (( $(date -u +%s) >= QUOTA_RESET_CUTOFF_EPOCH - QUOTA_RESET_BUFFER_SECONDS ))
           }
           update_observed_quota_reset() {
             local observed_epoch="$1"
