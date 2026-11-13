@@ -1562,9 +1562,12 @@ jobs:
             refresh_diff
             before_diff_hash="$(sha256sum "$DIFF_FILE" | awk '{print $1}')"
 
-            if [[ "$round" -eq 1 && "$RECOVERY_CONTEXT_ACTIVE" != "true" ]]; then
+            if [[ "$round" -eq 1 && "$RECOVERY_CONTEXT_ACTIVE" != "true" && "$CONTINUATION_COUNT" -eq 0 ]]; then
               CURRENT_IMPLEMENT_PROMPT="$IMPLEMENT_PROMPT"
             else
+              # A child workflow run starts its own round counter at 1, but it
+              # is still a continuation of the original task. Re-inspect the
+              # current project state instead of replaying the first-pass prompt.
               CURRENT_IMPLEMENT_PROMPT="$CONTINUATION_PROMPT"
               if [[ "$RECOVERY_CONTEXT_ACTIVE" == "true" && -f "$RECOVERY_CONTEXT_FILE" ]]; then
                 CURRENT_IMPLEMENT_PROMPT+=$'\n\nPRIORITY RECOVERY INSTRUCTION: Read the attached recovery report first. Fix every automation-resolvable open item before unrelated feature work. Do not repeat a patch that failed validation and do not weaken any check. When every listed source-level item is genuinely fixed and independently verified, update docs/AUTONOMOUS_RECOVERY.md to RECOVERY_STATUS: RESOLVED and append concrete evidence. Leave the status OPEN if any source-level item remains unresolved. Keep Roblox Studio/multiplayer/DataStore runtime gaps explicitly marked unverified when the current runner cannot execute them; never claim they passed.'
