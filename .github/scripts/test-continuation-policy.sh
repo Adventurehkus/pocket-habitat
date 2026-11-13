@@ -22,26 +22,48 @@ assert_policy() {
   fi
 }
 
-# Run #38: run-local caps/cooldowns blocked implementation while six daily pools remained.
-assert_policy true no_implementation_progress false 6 true 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS"
-# A successful implementation call that repeatedly made no changes is a real stall.
-assert_policy false no_implementation_progress false 6 false 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS"
-# Explicit per-run call/round budgets are safe handoff points.
-assert_policy true total_model_call_budget false 6 false 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS"
-assert_policy true autonomous_round_budget false 1 false 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS"
-# Never continue after quota exhaustion or when no eligible pools remain.
-assert_policy false no_implementation_progress true 6 true 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS"
-assert_policy false no_implementation_progress false 0 true 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS"
-# Unknown and hard-stop reasons must not create child runs.
-assert_policy false recovery_checkpoint_persistence_failed false 6 true 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS"
-# Bound both the number of continuation runs and the chain wall-clock duration.
-assert_policy false total_model_call_budget false 6 false 8 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS"
-assert_policy false total_model_call_budget false 6 false 0 "$START" "$((NOW - MAX_SECONDS))" "$NOW" "$MAX_RUNS" "$MAX_SECONDS"
-# A future start timestamp cannot produce a negative elapsed-time bypass.
-assert_policy true total_model_call_budget false 2 false 0 "$((NOW + 60))" "$NOW" "$MAX_RUNS" "$MAX_SECONDS"
+# Run-local limits may hand off while quota pools remain, but never within the
+# five-minute guard before the earliest known quota reset.
+assert_policy true no_implementation_progress false 6 true 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy false no_implementation_progress false 6 true 0 "$START" 2700 "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy false no_implementation_progress false 6 true 0 "$START" 3000 "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy false no_implementation_progress false 6 false 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy true total_model_call_budget false 6 false 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy true autonomous_round_budget false 1 false 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy false no_implementation_progress true 6 true 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy false no_implementation_progress false 0 true 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy false recovery_checkpoint_persistence_failed false 6 true 0 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy false total_model_call_budget false 6 false 8 "$START" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy false total_model_call_budget false 6 false 0 "$START" "$((NOW - MAX_SECONDS))" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
+assert_policy true total_model_call_budget false 2 false 0 "$((NOW + 60))" "$NOW" "$MAX_RUNS" "$MAX_SECONDS" 3000 300
 
-# Daily quota exhaustion learned in earlier runs is retained without accepting
-# stale IDs that are not part of the current configured model registry.
+# Reset scheduler: UTC-provider schedules precede Pacific midnight when near it.
+utc_reset="$(next_midnight_epoch 1700000000 UTC)"
+pacific_reset="$(next_midnight_epoch 1700000000 America/Los_Angeles)"
+[[ "$utc_reset" -gt 1700000000 ]]
+[[ "$pacific_reset" -gt 1700000000 ]]
+[[ "$(calculate_earliest_quota_reset_epoch 1700000000 google/gemini-x openrouter/free)" == "$utc_reset" ]]
+[[ "$(calculate_earliest_quota_reset_epoch 1700000000 google/gemini-x)" == "$pacific_reset" ]]
+[[ "$(calculate_earliest_quota_reset_epoch 1700000000 cohere/command-a)" == "$(next_month_start_utc_epoch 1700000000)" ]]
+
+# Groq's RPD response header carries a duration until its reset.
+tmp_log="$(mktemp)"
+printf 'x-ratelimit-reset-requests: 2m59.56s\n' > "$tmp_log"
+observed="$(observe_groq_daily_reset_epoch "$tmp_log" 1000)"
+[[ "$observed" -eq 1180 ]]
+rm -f "$tmp_log"
+
+# Explicit daily-quota reset hints are accepted; generic Retry-After is ignored.
+tmp_log="$(mktemp)"
+printf 'Daily quota resets in 1h30m\nRetry-After: 2\n' > "$tmp_log"
+observed="$(observe_explicit_quota_reset_epoch "$tmp_log" 1000)"
+[[ "$observed" -eq 6400 ]]
+printf 'Please retry in 4s\n' > "$tmp_log"
+observed="$(observe_explicit_quota_reset_epoch "$tmp_log" 1000)"
+[[ "$observed" -eq 0 ]]
+rm -f "$tmp_log"
+
+# Daily quota exhaustion learned in earlier runs is retained only for known pools.
 declare -A KNOWN_POOLS=()
 declare -A LOADED_POOLS=()
 KNOWN_POOLS["model:google/gemini-a"]="1"
@@ -53,4 +75,4 @@ load_exhausted_quota_pool_keys "provider:openrouter,model:google/gemini-a,provid
 SERIALIZED="$(serialize_exhausted_quota_pool_keys LOADED_POOLS KNOWN_POOLS)"
 [[ "$SERIALIZED" == "model:google/gemini-a,provider:openrouter" ]]
 
-echo "PASS: automatic continuation policy and cross-run quota-state tests"
+echo "PASS: continuation policy, earliest reset scheduling, and cross-run quota-state tests"
