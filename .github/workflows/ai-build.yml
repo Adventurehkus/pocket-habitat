@@ -16,8 +16,8 @@ on:
       continuation_count:
         description: "Internal continuation counter; leave at 0 for a normal manual run."
         required: false
-        type: number
-        default: 0
+        type: string
+        default: "0"
       chain_started_at:
         description: "Internal continuation-chain start time (Unix seconds); leave empty for a normal manual run."
         required: false
