@@ -176,7 +176,6 @@ observe_explicit_quota_reset_epoch() {
   local now="$2"
   python3 - "$log_file" "$now" <<'PY'
 import datetime as dt
-import email.utils
 import math
 import re
 import sys
@@ -192,7 +191,7 @@ except (OSError, ValueError):
 absolute = re.findall(
     r"(?:quota|daily allocation|daily limit).{0,80}?"
     r"(?:resets?|resetting)\s+(?:at|on)\s+"
-    r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)",
+    r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)",
     text,
     re.I,
 )
@@ -216,11 +215,13 @@ duration = re.findall(
 )
 if duration:
     raw = duration[-1].lower()
+    days = re.search(r"(\d+(?:\.\d+)?)d", raw)
     hours = re.search(r"(\d+(?:\.\d+)?)h", raw)
     minutes = re.search(r"(\d+(?:\.\d+)?)m", raw)
     seconds = re.search(r"(\d+(?:\.\d+)?)s", raw)
     total = (
-        (float(hours.group(1)) * 3600 if hours else 0)
+        (float(days.group(1)) * 86400 if days else 0)
+        + (float(hours.group(1)) * 3600 if hours else 0)
         + (float(minutes.group(1)) * 60 if minutes else 0)
         + (float(seconds.group(1)) if seconds else 0)
     )
