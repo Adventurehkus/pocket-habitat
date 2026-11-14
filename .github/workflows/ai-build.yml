@@ -8,6 +8,11 @@ on:
         required: true
         type: string
         default: "Read the project state and roadmap. Complete the highest-priority unfinished task, then keep advancing through meaningful reviewed vertical slices until the workflow's quota-exhaustion target or a hard safety budget is reached."
+      is_continuation:
+        description: "Internal handoff marker; managed by automatic continuation."
+        required: false
+        type: string
+        default: "false"
       exhausted_quota_pools:
         description: "Legacy quota state from older continuation runs; managed automatically."
         required: false
@@ -123,7 +128,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           TASK: ${{ inputs.task }}
-          IS_CONTINUATION_RUN: ${{ inputs.quota_pool_resets != '' || inputs.quota_day != '' || inputs.exhausted_quota_pools != '' || inputs.continuation_count != '0' || inputs.chain_started_at != '' }}
+          IS_CONTINUATION_RUN: ${{ inputs.is_continuation == 'true' || inputs.quota_pool_resets != '' || inputs.quota_day != '' || inputs.exhausted_quota_pools != '' || inputs.continuation_count != '0' || inputs.chain_started_at != '' }}
           QUOTA_STATE_DAY: ${{ inputs.quota_day }}
           EXHAUSTED_QUOTA_POOLS: ${{ inputs.exhausted_quota_pools }}
           QUOTA_POOL_RESETS: ${{ inputs.quota_pool_resets }}
@@ -2163,6 +2168,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TASK: ${{ inputs.task }}
+          IS_CONTINUATION: "true"
           QUOTA_POOL_RESETS: ${{ steps.pipeline.outputs.quota_pool_resets }}
         shell: bash
         run: |
@@ -2172,6 +2178,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
             --raw-field "task=$TASK" \
+            --raw-field "is_continuation=$IS_CONTINUATION" \
             --raw-field "quota_pool_resets=$QUOTA_POOL_RESETS"
           echo "::notice::A continuation run was dispatched. It will start after the current run releases the workflow concurrency lock."
 
