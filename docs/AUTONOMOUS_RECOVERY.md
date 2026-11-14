@@ -2212,3 +2212,60 @@ index 3a94204..c859a2e 100644
      end)
      describe("QuestRules — server-recorded action progress", function()
          it("uses validated action counters instead of the current inventory", function()
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 40
+- Cycle: 7
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 7 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-implementation.diff
+
+diff --git a/docs/PROJECT_STATE.md b/docs/PROJECT_STATE.md
+index 38b7ea0..ed39d9c 100644
+--- a/docs/PROJECT_STATE.md
++++ b/docs/PROJECT_STATE.md
+@@ -4,10 +4,10 @@
+ 
+ - **Gameplay repository:** Adventurehkus/pocket-habitat
+ - **Gameplay branch:** ai/game-build
+-- **Source baseline checkout:** `6bd618c` (Run #40 cycle 5). This worktree adds validated preservation/restoration of saved plots beyond the currently unlocked expansion and hardens plot-upgrade commit ordering; the workflow persists changes to `ai/game-build`.
++- **Current source checkpoint:** `82508860f1557d7f55213aed1d74b86f2d48b7ea` (Run #40 cycle 6; recovery follow-up required). The cycle-6 follow-up preserves/restores saved plots beyond the currently unlocked expansion and hardens plot-upgrade commit ordering. Do not treat this checkpoint as independently reviewed/QA-approved.
+ - **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation and quota-pool carry-forward; the provider-reset cutoff experiment was reverted (main workflow rollback: `647b5bd885d673dca3e31bb5b518e8b8da746800`).
+ - **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion is carried forward; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`. No provider-reset calendar or pre-reset model-call cutoff is applied.
+-- **Verification boundary:** Run #40 cycle-1 review/QA and deterministic validation covered the historical recovery repairs. The cycle-2 quest changes, cycle-5 plot-expansion changes, and this follow-up have not received a separate pipeline review/QA decision. This follow-up's Rojo, StyLua, Selene, and diff checks pass locally; TestEZ and Roblox engine tests remain unexecuted.
++- **Verification boundary:** Run #40 cycle-1 review/QA and deterministic validation covered the historical recovery repairs. The cycle-2 quest changes, cycle-5 plot-expansion changes, and cycle-6 follow-up have not received a separate pipeline review/QA decision. Current Rojo, StyLua, Selene, and diff checks pass locally; the generated artifact is 74,762 bytes. TestEZ and Roblox engine tests remain unexecuted. GitHub Actions status could not be queried because `gh` is unauthenticated in this environment.
+ 
+ This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
+ 
+diff --git a/docs/TESTING.md b/docs/TESTING.md
+index 656e062..6a4884f 100644
+--- a/docs/TESTING.md
++++ b/docs/TESTING.md
+@@ -57,6 +57,18 @@ Checks actually run after the follow-up:
+ 
+ The source-level recovery findings were fixed or found non-actionable, but recovery remains OPEN pending independent review/QA. No engine behavior is inferred from static checks or the generated `.rbxl`.
+ 
++## Current checkpoint verification rerun — 2026-11-14
++
++The current checkout is `82508860f1557d7f55213aed1d74b86f2d48b7ea`. The listed plot-preservation and purchase-order source findings remain addressed; no gameplay source was changed during this verification pass.
++
++- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 74,762 bytes.
++- `stylua --check src`: PASS.
++- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
++- `git diff --check`: PASS.
++- TestEZ: NOT RUN; no compatible runner is installed.
++- Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown tests: NOT RUN.
++- Independent pipeline review/QA: NOT confirmed for this follow-up. A read-only Actions query was blocked because `gh` has no authentication in this environment.
++
+ ## Current recovery verification — 2026-11-14
+ 
+ The Run #40 cycle-1 recovery entry reports independent review, QA, and deterministic validation passed for the historical source repairs. This continuation resolved the Run #40 cycle-2 source findings: upgrade progress is bounded against upgrade definitions, and the resource reward flow emits its client data sync only after quest progress is recorded. The malformed-progress report item was reviewed and is non-actionable: nil is initialized for legacy saves, while malformed data fails closed. `docs/AUTONOMOUS_RECOVERY.md` marks the listed source findings RESOLVED. The latest source edits have not received separate pipeline review/QA.

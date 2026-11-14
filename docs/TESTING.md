@@ -57,6 +57,18 @@ Checks actually run after the follow-up:
 
 The source-level recovery findings were fixed or found non-actionable, but recovery remains OPEN pending independent review/QA. No engine behavior is inferred from static checks or the generated `.rbxl`.
 
+## Current checkpoint verification rerun — 2026-11-14
+
+The current checkout is `82508860f1557d7f55213aed1d74b86f2d48b7ea`. The listed plot-preservation and purchase-order source findings remain addressed; no gameplay source was changed during this verification pass.
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 74,762 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; no compatible runner is installed.
+- Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown tests: NOT RUN.
+- Independent pipeline review/QA: NOT confirmed for this follow-up. A read-only Actions query was blocked because `gh` has no authentication in this environment.
+
 ## Current recovery verification — 2026-11-14
 
 The Run #40 cycle-1 recovery entry reports independent review, QA, and deterministic validation passed for the historical source repairs. This continuation resolved the Run #40 cycle-2 source findings: upgrade progress is bounded against upgrade definitions, and the resource reward flow emits its client data sync only after quest progress is recorded. The malformed-progress report item was reviewed and is non-actionable: nil is initialized for legacy saves, while malformed data fails closed. `docs/AUTONOMOUS_RECOVERY.md` marks the listed source findings RESOLVED. The latest source edits have not received separate pipeline review/QA.
