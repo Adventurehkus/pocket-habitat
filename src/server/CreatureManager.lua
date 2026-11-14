@@ -35,6 +35,14 @@ local function idleBehavior(
     while model.Parent and humanoid.Health > 0 do
         task.wait(1)
 
+        if
+            not model:IsDescendantOf(workspace)
+            or not humanoid:IsDescendantOf(model)
+            or not root:IsDescendantOf(model)
+        then
+            break
+        end
+
         local now = os.clock()
         if behavior.jumpInterval and now - lastJumpTime >= behavior.jumpInterval then
             lastJumpTime = now

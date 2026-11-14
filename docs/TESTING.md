@@ -8,6 +8,20 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
+## Creature behavior-loop recovery — 2026-11-14
+
+Resolved the Run #43 cycle-5 source findings. Direct inspection confirmed target positions were already clamped to habitat X/Y/Z bounds; the missing-root lifecycle issue was fixed by checking model, Humanoid, and root ancestry after the loop's yield and before use.
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty local artifact.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after the source and documentation edits.
+- TestEZ: NOT RUN; `run-in-roblox`, `lune`, `luau`, `lua`, and `luajit` are unavailable.
+- Roblox Studio/server, creature movement/physics, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
+- Independent pipeline review/QA: not claimed for this follow-up.
+
+Recovery is RESOLVED for the listed automation-resolvable source findings only; runtime and independent pipeline verification remain outstanding.
+
 ## Creature movement profiles — current worktree
 
 Added distinct server-driven movement timing, wander distance, jumping, and hover-height profiles for all five creature types. Targets remain bounded by the owning habitat. A TestEZ spec checks that profiles exist, are unique, and have valid configuration shapes; actual Humanoid movement and physics require Roblox runtime verification.

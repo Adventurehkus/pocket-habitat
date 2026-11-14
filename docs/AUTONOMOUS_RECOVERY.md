@@ -2,6 +2,24 @@
 
 RECOVERY_STATUS: OPEN
 
+## 2026-11-14 — Run #43 cycle-5 creature-loop findings resolved
+
+The attached reviewer report identified two source-level findings in `CreatureManager`:
+
+1. Vertical movement clamping was reported missing, but current source already clamps all three target coordinates (X, Y, and Z) to the habitat bounds. Direct source inspection confirms this claim is non-actionable.
+2. The idle behavior could resume after its yield and read a removed root part. The loop now checks that the model remains in `Workspace` and that both the Humanoid and root part remain descendants of the model before reading or moving the root.
+
+Verification on the current worktree:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated the project place.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after the source and documentation updates.
+- TestEZ: NOT RUN; `run-in-roblox`, `lune`, `luau`, `lua`, and `luajit` are unavailable.
+- Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
+- Independent pipeline review/QA for this follow-up: NOT claimed.
+
+The automation-resolvable source findings in the attached report are resolved. This does not claim independent pipeline QA or Roblox runtime verification; those gaps remain outstanding.
+
 ## 2026-11-14 — current-worktree source adjudication
 
 Direct source review at current branch HEAD `2541fed` confirmed that the three current automation-resolvable recovery claims are non-actionable or fixed:
@@ -3391,3 +3409,140 @@ REVIEW_FINDINGS: YES
 
 ### Summary
 The creature movement implementation has a logical flaw in boundary clamping that could allow creatures to drift outside the vertical limits of the habitat. Additionally, the behavioral loop lacks sufficient robustness against the removal of the creature's root part, which could lead to runtime errors. All other modules (Constants and Specs) appear correctly integrated for the intended design.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 43
+- Cycle: 6
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 6 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-implementation.diff
+
++
++## 2026-11-14 — Run #43 cycle-5 creature-loop findings resolved
++
++The attached reviewer report identified two source-level findings in `CreatureManager`:
++
++1. Vertical movement clamping was reported missing, but current source already clamps all three target coordinates (X, Y, and Z) to the habitat bounds. Direct source inspection confirms this claim is non-actionable.
++2. The idle behavior could resume after its yield and read a removed root part. The loop now checks that the model remains in `Workspace` and that both the Humanoid and root part remain descendants of the model before reading or moving the root.
++
++Verification on the current worktree:
++- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated the project place.
++- `stylua --check src`: PASS.
++- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
++- `git diff --check`: PASS after the source and documentation updates.
++- TestEZ: NOT RUN; `run-in-roblox`, `lune`, `luau`, `lua`, and `luajit` are unavailable.
++- Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
++- Independent pipeline review/QA for this follow-up: NOT claimed.
++
++The automation-resolvable source findings in the attached report are resolved. This does not claim independent pipeline QA or Roblox runtime verification; those gaps remain outstanding.
+ 
+ ## 2026-11-14 — current-worktree source adjudication
+ 
+diff --git a/docs/PROJECT_STATE.md b/docs/PROJECT_STATE.md
+index db1b683..956a28c 100644
+--- a/docs/PROJECT_STATE.md
++++ b/docs/PROJECT_STATE.md
+@@ -4,10 +4,10 @@
+ 
+ - **Gameplay repository:** Adventurehkus/pocket-habitat
+ - **Gameplay branch:** ai/game-build
+-- **Current source baseline:** `eb5ceda` on `ai/game-build`; this worktree adds per-creature habitat-bounded movement profiles.
++- **Current source baseline:** `c5869b6` on `ai/game-build`; this worktree additionally stops creature behavior loops when their model, Humanoid, or root part is removed.
+ - **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation and quota-pool carry-forward; the provider-reset cutoff experiment was reverted (main workflow rollback: `647b5bd885d673dca3e31bb5b518e8b8da746800`).
+ - **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion is carried forward; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`. No provider-reset calendar or pre-reset model-call cutoff is applied.
+-- **Verification boundary:** The creature behavior worktree Rojo build produced a nonempty 77,860-byte artifact; `stylua --check src`, `selene src`, and `git diff --check` pass. TestEZ remains unexecuted because no compatible runner is installed. Recovery is RESOLVED for recorded source findings only; no trustworthy independent pipeline review/QA decision is claimed for this checkout. Roblox engine tests remain unexecuted.
++- **Verification boundary:** Current-worktree Rojo build, `stylua --check src`, `selene src`, and `git diff --check` pass. TestEZ remains unexecuted because no compatible runner is installed. Recovery is RESOLVED for recorded source findings only; no independent pipeline review/QA decision is claimed for this follow-up. Roblox engine tests remain unexecuted.
+ 
+ This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
+ 
+@@ -17,9 +17,9 @@ The current source implements a server-owned join flow: automatic character load
+ 
+ `DataStoreManager` uses `UpdateAsync` for session acquisition, lease renewal, saving, and release. A failed operation, active foreign lease, malformed record, or unsupported schema does not expose a fabricated default session. The five-minute lease is renewed every two minutes with current session data. Existing legacy fields are normalized to the live gameplay schema; spawn vectors are serialized as numeric tables. Per-player resource cooldowns are now part of session data, schema-validated, and saved with the player's next periodic/final save; cooldown reservations occur before reward mutation and are rolled back when the reward is rejected. A crash before the next save can still lose the newest cooldown state. Final release is atomic and bounded. If it fails transiently, the in-memory session is retained and up to three release-only retries are scheduled at 5, 15, and 30 seconds; the departing session is not renewed indefinitely. A stale-token release is discarded because the server no longer owns that data. Shutdown now makes bounded synchronous release attempts against the absolute deadline to avoid retry tasks surviving process exit. Resource gathering requires an active session and living character, is server-rate-limited, and validates the owned node and interaction distance. Plant interactions now likewise require a live character/root part, are throttled to one request per player per 0.25 seconds, and clear throttle state during player cleanup. These are source-level changes only; Roblox engine and actual DataStore behavior have not been tested.
+ 
+-**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for the recorded automation-resolvable source findings. Current source inspection confirms both spawn call sites match the manager's `Vector3` API, session acquisition and validation are atomic/fail-closed, and failed loads stop before habitat allocation. No trustworthy independent pipeline review/QA decision is claimed for this checkout. TestEZ and Roblox runtime gaps remain explicitly unverified.
++**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for the recorded automation-resolvable source findings. The Run #43 cycle-5 creature report's vertical-clamp finding was non-actionable because X/Y/Z are already clamped; the behavior loop now exits after a yield if its model, Humanoid, or root is no longer in the expected hierarchy. Static checks pass, but no independent pipeline review/QA or Roblox runtime result is claimed. TestEZ and Roblox runtime gaps remain explicitly unverified.
+ 
+-**Current highest-priority task:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify the seed-to-harvest loop, all ten quest claims, habitat isolation, and save/rejoin behavior in Roblox Studio. This environment has no compatible TestEZ/Roblox runner; the vendored TestEZ CLI is not suitable for this game project. Do not treat source inspection or static checks as a TestEZ or pipeline QA pass. Decorative-tile purchases remain disabled until their visual effect is implemented.
++**Current highest-priority task:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify the seed-to-harvest loop, all ten quest claims, creature behavior/isolation, and save/rejoin in Roblox Studio. This environment has no compatible TestEZ/Roblox runner; the vendored TestEZ CLI is not suitable for this game project. Do not treat source inspection or static checks as a TestEZ, pipeline QA, or runtime pass. Decorative-tile purchases remain disabled until their visual effect is implemented.
+ 
+ The current source wires `PurchaseUpgrade` through `EconomyManager.init()`. Plot expansion creates an owned plot instance with an interaction prompt, restores its saved plant state on expansion, and commits Bells/upgrade/progression only after plot construction succeeds. Session normalization preserves saved plots that exceed a player's current expansion in `lockedPlots`; these are excluded from interaction and habitat rendering until unlocked, then restored. Duplicate or unsupported plot indices remain fail-closed. Storage expansion remains available because inventory capacity already uses its level. Watering-can purchases are enabled: `PlantRules` calculates a persisted-level-based dewdrop cost, and `PlantManager` consumes only that amount; level 2 charges one drop per two waterings and level 3 per three. The cycle-1 review/QA evidence applies only to its checkpoint; no current gameplay-source pipeline QA pass is claimed. Decorative-tile purchases remain disabled. `DataStoreManager` loads `Constants` synchronously from the replicated shared folder at module initialization.
+ 
+diff --git a/docs/ROADMAP.md b/docs/ROADMAP.md
+index 52c180a..23c387c 100644
+--- a/docs/ROADMAP.md
++++ b/docs/ROADMAP.md
+@@ -179,7 +179,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
+ 
+ ## Current focus
+ 
+-**Immediate priority:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify seed gathering through plant harvest, all ten quest claims, and persistence in Roblox Studio. The all-plants production-rule spec is present but unexecuted. No compatible TestEZ/Roblox runner is available in this environment; the vendored TestEZ CLI is not suitable for this game project. The recovery record is RESOLVED for recorded source-level findings only; no trustworthy independent pipeline review/QA decision is claimed for the current checkout. Quest progression and its newly synchronized HUD, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, shutdown, and plant-interaction lifecycle remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
++**Immediate priority:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify seed gathering through plant harvest, all ten quest claims, creature movement/isolation, and persistence in Roblox Studio. The all-plants production-rule spec is present but unexecuted. No compatible TestEZ/Roblox runner is available in this environment; the vendored TestEZ CLI is not suitable for this game project. The Run #43 cycle-5 source findings are resolved: target coordinates were already clamped on all axes, and creature behavior now stops when its model, Humanoid, or root leaves the expected hierarchy. No independent pipeline review/QA or Roblox runtime pass is claimed. Quest progression/HUD, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, shutdown, and plant-interaction lifecycle remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
+ 
+ **Source-level completed (runtime verification pending):**
+ - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
+diff --git a/docs/TECHNICAL_ARCHITECTURE.md b/docs/TECHNICAL_ARCHITECTURE.md
+index 5bc1694..848f0d1 100644
+--- a/docs/TECHNICAL_ARCHITECTURE.md
++++ b/docs/TECHNICAL_ARCHITECTURE.md
+@@ -70,7 +70,7 @@ Current source facts:
+ - `WorldBuilder` builds per-habitat geometry and restores saved plot plant visuals and basic growth/water state from the loaded session. Full upgrade effects and runtime Roblox restoration remain unverified.
+ - `EconomyManager.init()` owns the `PurchaseUpgrade` RemoteFunction handler. Plot expansion creates a prompt-enabled plot in the player's registered habitat, restores any archived plant state, and commits Bells, upgrade level, quest progress, and active plot data only after world construction succeeds. `PlantRules` rejects indices beyond the unlocked level. Storage expansion changes inventory capacity. Watering-can purchases are enabled and its validated level reduces dewdrop use by charging once per one, two, or three water actions at levels one, two, or three; the plot's persisted `waterCount` determines the next charge. Decorative-tile purchases remain unavailable until the visual effect is implemented.
+ - `DataStoreManager` imports `Constants` at module initialization with `WaitForChild` and validates saved upgrade IDs/levels against definitions. It fills missing plot records for purchased expansions and preserves supported plots beyond the current unlocked count in `lockedPlots`; those records return to active plot data when unlocked. Duplicate entries and indices beyond the maximum supported plot count fail closed rather than discarding saved state.
+-- `CreatureManager` scopes runtime instances and movement to each player's habitat and restores discovered creature types from the session. Shared creature definitions select distinct bunny hopping, sprite drifting, leafling foraging, tortoise strolling, and finch flutter movement profiles; the server clamps movement targets to the owning habitat. Engine physics and multiplayer isolation remain unverified.
++- `CreatureManager` scopes runtime instances and movement to each player's habitat and restores discovered creature types from the session. Shared creature definitions select distinct bunny hopping, sprite drifting, leafling foraging, tortoise strolling, and finch flutter movement profiles; the server clamps movement targets on all axes to the owning habitat. After each behavior-loop yield, it verifies the model is still in `Workspace` and its Humanoid and root are still model descendants before continuing. Engine physics and multiplayer isolation remain unverified.
+ - Run #42 cycle 1 reports review/QA and deterministic validation passed for its recorded recovery checkpoint. The cycle-3 recovery source claims were contradicted by current source inspection; the cycle-3 QA agent could not read the implementation diff, and the cycle-5 review addressed an empty documentation diff. Do not treat either as pipeline QA of gameplay source. No TestEZ runner, Roblox Studio/engine, multiplayer, or DataStore integration test has been executed. The generated `.rbxl` is only a Rojo build artifact.
+ 
+ Earlier run notes below are historical. The source currently uses `PlayerDataStoreV1`; prior documentation referring to `PocketHabitat_v2_PlayerData` did not match the implementation and must not be used to infer a second store or migration.
+diff --git a/docs/TESTING.md b/docs/TESTING.md
+index acf0db7..2ca3e8e 100644
+--- a/docs/TESTING.md
++++ b/docs/TESTING.md
+@@ -8,6 +8,20 @@
+ - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
+ - Keep historical results, but label them by run and do not present them as the current baseline.
+ 
++## Creature behavior-loop recovery — 2026-11-14
++
++Resolved the Run #43 cycle-5 source findings. Direct inspection confirmed target positions were already clamped to habitat X/Y/Z bounds; the missing-root lifecycle issue was fixed by checking model, Humanoid, and root ancestry after the loop's yield and before use.
++
++- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty local artifact.
++- `stylua --check src`: PASS.
++- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
++- `git diff --check`: PASS after the source and documentation edits.
++- TestEZ: NOT RUN; `run-in-roblox`, `lune`, `luau`, `lua`, and `luajit` are unavailable.
++- Roblox Studio/server, creature movement/physics, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
++- Independent pipeline review/QA: not claimed for this follow-up.
++
++Recovery is RESOLVED for the listed automation-resolvable source findings only; runtime and independent pipeline verification remain outstanding.
++
+ ## Creature movement profiles — current worktree
+ 
+ Added distinct server-driven movement timing, wander distance, jumping, and hover-height profiles for all five creature types. Targets remain bounded by the owning habitat. A TestEZ spec checks that profiles exist, are unique, and have valid configuration shapes; actual Humanoid movement and physics require Roblox runtime verification.
+diff --git a/src/server/CreatureManager.lua b/src/server/CreatureManager.lua
+index f250741..51d1bba 100644
+--- a/src/server/CreatureManager.lua
++++ b/src/server/CreatureManager.lua
+@@ -35,6 +35,14 @@ local function idleBehavior(
+     while model.Parent and humanoid.Health > 0 do
+         task.wait(1)
+ 
++        if
++            not model:IsDescendantOf(workspace)
++            or not humanoid:IsDescendantOf(model)
++            or not root:IsDescendantOf(model)
++        then
++            break
++        end
++
+         local now = os.clock()
+         if behavior.jumpInterval and now - lastJumpTime >= behavior.jumpInterval then
+             lastJumpTime = now
