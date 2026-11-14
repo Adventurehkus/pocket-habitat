@@ -8,19 +8,20 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
-## Run #42 cycle 3 recovery source review — 2026-11-14
+## Current-checkout recovery source adjudication — 2026-11-14
 
-The QA appendix reported a spawn argument type mismatch, non-atomic session acquisition, and startup acceptance of malformed session data. The QA agent's log also says it could not read the implementation diff. Direct inspection of the current source found the claims non-actionable: both spawn call sites pass `Vector3` values; `DataStoreManager.loadPlayerData` acquires with `UpdateAsync` and validates the returned token, lease, and normalized data before registering a session; and `ServerMain` kicks a player when session loading fails. No gameplay source change was necessary.
+The QA appendix reported a spawn argument type mismatch, non-atomic session acquisition, and startup acceptance of malformed session data. Direct inspection of the current source found all three claims non-actionable: both spawn call sites pass `Vector3` values; `DataStoreManager.loadPlayerData` acquires with `UpdateAsync` and validates the returned token, lease, and normalized data before registering a session; and `ServerMain` stops and kicks a player when session loading fails. No gameplay source change was necessary. The recovery marker is RESOLVED for these source findings only. The cycle-3 QA agent could not read the implementation diff, and no independent pipeline QA pass is claimed.
 
+- Current checkout: `a7a65c65e2184c5d2c3fed097ee4ef8ea937150c`; latest commit changes recovery documentation only.
 - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 76,447 bytes.
 - `stylua --check src`: PASS.
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
 - `git diff --check`: PASS after the documentation updates.
 - TestEZ: NOT RUN; no compatible `run-in-roblox`, `lune`, or `luau` executable is available.
-- Pipeline review/QA: no valid independent QA pass; the recorded QA agent could not read the implementation diff.
+- Pipeline review/QA: no valid independent QA pass for the current gameplay source; the cycle-5 review describes an empty diff and its QA stage returned no trustworthy decision.
 - Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
 
-The recovery marker resolves only these source-level claims. It does not assert a QA pass or game/runtime readiness.
+The recovery marker resolves only the recorded automation-resolvable source claims. It does not assert a QA pass or game/runtime readiness.
 
 ## Standard deterministic checks
 
