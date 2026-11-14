@@ -13,7 +13,7 @@ assert_policy() {
     actual=true
   fi
   if [[ "$actual" != "$expected" ]]; then
-    printf 'FAIL: expected %s, got %s for: %s\\n' "$expected" "$actual" "$*" >&2
+    printf 'FAIL: expected %s, got %s for: %s\n' "$expected" "$actual" "$*" >&2
     exit 1
   fi
 }
@@ -42,7 +42,7 @@ MONTHLY_EXPECTED="$(date -u -d '2026-12-01 00:05:00' +%s)"
 
 # Groq's response header is preferred; missing headers get a conservative 24h fallback.
 GROQ_LOG="$(mktemp)"
-printf '%s\\n' 'x-ratelimit-reset-requests: 2m59.56s' > "$GROQ_LOG"
+printf '%s\n' 'x-ratelimit-reset-requests: 2m59.56s' > "$GROQ_LOG"
 GROQ_HEADER_EXPECTED=$((NOW + 180 + 300))
 [[ "$(quota_pool_reset_epoch "model:groq/qwen/qwen3.8-27b" "$GROQ_LOG" "$NOW")" == "$GROQ_HEADER_EXPECTED" ]]
 GROQ_FALLBACK_EXPECTED=$((NOW + 86400 + 300))
