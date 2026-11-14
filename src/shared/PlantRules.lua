@@ -5,13 +5,10 @@ local HabitatRules = require(script.Parent:WaitForChild("HabitatRules"))
 
 local PlantRules = {}
 
-local SEED_TO_PLANT = {
-    [Constants.RESOURCES.SEED_BERRY] = "berry",
-    [Constants.RESOURCES.SEED_FLOWER] = "flower",
-    [Constants.RESOURCES.SEED_SUNPETAL] = "sunpetal",
-    [Constants.RESOURCES.SEED_MOONFLOWER] = "moonflower",
-    [Constants.RESOURCES.SEED_GLOWCAP] = "glowcap",
-}
+local SEED_TO_PLANT: { [string]: string } = {}
+for plantId, plantDef in pairs(Constants.PLANTS) do
+    SEED_TO_PLANT[plantDef.seedId] = plantId
+end
 
 type InteractionPlan = {
     action: string,

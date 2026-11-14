@@ -16,6 +16,13 @@ local plotPositions = {
     Vector3.new(-12, 0.2, 4),
 }
 
+local SEED_NODE_COLORS = {
+    [Constants.RESOURCES.SEED_FLOWER] = Constants.PLANTS.flower.color,
+    [Constants.RESOURCES.SEED_SUNPETAL] = Constants.PLANTS.sunpetal.color,
+    [Constants.RESOURCES.SEED_MOONFLOWER] = Constants.PLANTS.moonflower.color,
+    [Constants.RESOURCES.SEED_GLOWCAP] = Constants.PLANTS.glowcap.color,
+}
+
 local function getPlotPosition(index: number): Vector3?
     return plotPositions[index]
 end
@@ -117,6 +124,11 @@ local function createResourceNode(
         berries.Material = Enum.Material.Neon
         berries.Shape = Enum.PartType.Ball
         berries.Parent = folder
+    elseif SEED_NODE_COLORS[resourceType] then
+        part.Material = Enum.Material.Neon
+        part.Color = SEED_NODE_COLORS[resourceType]
+        part.Shape = Enum.PartType.Ball
+        part.Size = Vector3.new(2.5, 2.5, 2.5)
     end
 
     -- Add proximity prompt
@@ -246,49 +258,16 @@ function WorldBuilder.buildHabitat(folder: Folder, owner: Player, sessionData: a
     baseplate.Material = Enum.Material.Grass
     baseplate.Parent = folder
 
-    -- Resource Nodes with ProximityPrompts
-    createResourceNode(
-        folder,
-        "Tree_1",
-        Vector3.new(15, 2.5, 0) + baseOffset,
-        BrickColor.new("Reddish brown"),
-        Constants.RESOURCES.WOOD
-    )
-    createResourceNode(
-        folder,
-        "Tree_2",
-        Vector3.new(-15, 2.5, 0) + baseOffset,
-        BrickColor.new("Reddish brown"),
-        Constants.RESOURCES.WOOD
-    )
-    createResourceNode(
-        folder,
-        "Rock_1",
-        Vector3.new(0, 1.5, 15) + baseOffset,
-        BrickColor.new("Medium stone grey"),
-        Constants.RESOURCES.STONE
-    )
-    createResourceNode(
-        folder,
-        "Rock_2",
-        Vector3.new(0, 1.5, -15) + baseOffset,
-        BrickColor.new("Medium stone grey"),
-        Constants.RESOURCES.STONE
-    )
-    createResourceNode(
-        folder,
-        "Dew_1",
-        Vector3.new(10, 1, 10) + baseOffset,
-        BrickColor.new("Cyan"),
-        Constants.RESOURCES.DEWDROP
-    )
-    createResourceNode(
-        folder,
-        "Bush_1",
-        Vector3.new(-10, 1.25, -10) + baseOffset,
-        BrickColor.new("Forest green"),
-        Constants.RESOURCES.SEED_BERRY
-    )
+    -- Resource node positions, identifiers, and rewards share one definition.
+    for _, node in ipairs(Constants.RESOURCE_NODES) do
+        createResourceNode(
+            folder,
+            node.name,
+            node.position + baseOffset,
+            BrickColor.new("Forest green"),
+            node.type
+        )
+    end
 
     -- Garden Plots with ProximityPrompts
     local plotsFolder = Instance.new("Folder")

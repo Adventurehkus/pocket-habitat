@@ -19,9 +19,93 @@ Constants.RESOURCES = {
     BELLS = "bells",
 }
 
+Constants.RESOURCE_NODES = {
+    {
+        id = "tree_1",
+        name = "Tree_1",
+        type = Constants.RESOURCES.WOOD,
+        amount = 1,
+        position = Vector3.new(15, 2.5, 0),
+        cooldownMinutes = 10,
+    },
+    {
+        id = "tree_2",
+        name = "Tree_2",
+        type = Constants.RESOURCES.WOOD,
+        amount = 1,
+        position = Vector3.new(-15, 2.5, 0),
+        cooldownMinutes = 10,
+    },
+    {
+        id = "rock_1",
+        name = "Rock_1",
+        type = Constants.RESOURCES.STONE,
+        amount = 1,
+        position = Vector3.new(0, 1.5, 15),
+        cooldownMinutes = 12,
+    },
+    {
+        id = "rock_2",
+        name = "Rock_2",
+        type = Constants.RESOURCES.STONE,
+        amount = 1,
+        position = Vector3.new(0, 1.5, -15),
+        cooldownMinutes = 12,
+    },
+    {
+        id = "dew_1",
+        name = "Dew_1",
+        type = Constants.RESOURCES.DEWDROP,
+        amount = 2,
+        position = Vector3.new(10, 1, 10),
+        cooldownMinutes = 8,
+    },
+    {
+        id = "bush_1",
+        name = "Bush_1",
+        type = Constants.RESOURCES.SEED_BERRY,
+        amount = 1,
+        position = Vector3.new(-10, 1.25, -10),
+        cooldownMinutes = 15,
+    },
+    {
+        id = "flower_seed_1",
+        name = "Flower_Seed_1",
+        type = Constants.RESOURCES.SEED_FLOWER,
+        amount = 1,
+        position = Vector3.new(20, 1.25, -10),
+        cooldownMinutes = 15,
+    },
+    {
+        id = "sunpetal_seed_1",
+        name = "Sunpetal_Seed_1",
+        type = Constants.RESOURCES.SEED_SUNPETAL,
+        amount = 1,
+        position = Vector3.new(-20, 1.25, 10),
+        cooldownMinutes = 15,
+    },
+    {
+        id = "moonflower_seed_1",
+        name = "Moonflower_Seed_1",
+        type = Constants.RESOURCES.SEED_MOONFLOWER,
+        amount = 1,
+        position = Vector3.new(20, 1.25, 10),
+        cooldownMinutes = 15,
+    },
+    {
+        id = "glowcap_seed_1",
+        name = "Glowcap_Seed_1",
+        type = Constants.RESOURCES.SEED_GLOWCAP,
+        amount = 1,
+        position = Vector3.new(-20, 1.25, -10),
+        cooldownMinutes = 15,
+    },
+}
+
 Constants.PLANTS = {
     berry = {
         id = "berry",
+        seedId = Constants.RESOURCES.SEED_BERRY,
         name = "Cozy Berry Bush",
         growthTime = 30, -- seconds
         waterNeeded = 2,
@@ -31,6 +115,7 @@ Constants.PLANTS = {
     },
     flower = {
         id = "flower",
+        seedId = Constants.RESOURCES.SEED_FLOWER,
         name = "Sun Petal Flower",
         growthTime = 45,
         waterNeeded = 3,
@@ -40,6 +125,7 @@ Constants.PLANTS = {
     },
     sunpetal = {
         id = "sunpetal",
+        seedId = Constants.RESOURCES.SEED_SUNPETAL,
         name = "Sun Petal",
         growthTime = 60,
         waterNeeded = 1,
@@ -49,6 +135,7 @@ Constants.PLANTS = {
     },
     moonflower = {
         id = "moonflower",
+        seedId = Constants.RESOURCES.SEED_MOONFLOWER,
         name = "Moonflower",
         growthTime = 90,
         waterNeeded = 4,
@@ -58,6 +145,7 @@ Constants.PLANTS = {
     },
     glowcap = {
         id = "glowcap",
+        seedId = Constants.RESOURCES.SEED_GLOWCAP,
         name = "Glowcap Mushroom",
         growthTime = 70,
         waterNeeded = 2,

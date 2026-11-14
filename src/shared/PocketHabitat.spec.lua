@@ -53,6 +53,25 @@ end
 
 return function()
     describe("PlantRules — server-side plot validation", function()
+        it("provides a gatherable seed node for every supported plant", function()
+            local seedNodes = {}
+            local nodeIds = {}
+            for _, node in ipairs(Constants.RESOURCE_NODES) do
+                expect(nodeIds[node.id]).to.equal(nil)
+                expect(string.lower(node.name)).to.equal(node.id)
+                expect(node.amount % 1).to.equal(0)
+                expect(node.amount > 0).to.equal(true)
+                expect(node.cooldownMinutes > 0).to.equal(true)
+                nodeIds[node.id] = true
+                seedNodes[node.type] = true
+            end
+
+            for plantId, plantDef in pairs(Constants.PLANTS) do
+                expect(PlantRules.getPlantDef(plantDef.seedId).id).to.equal(plantId)
+                expect(seedNodes[plantDef.seedId]).to.equal(true)
+            end
+        end)
+
         it("rejects malformed, fractional, non-positive, and infinite plot indices", function()
             local data = makeData()
             local invalidIndices: { any } = { 0, -1, 1.5, math.huge, -math.huge, 0 / 0, "1" }

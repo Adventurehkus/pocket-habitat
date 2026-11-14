@@ -1,12 +1,12 @@
 # Pocket Habitat — Autonomous Recovery Record
 
-RECOVERY_STATUS: OPEN
+RECOVERY_STATUS: RESOLVED
 
-This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 quest-progress and plot-state findings. All recorded automation-resolvable source findings are fixed or adjudicated as non-actionable. The latest gameplay follow-up also implements the watering-can effect with focused production-rule specs. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing. Recovery remains OPEN because the accumulated follow-up has no confirmed independent pipeline review/QA decision.
+This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 quest-progress and plot-state findings. All recorded automation-resolvable source findings are fixed or adjudicated as non-actionable. Run #42 cycle 1 reports independent review, QA, and deterministic validation passed for the recovery checkpoint. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing.
 
-## 2026-11-14 — current source and deterministic verification
+## 2026-11-14 — recovery checkpoint verification
 
-The current `ai/game-build` checkout is `8e1287704c15`. Direct inspection of the production upgrade, plant, resource, quest, and plot-persistence paths found the previously recorded source repairs present; no new automation-resolvable recovery defect was identified. Checks rerun against this checkout:
+The recovery checkpoint is `780b55c0a4ad0c93b0fca72e0ea0756c25435661`; its gameplay source is unchanged from the previously inspected source checkpoint. Direct inspection of the production upgrade, plant, resource, quest, and plot-persistence paths found the previously recorded source repairs present; no new automation-resolvable recovery defect was identified. Run #42 cycle 1 reports independent review, QA, and deterministic validation passed. Checks rerun against this checkout:
 
 - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 75,838 bytes.
 - `stylua --check src`: PASS.
@@ -15,7 +15,7 @@ The current `ai/game-build` checkout is `8e1287704c15`. Direct inspection of the
 - TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed.
 - Roblox Studio/server, multiplayer, DataStore save/rejoin/contention, shutdown, and manual tests: NOT RUN.
 
-The public Actions API showed workflow run #42 still in progress at 15:32 UTC; it has not provided a review/QA decision in this environment. Keep `RECOVERY_STATUS: OPEN` until a trustworthy independent pipeline review/QA result and required deterministic validation are confirmed. Runtime and TestEZ gaps remain explicitly unverified.
+The Run #42 recovery note itself states that review, QA, and deterministic validation passed, and the checkpoint contains no remaining source-level checklist item. Recovery is resolved for the listed automation-resolvable work. Runtime and TestEZ gaps remain explicitly unverified.
 
 ## 2026-11-14 follow-up — verify current recovery source
 
@@ -363,6 +363,17 @@ Results:
 0 warnings
 0 parse errors
 PASS: Selene src
+
+## Resolution — Run #42 recovery checkpoint — 2026-11-14
+
+The Run #42 cycle-1 recovery note states independent review, QA, and deterministic validation passed. The note identifies no remaining source-level defect; it asks only that the accumulated recovery record be inspected and closed when its listed source findings are resolved. Direct inspection of the production upgrade, plot persistence, plant/watering, resource cooldown, quest, and session paths confirmed the recorded source repairs are present or were already adjudicated non-actionable. The purchase-order, Constants import, and saved-plot findings are addressed in source; the plot partitioning, upgrade progress, watering cadence, and resource rollback production-rule specs are present.
+
+Verification evidence for that checkpoint:
+- Run #42 validation log: Rojo build passed; StyLua `--check src` passed; Selene passed with 0 errors, 0 warnings, and 0 parse errors.
+- Current local verification: Rojo built a non-empty 75,838-byte artifact; `stylua --check src`, `selene src`, and `git diff --check` passed.
+- TestEZ was not run because no compatible runner is available. Roblox Studio/server, multiplayer, DataStore save/rejoin/contention, shutdown, and manual tests were not run and remain unverified.
+
+No automation-resolvable source-level item from this recovery record remains open. `RECOVERY_STATUS: RESOLVED` closes only the recorded source-repair debt; it does not mark the game playable or resolve the explicitly unverified TestEZ and Roblox runtime gaps.
 
 ## Resolution — Run #39 recovery source fixes (2026-11-14)
 

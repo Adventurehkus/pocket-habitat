@@ -1,4 +1,42 @@
-# Implementation Summary — Recovery Follow-up
+# Pocket Habitat — Latest Implementation Checkpoint
+
+## Progress
+
+Closed the enumerated recovery source debt after Run #42 cycle 1 reported independent review, QA, and deterministic validation passed. The recovery record distinguishes that resolved source-repair checkpoint from unverified TestEZ and Roblox runtime behavior.
+
+Completed a plant-seed acquisition slice:
+- Added shared `Constants.RESOURCE_NODES` definitions for habitat node IDs, positions, reward items, and cooldowns.
+- Updated `WorldBuilder` and `ResourceManager` to consume the same node definitions, including new prompted seed sources for Flower, Sun Petal, Moonflower, and Glowcap.
+- Added seed IDs to plant definitions and derived PlantRules' seed-to-plant map from those definitions.
+- Added a TestEZ spec for unique node IDs, prompt-name/ID matching, and a gatherable seed node for every plant.
+
+## Files changed
+
+- `src/shared/Constants.lua` — shared resource-node configuration and plant seed IDs.
+- `src/shared/PlantRules.lua` — data-driven seed resolution.
+- `src/server/WorldBuilder.lua` — habitat resource-node construction and seed visuals.
+- `src/server/ResourceManager.lua` — gathering resolves against shared node definitions.
+- `src/shared/PocketHabitat.spec.lua` — source-configuration coverage for every plant seed.
+- `docs/AUTONOMOUS_RECOVERY.md` — closes resolved recovery source findings and records evidence.
+- `docs/PROJECT_STATE.md`, `docs/ROADMAP.md`, `docs/TECHNICAL_ARCHITECTURE.md`, `docs/TESTING.md` — current implementation and verification state.
+
+## Verification
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty local artifact (76,447 bytes).
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; no compatible runner is available.
+- Roblox Studio/server, ProximityPrompt gathering, multiplayer, DataStore, save/rejoin, and manual tests: NOT RUN.
+- Run #42 cycle 1 reports independent review/QA and deterministic validation for the recovery checkpoint; the new seed-source change has no separate pipeline review/QA result.
+
+## Remaining work
+
+The seed sources are implemented in source but are not engine-verified. Execute TestEZ in a compatible Roblox runner and verify seed gathering through planting, growth, watering, harvest rewards, quest progression, and persistence in Studio. Keep decorative-tile purchases disabled until its visual effect exists.
+
+---
+
+# Historical implementation summary — Recovery Follow-up (superseded)
 
 ## 2026-11-13 shutdown deadline correction
 

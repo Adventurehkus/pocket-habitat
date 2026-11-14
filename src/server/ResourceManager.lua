@@ -15,45 +15,7 @@ local ResourceManager = {}
 local GATHER_REQUEST_INTERVAL = 0.25
 local lastGatherRequestAt: { [number]: number } = {}
 
--- Static node templates with base positions (relative to habitat offset)
-local staticNodes = {
-    {
-        id = "tree_1",
-        type = Constants.RESOURCES.WOOD,
-        basePosition = Vector3.new(15, 3, 0),
-        cooldown = 10,
-    },
-    {
-        id = "tree_2",
-        type = Constants.RESOURCES.WOOD,
-        basePosition = Vector3.new(-15, 3, 0),
-        cooldown = 10,
-    },
-    {
-        id = "rock_1",
-        type = Constants.RESOURCES.STONE,
-        basePosition = Vector3.new(0, 3, 15),
-        cooldown = 12,
-    },
-    {
-        id = "rock_2",
-        type = Constants.RESOURCES.STONE,
-        basePosition = Vector3.new(0, 3, -15),
-        cooldown = 12,
-    },
-    {
-        id = "dew_1",
-        type = Constants.RESOURCES.DEWDROP,
-        basePosition = Vector3.new(10, 3, 10),
-        cooldown = 8,
-    },
-    {
-        id = "bush_1",
-        type = Constants.RESOURCES.SEED_BERRY,
-        basePosition = Vector3.new(-10, 3, -10),
-        cooldown = 15,
-    },
-}
+local staticNodes = Constants.RESOURCE_NODES
 
 function ResourceManager.init()
     RemoteEvents.GatherResource.OnServerInvoke = function(
@@ -130,10 +92,10 @@ function ResourceManager.init()
             return false, "Too far away"
         end
 
-        local cooldownSeconds = (staticNode.cooldown or 10) * 60
+        local cooldownSeconds = staticNode.cooldownMinutes * 60
 
         local rewardItem = staticNode.type
-        local rewardAmount = rewardItem == Constants.RESOURCES.DEWDROP and 2 or 1
+        local rewardAmount = staticNode.amount
         local currentTimestamp = os.time()
         local granted, grantError = ResourceRules.tryGrantReward(
             sessionData.resourceCooldowns,

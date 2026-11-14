@@ -27,6 +27,8 @@ Format/lint only project-owned Luau files under src/. Never format the repositor
 
 src/shared/PocketHabitat.spec.lua contains TestEZ specifications for production PlantRules and EconomyRules logic. It covers interaction validation, seed selection/ownership, watering and growth constraints, harvest eligibility, malformed state, inventory capacity, and invalid inventory data.
 
+The same suite also asserts that every plant definition maps to a unique shared resource node, the node's displayed name produces its server lookup ID, and the node reward is the plant's seed item. This is a source-level configuration test; it does not exercise Roblox ProximityPrompt delivery or server gathering.
+
 `src/shared/Tests/CharacterSpawn.spec.lua` is also in the TestEZ `describe`/`it` format and checks the production default-data API plus the shared spawn-coordinate serializer's round-trip and invalid-value handling. Neither spec suite has been executed by a compatible Roblox/TestEZ runner in this environment. The CI workflow installs TestEZ but does not invoke a runner. Do not report TestEZ as passed until a real test execution result is available.
 
 Expand tests around production logic for:
@@ -41,7 +43,7 @@ Expand tests around production logic for:
 
 Use mocks for external Roblox service boundaries, not for the production business rules being tested.
 
-## Recovery follow-up — plot save preservation and upgrade ordering — 2026-11-14
+## Historical recovery follow-up — plot save preservation and upgrade ordering — 2026-11-14
 
 Added production `HabitatRules.partitionPlotData` specifications for retaining over-unlocked plot state, moving archived state back to active data when an expansion unlocks it, and rejecting duplicate or out-of-range entries. `EconomyManager` validates upgrade quest progress on a copy and commits plot purchases only after `WorldBuilder.addGardenPlot` succeeds. TestEZ was not run; this environment has no compatible TestEZ/Roblox runner.
 
@@ -83,7 +85,7 @@ The server now permits the watering-can purchase, and the production `PlantRules
 - Roblox Studio/server, multiplayer, purchase, and save/rejoin tests: NOT RUN.
 - Independent pipeline review/QA: NOT confirmed for this follow-up.
 
-## Current recovery verification rerun — 2026-11-14
+## Historical recovery verification rerun — 2026-11-14
 
 At checkout `8e1287704c15`, direct source inspection confirmed the recorded upgrade transaction, locked-plot preservation/restoration, watering-can cost, quest-progress, and reward-cooldown changes remain present. No new automation-resolvable recovery finding was identified.
 
@@ -95,7 +97,7 @@ At checkout `8e1287704c15`, direct source inspection confirmed the recorded upgr
 - Roblox Studio/server, multiplayer, DataStore, save/rejoin/contention, shutdown, and manual tests: NOT RUN.
 - Public Actions API check: workflow run #42 was still `in_progress` at 15:32 UTC; no independent review/QA result was available yet.
 
-Recovery remains OPEN until a trustworthy review/QA decision and deterministic validation are confirmed. Static checks do not replace TestEZ or runtime verification.
+At this checkpoint, recovery remained OPEN pending a trustworthy review/QA decision. Run #42 cycle 1 later reported review/QA and deterministic validation passed; the recovery record now closes only its enumerated source-repair debt. Static checks do not replace TestEZ or runtime verification.
 
 ## Current recovery verification — 2026-11-14
 
@@ -127,6 +129,19 @@ Checks actually run after these changes:
 - Independent review/QA of this cycle's source changes: NOT RUN.
 
 New production-rule specs cover unlocked plot counts, invalid expansion levels, and rejection of an unowned/locked plot index. Their presence does not mean they executed.
+
+## Shared plant-seed sources — 2026-11-14
+
+Added shared `Constants.RESOURCE_NODES` definitions consumed by both `WorldBuilder` and `ResourceManager`; each of the five plant definitions now declares its seed ID. WorldBuilder creates visual, prompted seed sources for Flower, Sun Petal, Moonflower, and Glowcap in addition to the existing berry bush. Server gathering resolves each node ID and seed reward from the same list. A focused TestEZ spec checks node ID uniqueness, prompt-name/ID agreement, and complete plant-seed coverage.
+
+Current verification after this source and documentation update:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 76,447 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is available.
+- Roblox Studio/server, ProximityPrompt gathering, multiplayer isolation, DataStore save/rejoin, and manual tests: NOT RUN.
+- Independent pipeline review/QA of the seed-source follow-up: NOT RUN.
 
 ## Studio testing procedure for habitat/multiplayer
 

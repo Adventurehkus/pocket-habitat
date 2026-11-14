@@ -25,7 +25,7 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 
 ### Shared modules
 
-- src/shared/Constants.lua — item, plant, creature, quest, and upgrade definitions.
+- src/shared/Constants.lua — item, plant, creature, quest, upgrade, and shared resource-node definitions.
 - src/shared/CharacterSpawnData.lua — DataStore-safe spawn vector encoding and validation.
 - src/shared/PlantRules.lua — production plant/plot interaction validation.
 - src/shared/EconomyRules.lua — production inventory and capacity validation.
@@ -48,7 +48,7 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 
 ## Current runtime architecture and known limitations
 
-The Run #40 cycle-1 recovery entry reports independent review, QA, and deterministic validation passed for the historical character-lifecycle, persistence, shutdown, and cooldown source repairs. This continuation adds a separate quest-progression slice that still awaits pipeline review/QA. Static checks do not prove Roblox server, network, or DataStore behavior; Roblox runtime verification remains outstanding.
+Run #42 cycle 1 reports independent review, QA, and deterministic validation passed for the recorded recovery checkpoint. The current shared seed-node and plant-seed mapping change is a separate local follow-up that has only static validation. Static checks do not prove Roblox server, network, or DataStore behavior; Roblox runtime verification remains outstanding.
 
 Current source facts:
 
@@ -62,13 +62,14 @@ Current source facts:
 - The initial session sync includes `playerData`; the client also accepts direct gameplay data syncs from economy and interaction modules.
 - `HabitatManager` tracks per-server player habitat slots, offsets each habitat, and exposes the server-owned habitat lookup used by interactions.
 - `ResourceManager` and `PlantManager` register remote handlers in `init()` and validate player session, habitat membership, and server-measured distance. Resource gathering also requires a living Humanoid and uses saved per-player cooldowns. `QuestManager.init()` owns the claim callback.
+- `Constants.RESOURCE_NODES` is the shared source for resource IDs, item rewards, habitat-relative positions, and cooldowns. `WorldBuilder` creates the prompted node instances from this list, while `ResourceManager` resolves requests against the same definitions. All five plant definitions declare their seed item; each seed has a gatherable habitat node, and non-berry seed nodes use the corresponding plant color. `PlantRules` builds its seed-to-plant lookup from the plant definitions. A focused TestEZ spec verifies mapping uniqueness and coverage, but TestEZ and Roblox runtime behavior remain unverified.
 - `QuestRules` persists validated action counters in the player session. Gathering, planting, watering, harvesting, discovery, and upgrades record progress only after server-authoritative actions; quest claims validate those counters or the authoritative discovered-creature/upgrade state. `Constants.QUEST_ORDER` includes all ten quests, and session normalization advances legacy players with a nil/completed current quest to their next incomplete quest. The first-creature quest grants the seed required by the later Sun Petal quest. Item capacity is validated before the non-yielding Bells/inventory/claim-state mutation, preventing a repeated claim after a partial grant.
 - Upgrade quest-progress values are restricted to defined upgrade IDs and their configured maximum levels, both when loading stored progress and when mutating it. Resource gathering suppresses the inventory helper's intermediate sync and sends the client snapshot only after quest progress is recorded, keeping the visible inventory/progression update coherent.
 - `WorldBuilder` builds per-habitat geometry and restores saved plot plant visuals and basic growth/water state from the loaded session. Full upgrade effects and runtime Roblox restoration remain unverified.
 - `EconomyManager.init()` owns the `PurchaseUpgrade` RemoteFunction handler. Plot expansion creates a prompt-enabled plot in the player's registered habitat, restores any archived plant state, and commits Bells, upgrade level, quest progress, and active plot data only after world construction succeeds. `PlantRules` rejects indices beyond the unlocked level. Storage expansion changes inventory capacity. Watering-can purchases are enabled and its validated level reduces dewdrop use by charging once per one, two, or three water actions at levels one, two, or three; the plot's persisted `waterCount` determines the next charge. Decorative-tile purchases remain unavailable until the visual effect is implemented.
 - `DataStoreManager` imports `Constants` at module initialization with `WaitForChild` and validates saved upgrade IDs/levels against definitions. It fills missing plot records for purchased expansions and preserves supported plots beyond the current unlocked count in `lockedPlots`; those records return to active plot data when unlocked. Duplicate entries and indices beyond the maximum supported plot count fail closed rather than discarding saved state.
 - `CreatureManager` scopes runtime instances and movement to each player's habitat and restores discovered creature types from the session; engine lifecycle and multiplayer isolation remain unverified.
-- The latest quest and plot-expansion edits have not received a separate pipeline review/QA decision. No TestEZ runner, Roblox Studio/engine, multiplayer, or DataStore integration test has been executed. Current static checks pass; the generated `.rbxl` is only a Rojo build artifact.
+- Run #42 cycle 1 reports review/QA and deterministic validation passed for the recorded recovery checkpoint. The later shared seed-node change is unreviewed and has only static validation. No TestEZ runner, Roblox Studio/engine, multiplayer, or DataStore integration test has been executed. The generated `.rbxl` is only a Rojo build artifact.
 
 Earlier run notes below are historical. The source currently uses `PlayerDataStoreV1`; prior documentation referring to `PocketHabitat_v2_PlayerData` did not match the implementation and must not be used to infer a second store or migration.
 
