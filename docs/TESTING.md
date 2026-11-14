@@ -10,18 +10,19 @@
 
 ## Current-checkout recovery source adjudication — 2026-11-14
 
-The QA appendix reported a spawn argument type mismatch, non-atomic session acquisition, and startup acceptance of malformed session data. Direct inspection of the current source found all three claims non-actionable: both spawn call sites pass `Vector3` values; `DataStoreManager.loadPlayerData` acquires with `UpdateAsync` and validates the returned token, lease, and normalized data before registering a session; and `ServerMain` stops and kicks a player when session loading fails. No gameplay source change was necessary. The recovery marker is RESOLVED for these source findings only. The cycle-3 QA agent could not read the implementation diff, and no independent pipeline QA pass is claimed.
+The QA appendix reported a spawn argument type mismatch, non-atomic session acquisition, and startup acceptance of malformed session data. Independent inspection of the current source found all three claims non-actionable: both spawn call sites pass `Vector3` values; `DataStoreManager.loadPlayerData` acquires with `UpdateAsync` and validates the returned token, lease, and normalized data before registering a session; and `ServerMain` stops and kicks a player when session loading fails. No gameplay source change was necessary. The recovery marker is RESOLVED for these source findings only. The cycle-3 QA agent could not read the implementation diff, and no independent pipeline QA pass is claimed.
 
-- Current checkout: `63aae2e10075f67e25f7093191b166ca6387280a`; latest commit changes documentation only, with gameplay source unchanged.
+- Current checkout: `54fa2e1d0613a7b82d3a02debfc0d92ae9bac70c`; gameplay source is unchanged in this recovery pass.
 - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 76,447 bytes.
 - `stylua --check src`: PASS.
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
 - `git diff --check`: PASS after the documentation updates.
 - TestEZ: NOT RUN; no compatible `run-in-roblox`, `lune`, or `luau` executable is available.
+- Runner investigation: the vendored TestEZ CLI is documented for library/plugin projects and requires Lua; it is not a compatible runner for this Roblox game project. Roblox CLI and Lua are also unavailable.
 - Pipeline review/QA: no valid independent QA pass for the current gameplay source; the cycle-5 review describes an empty diff and its QA stage returned no trustworthy decision.
 - Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
 
-Current-checkout rerun on `63aae2e10075f67e25f7093191b166ca6387280a`: the build, format, lint, and diff checks above all passed. Cycle 6 changed documentation only; direct source verification confirms no recorded automation-resolvable source finding remains. The recovery marker resolves source findings only and does not assert a pipeline QA pass or game/runtime readiness.
+Current-checkout rerun on `54fa2e1d0613a7b82d3a02debfc0d92ae9bac70c`: the build, format, lint, and diff checks passed. Direct source verification confirms no recorded automation-resolvable source finding remains. The recovery marker resolves source findings only and does not assert a pipeline QA pass or game/runtime readiness. `git diff --check` was rerun after the documentation updates.
 
 ## Standard deterministic checks
 
