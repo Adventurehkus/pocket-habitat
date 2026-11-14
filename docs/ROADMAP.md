@@ -122,6 +122,7 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 - [x] Validate actual harvest progress, upgrade levels, and the specific Leafling discovery. (Source implemented; runtime pending)
 - [x] Award the Sun Petal seed needed for the Sun Petal quest; validate capacity and commit item, Bells, and claim state together. (Source implemented; runtime pending)
 - [x] Keep quest reward claims single-use; an incomplete inventory/award transaction does not mark the quest complete. (Source implemented; runtime/test verification pending)
+- [x] Drive the HUD quest-claim action from the server-synced current quest across the full quest order. (Source implemented; Roblox client interaction unverified)
 - [x] Bound persisted/set upgrade quest progress to each upgrade definition's maximum level. (Source implemented; focused TestEZ case added but not executed)
 - [x] Publish resource inventory and quest progress after both mutations are applied, without an intermediate inventory-only sync. (Source implemented; Roblox client behavior unverified)
 - [x] Wire the purchase remote to the server manager; plot expansion creates a usable owned plot and restores it from the validated session, while storage expansion changes inventory capacity. (Source implemented; runtime-unverified)
@@ -178,7 +179,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify seed gathering through plant harvest and persistence in Roblox Studio. The all-plants production-rule spec is present but unexecuted. No compatible TestEZ/Roblox runner is available in this environment; the vendored TestEZ CLI is not suitable for this game project. The recovery record is RESOLVED for recorded source-level findings only; no trustworthy independent pipeline review/QA decision is claimed for the current checkout. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, shutdown, and the newly hardened plant-interaction lifecycle remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
+**Immediate priority:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify seed gathering through plant harvest, all ten quest claims, and persistence in Roblox Studio. The all-plants production-rule spec is present but unexecuted. No compatible TestEZ/Roblox runner is available in this environment; the vendored TestEZ CLI is not suitable for this game project. The recovery record is RESOLVED for recorded source-level findings only; no trustworthy independent pipeline review/QA decision is claimed for the current checkout. Quest progression and its newly synchronized HUD, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, shutdown, and plant-interaction lifecycle remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
 
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)

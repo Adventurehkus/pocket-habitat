@@ -3,23 +3,23 @@
 ## Current state
 
 - Gameplay branch: `ai/game-build`.
-- Source baseline: `dcb7f2a`; local changes add plot-interaction server validation and request throttling.
-- `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for its recorded automation-resolvable source findings only. No trustworthy independent pipeline review/QA decision is claimed for this checkout.
+- Source baseline: `33b8e78`; the current worktree adds quest-claim HUD synchronization.
+- `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for recorded automation-resolvable source findings only. No trustworthy independent pipeline review/QA decision is claimed for this checkout.
 
 ## Implementation
 
-`PlantManager` now requires a live, parented character and valid root part before processing plot interactions, limits plot remote requests to one per player per 0.25 seconds, and removes transient throttle state during player cleanup. Resolved plot instances must be BaseParts before distance checks. This closes the missing living-character check and rate-limit gap in the current plot remote path.
+The HUD now reads the server-synced current quest ID, submits one claim request for that quest, and updates its claim button label as progression advances through the complete ten-quest order. This replaces hardcoded q1-q6 claims and repeated fallback requests that could never claim q7-q10. The client also stops sending an unused session-token argument to server remotes.
 
 ## Verification
 
-- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 77,089-byte local artifact.
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 77,065-byte local artifact.
 - `stylua --check src`: PASS.
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
-- `git diff --check`: PASS after the source and documentation edits.
-- TestEZ: NOT RUN; no compatible runner is installed. Existing production-rule specifications remain unexecuted.
-- Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN; static validation does not establish runtime correctness.
+- `git diff --check`: PASS on the complete source and documentation diff.
+- TestEZ: NOT RUN; no compatible runner is installed.
+- Roblox Studio/client, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
 - Artifact upload: NOT performed or confirmed.
 
 ## Next task
 
-Run the existing TestEZ suite in a compatible Roblox runner, then verify seed gathering through harvest, quest progression, persistence, plant interaction checks, and habitat isolation in Roblox Studio. Static validation does not establish runtime correctness or release readiness.
+Run the production-backed TestEZ suite in a compatible Roblox runner, then test the complete seed-to-harvest and ten-quest progression path, habitat isolation, and save/rejoin in Roblox Studio. Static validation does not establish runtime correctness.

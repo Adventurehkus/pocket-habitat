@@ -36,7 +36,8 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 
 ### Client modules
 
-- src/client/ProximityHandler.client.lua — client-side ProximityPrompt interaction wiring and remote invocation. Inspect current source for other client controllers before extending the client architecture.
+- src/client/ProximityHandler.client.lua — client-side ProximityPrompt interaction wiring and remote invocation.
+- src/client/ClientMain.client.lua — HUD, gameplay buttons, synced player-data display, and quest claiming based on the server-synced current quest.
 - src/client/CharacterManager.client.lua — requests server respawn after the local Humanoid dies.
 
 ### Project and tooling
@@ -60,6 +61,7 @@ Current source facts:
 - `characterSpawnData` remains a pair of `Vector3` values in memory and is encoded as `{x, y, z}` numeric tables before DataStore writes. Orientation is stored/restored as Euler angles; older unit look-vector values are migrated. Saved coordinates are bounded to the player's habitat on restoration. The current design does not save Roblox Instances.
 - `getSession` returns no data when a player has no active loaded session; it does not manufacture a mutable default session. New sessions use the live gameplay schema, including four plots, quest state, discovery state, Bells, inventory, and upgrades.
 - The initial session sync includes `playerData`; the client also accepts direct gameplay data syncs from economy and interaction modules.
+- The HUD claim button submits only the synchronized `currentQuest` and updates its title when the server sends new player data, so it supports the complete configured quest order. Client code does not send the obsolete session-token argument; the server resolves the Player and active session itself. Roblox client/network behavior remains unverified.
 - `HabitatManager` tracks per-server player habitat slots, offsets each habitat, and exposes the server-owned habitat lookup used by interactions.
 - `ResourceManager` and `PlantManager` register remote handlers in `init()` and validate player session, habitat membership, and server-measured distance. Both interaction paths require a living character with a root part; resource gathering uses saved per-player cooldowns, while plot remotes have a 0.25-second per-player throttle whose transient state is cleared on cleanup. These source checks have not been exercised in Roblox.
 - `Constants.RESOURCE_NODES` is the shared source for resource IDs, item rewards, habitat-relative positions, and cooldowns. `WorldBuilder` creates the prompted node instances from this list, while `ResourceManager` resolves requests against the same definitions. All five plant definitions declare their seed item; each seed has a gatherable habitat node, and non-berry seed nodes use the corresponding plant color. `PlantRules` builds its seed-to-plant lookup from the plant definitions. A focused TestEZ spec verifies mapping uniqueness and coverage, but TestEZ and Roblox runtime behavior remain unverified.

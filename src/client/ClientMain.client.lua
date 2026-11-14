@@ -12,8 +12,7 @@ local RemoteEvents = require(Shared:WaitForChild("RemoteEvents"))
 
 local player = Players.LocalPlayer
 
--- Session token for player operations
-local clientSessionToken: string? = nil
+local currentQuestId: string? = nil
 local playerGui = player:WaitForChild("PlayerGui") :: PlayerGui
 
 local gui = Instance.new("ScreenGui")
@@ -222,7 +221,7 @@ uiLayout.Padding = UDim.new(0, 8)
 uiLayout.SortOrder = Enum.SortOrder.LayoutOrder
 uiLayout.Parent = actionsFrame
 
-local function createActionButton(text: string, callback: () -> ())
+local function createActionButton(text: string, callback: () -> ()): TextButton
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -10, 0, 38)
     btn.BackgroundColor3 = Color3.fromRGB(110, 170, 115)
@@ -240,48 +239,48 @@ local function createActionButton(text: string, callback: () -> ())
         playSound("notify")
         callback()
     end)
+
+    return btn
 end
 
 -- Create Interaction Buttons
 createActionButton("🪵 Gather Wood (Tree 1)", function()
-    local success, res = RemoteEvents.GatherResource:InvokeServer("tree_1", clientSessionToken)
+    local success, res = RemoteEvents.GatherResource:InvokeServer("tree_1")
     print("Gather result:", success, res)
 end)
 
 createActionButton("🪨 Gather Stone (Rock 1)", function()
-    local success, res = RemoteEvents.GatherResource:InvokeServer("rock_1", clientSessionToken)
+    local success, res = RemoteEvents.GatherResource:InvokeServer("rock_1")
     print("Gather result:", success, res)
 end)
 
 createActionButton("💧 Gather Dewdrops (Dew 1)", function()
-    local success, res = RemoteEvents.GatherResource:InvokeServer("dew_1", clientSessionToken)
+    local success, res = RemoteEvents.GatherResource:InvokeServer("dew_1")
     print("Gather result:", success, res)
 end)
 
 createActionButton("🌾 Gather Berry Seed (Bush 1)", function()
-    local success, res = RemoteEvents.GatherResource:InvokeServer("bush_1", clientSessionToken)
+    local success, res = RemoteEvents.GatherResource:InvokeServer("bush_1")
     print("Gather result:", success, res)
 end)
 
 createActionButton("🌱 Plant Berry Seed in Plot 1", function()
-    local success, res =
-        RemoteEvents.PlantSeed:InvokeServer(1, Constants.RESOURCES.SEED_BERRY, clientSessionToken)
+    local success, res = RemoteEvents.PlantSeed:InvokeServer(1, Constants.RESOURCES.SEED_BERRY)
     print("Plant result:", success, res)
 end)
 
 createActionButton("💧 Water Plot 1", function()
-    local success, res = RemoteEvents.WaterPlot:InvokeServer(1, clientSessionToken)
+    local success, res = RemoteEvents.WaterPlot:InvokeServer(1)
     print("Water result:", success, res)
 end)
 
 createActionButton("🧺 Harvest Plot 1", function()
-    local success, res = RemoteEvents.HarvestPlot:InvokeServer(1, clientSessionToken)
+    local success, res = RemoteEvents.HarvestPlot:InvokeServer(1)
     print("Harvest result:", success, res)
 end)
 
 createActionButton("⬆️ Buy Plot Expansion", function()
-    local success, res =
-        RemoteEvents.PurchaseUpgrade:InvokeServer("plot_expansion", clientSessionToken)
+    local success, res = RemoteEvents.PurchaseUpgrade:InvokeServer("plot_expansion")
     print("Upgrade result:", success, res)
 end)
 
@@ -290,15 +289,13 @@ createActionButton("💧 Buy Watering Can Upgrade", function()
     print("Upgrade result:", success, res)
 end)
 
-createActionButton("⭐ Claim Current Quest", function()
-    local success, res = RemoteEvents.ClaimQuest:InvokeServer("q1_wood", clientSessionToken)
-    if not success then
-        RemoteEvents.ClaimQuest:InvokeServer("q2_stone", clientSessionToken)
-        RemoteEvents.ClaimQuest:InvokeServer("q3_plant", clientSessionToken)
-        RemoteEvents.ClaimQuest:InvokeServer("q4_water", clientSessionToken)
-        RemoteEvents.ClaimQuest:InvokeServer("q5_harvest", clientSessionToken)
-        RemoteEvents.ClaimQuest:InvokeServer("q6_creature", clientSessionToken)
+local claimQuestButton = createActionButton("⭐ Claim Current Quest", function()
+    local questId = currentQuestId
+    if not questId then
+        return
     end
+
+    local success, res = RemoteEvents.ClaimQuest:InvokeServer(questId)
     print("Claim Quest result:", success, res)
 end)
 
@@ -334,18 +331,19 @@ RemoteEvents.SyncData.OnClientEvent:Connect(function(data: any)
         return
     end
 
-    if data.sessionToken then
-        clientSessionToken = data.sessionToken
-    end
-
     local playerData = data.playerData or data.data or data
     if type(playerData) == "table" and type(playerData.inventory) == "table" then
         bellsLabel.Text = "Bells: " .. tostring(playerData.bells or 0) .. " 🔔"
 
-        if playerData.currentQuest and Constants.QUESTS[playerData.currentQuest] then
-            questLabel.Text = "Quest: " .. Constants.QUESTS[playerData.currentQuest].title
+        local questId = playerData.currentQuest
+        local questDef = if type(questId) == "string" then Constants.QUESTS[questId] else nil
+        currentQuestId = if questDef then questId else nil
+        if questDef then
+            questLabel.Text = "Quest: " .. questDef.title
+            claimQuestButton.Text = "⭐ Claim: " .. questDef.title
         else
             questLabel.Text = "Quest: All Complete! 🎉"
+            claimQuestButton.Text = "⭐ All Quests Complete!"
         end
 
         local invText = "Inventory:\n"

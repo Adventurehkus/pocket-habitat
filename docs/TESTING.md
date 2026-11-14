@@ -8,6 +8,17 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
+## Quest-claim HUD integration — 2026-11-14
+
+The HUD previously hardcoded claims for q1-q6 and attempted several subsequent claims when the first request failed, leaving q7-q10 without a claim path. It now submits only the quest ID in the server-synced `currentQuest`, changes the button label as quest state updates, and stops sending the unused client session-token argument.
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 77,065-byte artifact.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS on the complete source and documentation diff.
+- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed (`run-in-roblox`, `lune`, `luau`, `lua`, and `luajit` are unavailable).
+- Roblox client interaction, quest progression, multiplayer, and DataStore tests: NOT RUN.
+
 ## Historical worktree verification — 2026-11-14 (`2541fed`)
 
 Historical baseline: rechecked the then-current recovery source claims and resolved the source-level recovery record. The all-plants TestEZ specification in `src/shared/PocketHabitat.spec.lua` exercises production `PlantRules` seed validation, watering, growth boundary, and harvest/reward mapping for each defined plant; it was already present and was not changed in that pass.
