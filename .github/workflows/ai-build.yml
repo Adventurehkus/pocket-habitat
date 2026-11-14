@@ -381,6 +381,15 @@ jobs:
               return 0
             fi
 
+            # Cohere trial keys can hard-stop at a shared monthly API-call cap.
+            # Its error message also mentions "higher rate limits" later in the
+            # response, which otherwise makes the broad rate-limit matcher
+            # misclassify a permanent account cap as a temporary RPM limit.
+            if [[ "$provider" == "cohere" ]] && grep -Eiq 'trial key.{0,120}limited to.{0,60}[0-9][0-9,]*[[:space:]]+API calls?[[:space:]]*/[[:space:]]*month' "$log_file"; then
+              echo "SHARED_DAILY_QUOTA"
+              return 0
+            fi
+
             if grep -Eiq 'request too large for model|expected output tokens exceed|reduce max_tokens|prompt.{0,30}(too large|exceeds).{0,30}(limit|maximum)|maximum request size exceeded' "$log_file"; then
               echo "REQUEST_TOO_LARGE"
               return 0
@@ -574,6 +583,7 @@ jobs:
           assert_failure_class "google" 'Please retry in 43.4s.' "MODEL_RATE_LIMIT"
           assert_failure_class "groq" 'Request too large for model; input tokens per minute Limit 7000, Requested 12283.' "REQUEST_TOO_LARGE"
           assert_failure_class "cohere" 'Trial key is limited to 20 API calls / minute.' "PROVIDER_RATE_LIMIT"
+          assert_failure_class "cohere" 'You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits.' "SHARED_DAILY_QUOTA"
           assert_failure_class "openrouter" 'HTTP 429 rate limit exceeded.' "PROVIDER_RATE_LIMIT"
           assert_failure_class "google" 'This model is currently experiencing high demand. Try again later.' "TEMP_CAPACITY"
           assert_failure_class "google" 'Invalid API key: authentication failed.' "AUTH_FAILURE"
