@@ -2,7 +2,26 @@
 
 RECOVERY_STATUS: OPEN
 
-This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 cycle-2 quest-progress findings. All automation-resolvable source findings are fixed or adjudicated as non-actionable. The latest recovery pass bounds upgrade progress to defined upgrade levels and delays the resource-data sync until quest progress has been recorded. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing.
+This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 cycle-2 quest-progress findings. All automation-resolvable source findings are fixed or adjudicated as non-actionable. The latest recovery pass bounds upgrade progress to defined upgrade levels and delays the resource-data sync until quest progress has been recorded. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing. Recovery remains OPEN because the cycle-6 gameplay-source follow-up has no confirmed independent pipeline review/QA decision.
+
+## 2026-11-14 follow-up — verify current recovery source
+
+The current checkout is `c6fe7a9bf0a8b5974549949f876043f860f6cbed`; gameplay source is unchanged from `82508860f1557d7f55213aed1d74b86f2d48b7ea`. A fresh inspection confirms:
+
+- `EconomyManager.purchaseUpgrade` validates progress on a copy, constructs the new plot before mutating Bells/upgrades/progress, and restores archived plot data when the expansion is purchased.
+- `DataStoreManager.normalizeSessionData` validates and partitions active versus locked plot data; malformed/duplicate/out-of-supported-range entries fail closed instead of silently discarding saved plot state.
+- `HabitatRules.partitionPlotData` and the focused plot/upgrade/resource TestEZ specifications exercise the production rules; TestEZ remains unexecuted because no compatible runner is available.
+- The prior cycle-2 progress-bound and resource-sync repairs remain present in `QuestRules` and `ResourceManager`.
+
+Checks actually rerun:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 74,762 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ, Roblox Studio/server, multiplayer, DataStore save/rejoin/contention, and shutdown tests: NOT RUN.
+- Independent pipeline review/QA: NOT confirmed; authenticated GitHub Actions access is unavailable in this environment.
+
+No source-level finding from the recorded cycle-2, cycle-5, or cycle-6 reports remains unfixed in the inspected code. Keep recovery OPEN until the required independent review/QA evidence is available. Runtime and TestEZ gaps remain explicitly unverified.
 
 ## 2026-11-14 follow-up — plot save recovery and purchase ordering
 
@@ -2265,6 +2284,94 @@ index 656e062..6a4884f 100644
 +- TestEZ: NOT RUN; no compatible runner is installed.
 +- Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown tests: NOT RUN.
 +- Independent pipeline review/QA: NOT confirmed for this follow-up. A read-only Actions query was blocked because `gh` has no authentication in this environment.
++
+ ## Current recovery verification — 2026-11-14
+ 
+ The Run #40 cycle-1 recovery entry reports independent review, QA, and deterministic validation passed for the historical source repairs. This continuation resolved the Run #40 cycle-2 source findings: upgrade progress is bounded against upgrade definitions, and the resource reward flow emits its client data sync only after quest progress is recorded. The malformed-progress report item was reviewed and is non-actionable: nil is initialized for legacy saves, while malformed data fails closed. `docs/AUTONOMOUS_RECOVERY.md` marks the listed source findings RESOLVED. The latest source edits have not received separate pipeline review/QA.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 40
+- Cycle: 8
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 8 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-implementation.diff
+
+diff --git a/docs/AUTONOMOUS_RECOVERY.md b/docs/AUTONOMOUS_RECOVERY.md
+index dea19a2..5fe8665 100644
+--- a/docs/AUTONOMOUS_RECOVERY.md
++++ b/docs/AUTONOMOUS_RECOVERY.md
+@@ -2,7 +2,26 @@
+ 
+ RECOVERY_STATUS: OPEN
+ 
+-This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 cycle-2 quest-progress findings. All automation-resolvable source findings are fixed or adjudicated as non-actionable. The latest recovery pass bounds upgrade progress to defined upgrade levels and delays the resource-data sync until quest progress has been recorded. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing.
++This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 cycle-2 quest-progress findings. All automation-resolvable source findings are fixed or adjudicated as non-actionable. The latest recovery pass bounds upgrade progress to defined upgrade levels and delays the resource-data sync until quest progress has been recorded. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing. Recovery remains OPEN because the cycle-6 gameplay-source follow-up has no confirmed independent pipeline review/QA decision.
++
++## 2026-11-14 follow-up — verify current recovery source
++
++The current checkout is `c6fe7a9bf0a8b5974549949f876043f860f6cbed`; gameplay source is unchanged from `82508860f1557d7f55213aed1d74b86f2d48b7ea`. A fresh inspection confirms:
++
++- `EconomyManager.purchaseUpgrade` validates progress on a copy, constructs the new plot before mutating Bells/upgrades/progress, and restores archived plot data when the expansion is purchased.
++- `DataStoreManager.normalizeSessionData` validates and partitions active versus locked plot data; malformed/duplicate/out-of-supported-range entries fail closed instead of silently discarding saved plot state.
++- `HabitatRules.partitionPlotData` and the focused plot/upgrade/resource TestEZ specifications exercise the production rules; TestEZ remains unexecuted because no compatible runner is available.
++- The prior cycle-2 progress-bound and resource-sync repairs remain present in `QuestRules` and `ResourceManager`.
++
++Checks actually rerun:
++- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 74,762 bytes.
++- `stylua --check src`: PASS.
++- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
++- `git diff --check`: PASS.
++- TestEZ, Roblox Studio/server, multiplayer, DataStore save/rejoin/contention, and shutdown tests: NOT RUN.
++- Independent pipeline review/QA: NOT confirmed; authenticated GitHub Actions access is unavailable in this environment.
++
++No source-level finding from the recorded cycle-2, cycle-5, or cycle-6 reports remains unfixed in the inspected code. Keep recovery OPEN until the required independent review/QA evidence is available. Runtime and TestEZ gaps remain explicitly unverified.
+ 
+ ## 2026-11-14 follow-up — plot save recovery and purchase ordering
+ 
+diff --git a/docs/PROJECT_STATE.md b/docs/PROJECT_STATE.md
+index ed39d9c..1cf206b 100644
+--- a/docs/PROJECT_STATE.md
++++ b/docs/PROJECT_STATE.md
+@@ -4,10 +4,10 @@
+ 
+ - **Gameplay repository:** Adventurehkus/pocket-habitat
+ - **Gameplay branch:** ai/game-build
+-- **Current source checkpoint:** `82508860f1557d7f55213aed1d74b86f2d48b7ea` (Run #40 cycle 6; recovery follow-up required). The cycle-6 follow-up preserves/restores saved plots beyond the currently unlocked expansion and hardens plot-upgrade commit ordering. Do not treat this checkpoint as independently reviewed/QA-approved.
++- **Current checkout:** `c6fe7a9bf0a8b5974549949f876043f860f6cbed` (Run #40 cycle 7; documentation-only follow-up). The latest gameplay-source checkpoint is `82508860f1557d7f55213aed1d74b86f2d48b7ea`; it preserves/restores saved plots beyond the currently unlocked expansion and hardens plot-upgrade commit ordering. Do not treat the source follow-up as independently reviewed/QA-approved.
+ - **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation and quota-pool carry-forward; the provider-reset cutoff experiment was reverted (main workflow rollback: `647b5bd885d673dca3e31bb5b518e8b8da746800`).
+ - **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion is carried forward; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`. No provider-reset calendar or pre-reset model-call cutoff is applied.
+-- **Verification boundary:** Run #40 cycle-1 review/QA and deterministic validation covered the historical recovery repairs. The cycle-2 quest changes, cycle-5 plot-expansion changes, and cycle-6 follow-up have not received a separate pipeline review/QA decision. Current Rojo, StyLua, Selene, and diff checks pass locally; the generated artifact is 74,762 bytes. TestEZ and Roblox engine tests remain unexecuted. GitHub Actions status could not be queried because `gh` is unauthenticated in this environment.
++- **Verification boundary:** Run #40 cycle-1 review/QA and deterministic validation covered the historical recovery repairs. The cycle-2 quest changes, cycle-5 plot-expansion changes, and cycle-6 follow-up have not received a separate pipeline review/QA decision. A fresh source audit confirms the listed recovery fixes remain present. Rojo, StyLua, Selene, and diff checks pass locally; the generated artifact is 74,762 bytes. TestEZ and Roblox engine tests remain unexecuted. GitHub Actions status could not be queried because `gh` is unauthenticated in this environment.
+ 
+ This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
+ 
+diff --git a/docs/TESTING.md b/docs/TESTING.md
+index 6a4884f..8f7332c 100644
+--- a/docs/TESTING.md
++++ b/docs/TESTING.md
+@@ -59,7 +59,7 @@ The source-level recovery findings were fixed or found non-actionable, but recov
+ 
+ ## Current checkpoint verification rerun — 2026-11-14
+ 
+-The current checkout is `82508860f1557d7f55213aed1d74b86f2d48b7ea`. The listed plot-preservation and purchase-order source findings remain addressed; no gameplay source was changed during this verification pass.
++The current checkout is `c6fe7a9bf0a8b5974549949f876043f860f6cbed`; it contains documentation-only changes since gameplay source checkpoint `82508860f1557d7f55213aed1d74b86f2d48b7ea`. A fresh source inspection confirmed the plot-preservation and purchase-order findings remain addressed; no gameplay source changed.
+ 
+ - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 74,762 bytes.
+ - `stylua --check src`: PASS.
+@@ -69,6 +69,8 @@ The current checkout is `82508860f1557d7f55213aed1d74b86f2d48b7ea`. The listed p
+ - Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown tests: NOT RUN.
+ - Independent pipeline review/QA: NOT confirmed for this follow-up. A read-only Actions query was blocked because `gh` has no authentication in this environment.
+ 
++A fresh direct inspection of `EconomyManager`, `DataStoreManager`, `HabitatRules`, and `WorldBuilder` confirmed expansion state is validated before plot construction, Bells/upgrades/progress commit only after successful plot creation, and supported locked plot data is preserved/restored rather than discarded. This source inspection does not replace independent pipeline review/QA or runtime testing.
 +
  ## Current recovery verification — 2026-11-14
  

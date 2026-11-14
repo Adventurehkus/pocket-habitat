@@ -59,7 +59,7 @@ The source-level recovery findings were fixed or found non-actionable, but recov
 
 ## Current checkpoint verification rerun — 2026-11-14
 
-The current checkout is `82508860f1557d7f55213aed1d74b86f2d48b7ea`. The listed plot-preservation and purchase-order source findings remain addressed; no gameplay source was changed during this verification pass.
+The current checkout is `c6fe7a9bf0a8b5974549949f876043f860f6cbed`; it contains documentation-only changes since gameplay source checkpoint `82508860f1557d7f55213aed1d74b86f2d48b7ea`. A fresh source inspection confirmed the plot-preservation and purchase-order findings remain addressed; no gameplay source changed.
 
 - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 74,762 bytes.
 - `stylua --check src`: PASS.
@@ -68,6 +68,8 @@ The current checkout is `82508860f1557d7f55213aed1d74b86f2d48b7ea`. The listed p
 - TestEZ: NOT RUN; no compatible runner is installed.
 - Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown tests: NOT RUN.
 - Independent pipeline review/QA: NOT confirmed for this follow-up. A read-only Actions query was blocked because `gh` has no authentication in this environment.
+
+A fresh direct inspection of `EconomyManager`, `DataStoreManager`, `HabitatRules`, and `WorldBuilder` confirmed expansion state is validated before plot construction, Bells/upgrades/progress commit only after successful plot creation, and supported locked plot data is preserved/restored rather than discarded. This source inspection does not replace independent pipeline review/QA or runtime testing.
 
 ## Current recovery verification — 2026-11-14
 
