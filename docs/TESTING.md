@@ -141,7 +141,7 @@ Current verification after this source and documentation update:
 - `git diff --check`: PASS.
 - TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is available.
 - Roblox Studio/server, ProximityPrompt gathering, multiplayer isolation, DataStore save/rejoin, and manual tests: NOT RUN.
-- Independent pipeline review/QA of the seed-source follow-up: NOT RUN.
+- User-reported QA blocker: NOT VERIFIED; `/home/runner/work/_temp/opencode-qa-27.log` and `/home/runner/work/_temp/pocket-habitat-validation.log` were inaccessible, and authenticated GitHub Actions logs were unavailable. Do not treat the deterministic checks above as a QA decision.
 
 ## Studio testing procedure for habitat/multiplayer
 

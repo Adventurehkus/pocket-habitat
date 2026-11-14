@@ -1,6 +1,12 @@
 # Pocket Habitat — Autonomous Recovery Record
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
+
+## 2026-11-14 — reported QA blocker pending evidence access
+
+The user reports that the attached QA report identifies a blocker. Its supporting files, `/home/runner/work/_temp/opencode-qa-27.log` and `/home/runner/work/_temp/pocket-habitat-validation.log`, could not be read: file access was denied by the non-interactive environment. The public GitHub Actions job page requires sign-in, its logs API returned 403, and `gh auth status` confirms no authenticated GitHub host. The finding details therefore remain unknown; this is not an adjudication that the blocker is invalid.
+
+The current `ai/game-build` checkpoint is `7648f081f60c463f9ade1a3123882f3f97ec9271`. Direct deterministic checks against that source passed: `rojo build default.project.json -o /tmp/pocket-habitat-validation.rbxl` (non-empty, 76,447 bytes), `stylua --check src`, `selene src` (0 errors, 0 warnings, 0 parse errors), and `git diff --check`. These checks do not substitute for inspecting the QA claims. No source finding could be confirmed or safely repaired without the report contents. Obtain authorized access to both logs, verify each claim against current source, and fix confirmed blockers before resolving recovery.
 
 This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 quest-progress and plot-state findings. All recorded automation-resolvable source findings are fixed or adjudicated as non-actionable. Run #42 cycle 1 reports independent review, QA, and deterministic validation passed for the recovery checkpoint. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing.
 
@@ -2565,6 +2571,75 @@ index c859a2e..271b7e9 100644
 Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
 
 Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-validation.log
+
+Building project 'Pocket Habitat'
+Built project to pocket-habitat.rbxl
+PASS: Rojo build -> build/pocket-habitat.rbxl
+PASS: StyLua check src
+Results:
+0 errors
+0 warnings
+0 parse errors
+PASS: Selene src
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 42
+- Cycle: 3
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+QA blocker repair or independent re-check could not complete. Inspect the attached reports and resolve the blocker before treating this work as complete.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-qa-27.log
+
+[0m
+> qa · gemini-3.1-flash-lite
+[0m→ [0mRead . 
+> qa · gemini-3.1-flash-lite
+[0m→ [0mRead src 
+> qa · gemini-3.1-flash-lite
+[0m✗ [0mRead pocket-habitat-implementation.diff failed
+[91m[1mError: [0mFile not found: pocket-habitat-implementation.diff
+> qa · gemini-3.1-flash-lite
+[0m✱ [0mGlob "**/*.diff" [90m0 matches[0m
+> qa · gemini-3.1-flash-lite
+[0m✗ [0mRead pocket-habitat-validation.log failed
+[91m[1mError: [0mFile not found: pocket-habitat-validation.log
+> qa · gemini-3.1-flash-lite
+[0m✱ [0mGlob "**/*.log" [90m0 matches[0m
+> qa · gemini-3.1-flash-lite
+[0m→ [0mRead docs/PROJECT_STATE.md 
+> qa · gemini-3.1-flash-lite
+[0m→ [0mRead docs/AUTONOMOUS_RECOVERY.md 
+> qa · gemini-3.1-flash-lite
+QA_BLOCKER: YES
+
+Reported findings:
+1. **Critical Persistent Data Loss:** Source inspection confirms that `CharacterSpawner.lua` calls `DataStoreManager.updateCharacterSpawnData` using a `CFrame` argument where the server expects a `Vector3` position. As identified in previous cycle logs, this failure causes the `typeof` check to fail, leading the system to revert to default spawn positions and overwrite valid saved coordinates, resulting in permanent loss of character persistence across sessions.
+2. **DataStore Race Conditions:** `DataStoreManager.acquireSession` continues to use `GetAsync` followed by `SetAsync` (or similar non-atomic patterns) instead of the required atomic `UpdateAsync` with session-lock validation. This introduces a race condition where multiple servers can claim a session or overwrite valid player data.
+3. **Insecure Startup Flow:** While startup was improved, `ServerMain` lacks robust validation for session load results, treating any successful read (even malformed or empty) as a valid session state, which can propagate corrupted data or bypass ownership checks.
+
+Automated checks:
+- Rojo build: PASSED
+- StyLua: PASSED
+- Selene: PASSED
+- `git diff --check`: PASSED
+
+Missing tests:
+- TestEZ: NOT EXECUTED.
+- Roblox engine/Studio: NOT EXECUTED (startup, respawn, multiplayer isolation, DataStore contention, save/rejoin/failure recovery, and shutdown tests).
+- Multiplayer/DataStore integration: NOT EXECUTED.
+
+Release-readiness assessment:
+The project is NOT release-ready. The character persistence bug alone guarantees immediate data loss for any player. The persistence logic and session-locking mechanism remain unverified at runtime. Do not proceed with feature development until the critical persistence bug and DataStore race conditions are repaired and verified.
 
 ## Evidence: pocket-habitat-validation.log
 

@@ -177,7 +177,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Obtain pipeline review/QA of the shared seed-node follow-up, then execute the TestEZ suite in a compatible runner and verify seed gathering through plant harvest and persistence in Roblox Studio. This environment has no compatible TestEZ runner or Roblox runtime. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, and shutdown also remain runtime-unverified. Decorative-tile purchases stay disabled until their visual effect is implemented.
+**Immediate priority:** Verify and repair the blocker reported by the attached QA report. Its supporting logs and authenticated Actions logs were inaccessible during this run, so the claims remain unverified and recovery stays open; passing deterministic checks do not dismiss the report. After resolving the blocker, execute the TestEZ suite in a compatible runner and verify seed gathering through plant harvest and persistence in Roblox Studio. This environment has no compatible TestEZ runner or Roblox runtime. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, and shutdown also remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
 
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
