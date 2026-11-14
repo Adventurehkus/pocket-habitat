@@ -8,9 +8,9 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
-## Current-worktree verification — 2026-11-14 (`2541fed`)
+## Historical worktree verification — 2026-11-14 (`2541fed`)
 
-Rechecked the current recovery source claims and resolved the source-level recovery record. The all-plants TestEZ specification in `src/shared/PocketHabitat.spec.lua` exercises production `PlantRules` seed validation, watering, growth boundary, and harvest/reward mapping for each defined plant; it was already present and was not changed in this pass.
+Historical baseline: rechecked the then-current recovery source claims and resolved the source-level recovery record. The all-plants TestEZ specification in `src/shared/PocketHabitat.spec.lua` exercises production `PlantRules` seed validation, watering, growth boundary, and harvest/reward mapping for each defined plant; it was already present and was not changed in that pass.
 
 - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 76,921-byte local artifact.
 - `stylua --check src`: PASS.
@@ -21,6 +21,18 @@ Rechecked the current recovery source claims and resolved the source-level recov
 - Independent pipeline review/QA: no trustworthy decision is claimed for this checkout.
 
 This spec checks shared production rules, not manager reward mutation, quest delivery, persistence, or Roblox interactions. It remains unexecuted and does not establish an end-to-end gameplay pass.
+
+## Plant interaction hardening — 2026-11-14
+
+`PlantManager` now rejects requests without a parented character, living Humanoid, and `BasePart` root; applies a per-player 0.25-second request throttle across all plot remotes; and clears the transient throttle on both failed-session cleanup and normal player departure. Plot lookup also confirms the resolved object is a BasePart before measuring distance. The check is source-level only.
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; nonempty artifact, 77,089 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed.
+- `git diff --check`: PASS after the source and documentation edits.
+- Roblox Studio/server, multiplayer, prompt interaction, and DataStore tests: NOT RUN.
+- Independent pipeline review/QA: not confirmed for this worktree.
 
 ## Prior-checkpoint recovery source adjudication — 2026-11-14
 

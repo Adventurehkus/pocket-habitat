@@ -14,6 +14,9 @@ local CreatureManager = require(script.Parent:WaitForChild("CreatureManager"))
 
 local PlantManager = {}
 
+local PLANT_REQUEST_INTERVAL = 0.25
+local lastPlantRequestAt: { [number]: number } = {}
+
 -- These positions mirror WorldBuilder's initial garden plot positions.
 -- Keep this declaration above the handler so every reference resolves to
 -- this local table rather than an undeclared global.
@@ -175,9 +178,30 @@ local function handleInteraction(
         return false, "Invalid player"
     end
 
+    local now = os.clock()
+    local lastRequestAt = lastPlantRequestAt[player.UserId]
+    if lastRequestAt and now - lastRequestAt < PLANT_REQUEST_INTERVAL then
+        return false, "Plot request rate limited"
+    end
+    lastPlantRequestAt[player.UserId] = now
+
     local data = DataStoreManager.getSession(player)
     if type(data) ~= "table" then
         return false, "No session"
+    end
+
+    local character = player.Character
+    local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
+    local rootPart = if character then character:FindFirstChild("HumanoidRootPart") else nil
+    if
+        not character
+        or not character.Parent
+        or not humanoid
+        or humanoid.Health <= 0
+        or not rootPart
+        or not rootPart:IsA("BasePart")
+    then
+        return false, "Invalid character"
     end
 
     local plan, validationError =
@@ -202,17 +226,11 @@ local function handleInteraction(
         plotInstance = plotsFolder:FindFirstChild(plotName)
     end
 
-    if not plotInstance then
+    if not plotInstance or not plotInstance:IsA("BasePart") then
         return false, "Plot not found in player habitat"
     end
 
-    -- Check interaction distance (25 studs)
-    local character = player.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then
-        return false, "Invalid character"
-    end
-
-    local distance = (character.HumanoidRootPart.Position - plotInstance.Position).Magnitude
+    local distance = (rootPart.Position - plotInstance.Position).Magnitude
     if distance > 25 then
         return false, "Too far away from plot"
     end
@@ -258,6 +276,10 @@ function PlantManager.init()
     ): (boolean, string)
         return handleInteraction(player, plotIndex, "harvest")
     end
+end
+
+function PlantManager.removePlayer(player: Player)
+    lastPlantRequestAt[player.UserId] = nil
 end
 
 return PlantManager

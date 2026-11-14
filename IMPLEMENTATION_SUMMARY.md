@@ -3,24 +3,23 @@
 ## Current state
 
 - Gameplay branch: `ai/game-build`.
-- Checkout verified: `2541fed`.
-- No gameplay source was changed in this pass.
+- Source baseline: `dcb7f2a`; local changes add plot-interaction server validation and request throttling.
 - `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for its recorded automation-resolvable source findings only. No trustworthy independent pipeline review/QA decision is claimed for this checkout.
 
-## Recovery verification
+## Implementation
 
-Direct source inspection confirmed that both character-spawn call sites pass the `Vector3` values accepted and validated by `DataStoreManager.updateCharacterSpawnData`; session acquisition uses `UpdateAsync` and validates the owned token, lease, and normalized data before registering the session; and failed loads stop before habitat allocation or character spawn.
+`PlantManager` now requires a live, parented character and valid root part before processing plot interactions, limits plot remote requests to one per player per 0.25 seconds, and removes transient throttle state during player cleanup. Resolved plot instances must be BaseParts before distance checks. This closes the missing living-character check and rate-limit gap in the current plot remote path.
 
-## Checks
+## Verification
 
-- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 76,921-byte local artifact.
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 77,089-byte local artifact.
 - `stylua --check src`: PASS.
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
-- `git diff --check`: PASS after the documentation update.
-- TestEZ: NOT RUN; no compatible runner is installed. The all-plants production-rule spec remains unexecuted.
-- Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
+- `git diff --check`: PASS after the source and documentation edits.
+- TestEZ: NOT RUN; no compatible runner is installed. Existing production-rule specifications remain unexecuted.
+- Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN; static validation does not establish runtime correctness.
 - Artifact upload: NOT performed or confirmed.
 
 ## Next task
 
-Run the existing TestEZ suite in a compatible Roblox runner, then verify seed gathering through harvest, quest progression, persistence, and habitat isolation in Roblox Studio. Static validation does not establish runtime correctness or release readiness.
+Run the existing TestEZ suite in a compatible Roblox runner, then verify seed gathering through harvest, quest progression, persistence, plant interaction checks, and habitat isolation in Roblox Studio. Static validation does not establish runtime correctness or release readiness.

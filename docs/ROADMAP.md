@@ -93,7 +93,8 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 
 ### Prompt, plot, and resource ownership
 - [x] Make LocalScript prompt discovery connect only to the local player's habitat, including an initial lookup and later DescendantAdded/removed handling. (Implemented in ProximityHandler; runtime-unverified)
-- [x] Validate plot Instance membership in the calling player's habitat, plot index, active session, character, and server-measured interaction distance before any mutation. (Implemented in PlantManager)
+- [x] Validate plot Instance membership in the calling player's habitat, plot index, active session, living character/root part, and server-measured interaction distance before any mutation. (Implemented in PlantManager; runtime-unverified)
+- [x] Throttle plot interaction remotes per player and clear transient throttle state on cleanup. (Implemented in PlantManager/ServerMain; runtime-unverified)
 - [x] Derive plot effect positions from the server-resolved plot Instance instead of fixed shared-world coordinates. (Implemented in PlantManager)
 - [x] Resolve each resource node from the calling player's registered habitat; do not trust node positions/owners supplied by clients or accept a bare template ID without server-side instance membership validation. (NodeId now exists on the exact server-built Part; runtime-unverified)
 - [x] Resource cooldowns are isolated per player/node in session data, schema-validated, and included in normal save/release writes. (Crash before the next write may lose the newest cooldown.)
@@ -177,7 +178,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify seed gathering through plant harvest and persistence in Roblox Studio. The all-plants production-rule spec is present but unexecuted. No compatible TestEZ/Roblox runner is available in this environment; the vendored TestEZ CLI is not suitable for this game project. The recovery record is RESOLVED for recorded source-level findings only; no trustworthy independent pipeline review/QA decision is claimed for the current checkout. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, and shutdown remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
+**Immediate priority:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify seed gathering through plant harvest and persistence in Roblox Studio. The all-plants production-rule spec is present but unexecuted. No compatible TestEZ/Roblox runner is available in this environment; the vendored TestEZ CLI is not suitable for this game project. The recovery record is RESOLVED for recorded source-level findings only; no trustworthy independent pipeline review/QA decision is claimed for the current checkout. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, shutdown, and the newly hardened plant-interaction lifecycle remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
 
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)

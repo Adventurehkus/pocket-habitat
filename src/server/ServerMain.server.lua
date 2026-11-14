@@ -30,6 +30,7 @@ local function stopPlayerSession(player: Player, reason: string)
     DataStoreManager.releaseSession(player)
     CharacterSpawner.cleanupPlayer(player)
     ResourceManager.removePlayer(player)
+    PlantManager.removePlayer(player)
     HabitatManager.removeHabitat(player)
     if player.Parent then
         player:Kick("Your habitat could not be loaded safely. Please rejoin.")
@@ -98,6 +99,7 @@ local function cleanupPlayer(player: Player, shutdownDeadline: number?)
     CreatureManager.cleanupPlayer(player)
     CharacterSpawner.cleanupPlayer(player)
     ResourceManager.removePlayer(player)
+    PlantManager.removePlayer(player)
     HabitatManager.removeHabitat(player)
     initializingPlayers[player] = nil
     cleaningPlayers[player] = nil
