@@ -41,20 +41,37 @@ Expand tests around production logic for:
 
 Use mocks for external Roblox service boundaries, not for the production business rules being tested.
 
-## Roblox engine and manual tests
+## Studio testing procedure for habitat/multiplayer
 
-These require a supported Roblox engine runner or Studio. They are not replaced by static validation or TestEZ pure-rule tests.
+Since automated execution of the Roblox engine or Studio is not available in this environment, perform the following tests in Roblox Studio to verify Milestone 2 functionality:
 
-- Server startup and player lifecycle.
-- Client/server RemoteFunction and RemoteEvent signatures.
-- ProximityPrompt interactions and server-side distance/ownership checks.
-- Two or more simultaneous players attempting equivalent resource/plot actions.
-- Habitat allocation, respawn, cleanup, and no cross-player interference.
-- DataStore load/save, session contention, lease expiration, crash recovery, and rejoin.
-- UI input on mouse/keyboard, touch, and gamepad where supported.
-- Performance, memory, connection cleanup, and mobile device behavior.
+1. **Habitat Allocation:**
+   - Join with two separate Roblox accounts or test users in the same server.
+   - Verify that both players are assigned different, non-overlapping floating islands (habitats).
+   - Use `ServerMain.HabitatManager` to log and verify that each UserId has exactly one assigned habitat folder.
 
-Use a dedicated test place and test data. Never use production player data for experiments. Record execution IDs, output, errors, and actual completion status where a cloud runner is used. Cloud Luau execution does not prove full client rendering or input behavior.
+2. **Resource Cooldowns:**
+   - Gather from a resource node in Player A's habitat.
+   - Verify that the node becomes unavailable for Player A for the defined duration.
+   - Verify that the same node in Player B's habitat (or even a different node in Player A's habitat) remains available.
+   - Verify that rewards are only granted once per gather.
+
+3. **DataStore Save/Rejoin:**
+   - Perform actions (gather, plant, harvest) in a habitat.
+   - Force a server save (or wait for the periodic interval) and leave.
+   - Rejoin and verify that the habitat state (plants, growth status, plot state) is restored exactly as it was.
+   - Simulate a crash (e.g., stopping the Studio server) immediately after an action to check if the session-save/lock-release retry logic functions as expected.
+
+4. **Creature Isolation:**
+   - Trigger creature discovery for Player A.
+   - Verify the creature instance is created inside Player A's habitat folder.
+   - Verify that Player B does not see the creature and that Player A's creature does not move into Player B's habitat.
+
+5. **Multiplayer Isolation:**
+   - Ensure that no interaction request from Player A can affect Player B's plots, inventory, or resource cooldowns.
+   - Validate that the server correctly resolves target instances based on the player who triggered the event, not the target instance path itself.
+
+Document the results of these tests and any observed issues in `docs/TESTING.md` after performing them.
 
 ## Current recovery source pass — 2026-11-12
 

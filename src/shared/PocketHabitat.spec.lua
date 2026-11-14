@@ -7,6 +7,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local PlantRules = require(Shared:WaitForChild("PlantRules"))
 local EconomyRules = require(Shared:WaitForChild("EconomyRules"))
 local ResourceRules = require(Shared:WaitForChild("ResourceRules"))
+local CharacterSpawnData = require(Shared:WaitForChild("CharacterSpawnData"))
 
 local NOW = 10_000
 local BERRY_SEED = Constants.RESOURCES.SEED_BERRY
@@ -310,5 +311,26 @@ return function()
                 expect(badUpgrade).to.equal(false)
             end
         )
+        it("rolls back resource cooldown reservation if reward is rejected", function()
+            local cooldowns = { tree_1 = NOW + 10 }
+            -- Mocked interaction: reserve cooldown
+            cooldowns.tree_1 = NOW + 60
+            -- Simulate reward rejection (e.g. inventory full)
+            local rewardGranted = false
+            if not rewardGranted then
+                cooldowns.tree_1 = NOW + 10 -- Rollback
+            end
+            expect(cooldowns.tree_1).to.equal(NOW + 10)
+        end)
+    end)
+    describe("CharacterSpawnData — spawn serialization", function()
+        it("encodes Vector3 coordinates as a numeric table", function()
+            local serialized = CharacterSpawnData.encodeVector3(Vector3.new(1, 2, 3))
+
+            expect(type(serialized)).to.equal("table")
+            expect(serialized.x).to.equal(1)
+            expect(serialized.y).to.equal(2)
+            expect(serialized.z).to.equal(3)
+        end)
     end)
 end

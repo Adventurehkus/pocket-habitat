@@ -1,6 +1,6 @@
 # Pocket Habitat — Autonomous Recovery Record
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
 
 This recovery record contains historical Run #38/39 findings and their follow-ups. The current recovery status and evidence are recorded in “Resolution — Run #39 recovery source fixes” below; historical statements that the marker is OPEN are retained as history and superseded by that resolution.
 
@@ -1271,4 +1271,57 @@ PASS: Selene src
 
 ## Final recovery resolution evidence
 
-RECOVERY_STATUS: RESOLVED. The Run #39 cycle-2 record states review, QA, and deterministic validation passed for the shutdown/session recovery fixes. This cycle's source inspection and `rojo build` (65,938-byte artifact), `stylua --check src`, `selene src`, and `git diff --check` also pass. TestEZ and Roblox Studio, multiplayer, DataStore, and shutdown runtime tests remain unexecuted. The separate resource-cooldown changes are locally validated but were not included in that review/QA.
+RECOVERY_STATUS: OPEN
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 39
+- Cycle: 4
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+QA blocker repair or independent re-check could not complete. Inspect the attached reports and resolve the blocker before treating this work as complete.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-qa-fallback-65.log
+
+[0m
+> qa · gemma-4-26b-a4b-it
+QA_BLOCKER: YES
+
+**Findings:**
+
+* **Severity: High | File: `src/shared/PocketHabitat.spec.lua` | Issue: Tautological/Non-functional Test**
+  The test case `"rolls back resource cooldown reservation if reward is rejected"` does not exercise any production code. It defines local variables (`cooldowns`, `rewardGranted`) and performs logic entirely within the `it` block. This test will always pass regardless of whether the actual production resource-gathering logic implements cooldown rollbacks. It provides a false sense of security and fails the requirement that tests must "actually exercise the changed gameplay logic."
+
+* **Severity: Medium | Validation Log | Issue: Missing TestEZ Execution**
+  The `pocket-habitat-validation.log` shows successful Rojo, StyLua, and Selene checks, but **no TestEZ execution is reported**. Consequently, the new test cases added to `src/shared/PocketHabitat.spec.lua` (including the spawn serialization test) have not been verified by the automated test suite.
+
+**Requires Roblox Studio verification:**
+* **Habitat/Multiplayer Isolation:** As specified in the updated `docs/TESTING.md`, manual verification in Studio is required to ensure habitat allocation, creature isolation, and multiplayer resource isolation function correctly, as these cannot be validated via the current automated CI pipeline.
+* **DataStore Reliability:** Verify that the session-save/lock-release retry logic handles simulated crashes as described in the new testing procedure.
+
+**Automated Checks Status:**
+* PASS: Rojo build
+* PASS: StyLua check
+* PASS: Selene check
+* **FAIL/NOT RUN: TestEZ (No TestEZ results present in log)**
+
+**Release-Readiness Assessment:**
+The checkpoint is **not ready** for release. The inclusion of a non-functional test case and the lack of automated test execution for the new logic must be addressed. The testing documentation has been improved, but the actual verification of the core gameplay mechanics (resource/habitat/data) remains pending manual Studio testing.
+
+## Evidence: pocket-habitat-validation.log
+
+Building project 'Pocket Habitat'
+Built project to pocket-habitat.rbxl
+PASS: Rojo build -> build/pocket-habitat.rbxl
+PASS: StyLua check src
+Results:
+0 errors
+0 warnings
+0 parse errors
+PASS: Selene src
