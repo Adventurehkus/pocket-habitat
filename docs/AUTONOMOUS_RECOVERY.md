@@ -2,7 +2,7 @@
 
 RECOVERY_STATUS: OPEN
 
-This recovery record contains historical Run #38/39 findings and their follow-ups. The Run #39 shutdown/session source fixes were resolved with prior review/QA evidence, but the cooldown rollback QA finding reopened recovery. Its production-code repair has an independent review report with no findings, but the follow-up QA stage did not produce a trustworthy decision; a later review attempt also returned no decision for the accumulated checkpoint. The status remains OPEN. TestEZ is unavailable in this environment and remains unexecuted.
+This recovery record contains historical Run #38/39 findings and their follow-ups. The Run #39 shutdown/session source fixes were resolved with prior review/QA evidence, but the cooldown rollback QA finding reopened recovery. Its production-code repair has an independent review report with no findings, but the follow-up QA stage did not produce a trustworthy decision; later review attempts also returned no decision for accumulated documentation-only checkpoints. The gameplay source has not changed since the cycle-5 repair. The status remains OPEN. TestEZ and Roblox runtime tests are unavailable in this environment and remain unexecuted.
 
 **Core findings:**
 - All Priority 1 fixes (deterministic validation, syntax, formatting) are implemented and verified
@@ -1778,4 +1778,143 @@ index e6bf358..cc098c5 100644
 +The cooldown rollback repair is present in gameplay source at `c09a0f4`; the current checkout is `522d1df` (cycle 6), whose changes since cycle 5 are documentation-only. Its TestEZ cases call the production `ResourceRules.tryGrantReward` helper used by `ResourceManager`. The cycle-5 independent review reported no code findings, but no trustworthy QA decision was returned, so the recovery remains open.
  
  Checks actually run against the current worktree:
+
+ ---
+
+ ## Current continuation verification — 2026-11-14
+
+ The current checkout is `62ebdd4` (Run #39 cycle 7). The gameplay diff from the previously reviewed repair checkpoint `c09a0f4` is empty; changes in cycles 6 and 7 are documentation-only. The cycle-5 independent review reported no findings for the cooldown transaction repair. The cycle-7 review attempt did not return a trustworthy decision for the accumulated documentation diff, and the earlier QA stage did not return a trustworthy decision for the repair. Recovery therefore remains OPEN; no QA approval is inferred.
+
+ Checks actually run in this continuation:
+ - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; nonempty artifact, 66,824 bytes.
+ - `stylua --check src`: PASS.
+ - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+ - `git diff --check`: PASS after the documentation updates.
+ - TestEZ: NOT RUN; the TestEZ package is present, but no compatible runner (`run-in-roblox`, `luau`, `lune`, `lua`, or `luajit`) is installed.
+ - Roblox Studio/server, multiplayer, DataStore, and shutdown tests: NOT RUN.
+
+ Keep the recovery marker OPEN until trustworthy QA evidence is recorded. Runtime gaps remain unverified.
  
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 39
+- Cycle: 8
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 8 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-implementation.diff
+
+diff --git a/docs/AUTONOMOUS_RECOVERY.md b/docs/AUTONOMOUS_RECOVERY.md
+index 842f67a..9a13ab5 100644
+--- a/docs/AUTONOMOUS_RECOVERY.md
++++ b/docs/AUTONOMOUS_RECOVERY.md
+@@ -2,7 +2,7 @@
+ 
+ RECOVERY_STATUS: OPEN
+ 
+-This recovery record contains historical Run #38/39 findings and their follow-ups. The Run #39 shutdown/session source fixes were resolved with prior review/QA evidence, but the cooldown rollback QA finding reopened recovery. Its production-code repair has an independent review report with no findings, but the follow-up QA stage did not produce a trustworthy decision; a later review attempt also returned no decision for the accumulated checkpoint. The status remains OPEN. TestEZ is unavailable in this environment and remains unexecuted.
++This recovery record contains historical Run #38/39 findings and their follow-ups. The Run #39 shutdown/session source fixes were resolved with prior review/QA evidence, but the cooldown rollback QA finding reopened recovery. Its production-code repair has an independent review report with no findings, but the follow-up QA stage did not produce a trustworthy decision; later review attempts also returned no decision for accumulated documentation-only checkpoints. The gameplay source has not changed since the cycle-5 repair. The status remains OPEN. TestEZ and Roblox runtime tests are unavailable in this environment and remain unexecuted.
+ 
+ **Core findings:**
+ - All Priority 1 fixes (deterministic validation, syntax, formatting) are implemented and verified
+@@ -1778,4 +1778,20 @@ index e6bf358..cc098c5 100644
+ +The cooldown rollback repair is present in gameplay source at `c09a0f4`; the current checkout is `522d1df` (cycle 6), whose changes since cycle 5 are documentation-only. Its TestEZ cases call the production `ResourceRules.tryGrantReward` helper used by `ResourceManager`. The cycle-5 independent review reported no code findings, but no trustworthy QA decision was returned, so the recovery remains open.
+  
+  Checks actually run against the current worktree:
++
++ ---
++
++ ## Current continuation verification — 2026-11-14
++
++ The current checkout is `62ebdd4` (Run #39 cycle 7). The gameplay diff from the previously reviewed repair checkpoint `c09a0f4` is empty; changes in cycles 6 and 7 are documentation-only. The cycle-5 independent review reported no findings for the cooldown transaction repair. The cycle-7 review attempt did not return a trustworthy decision for the accumulated documentation diff, and the earlier QA stage did not return a trustworthy decision for the repair. Recovery therefore remains OPEN; no QA approval is inferred.
++
++ Checks actually run in this continuation:
++ - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; nonempty artifact, 66,824 bytes.
++ - `stylua --check src`: PASS.
++ - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
++ - `git diff --check`: PASS after the documentation updates.
++ - TestEZ: NOT RUN; the TestEZ package is present, but no compatible runner (`run-in-roblox`, `luau`, `lune`, `lua`, or `luajit`) is installed.
++ - Roblox Studio/server, multiplayer, DataStore, and shutdown tests: NOT RUN.
++
++ Keep the recovery marker OPEN until trustworthy QA evidence is recorded. Runtime gaps remain unverified.
+  
+diff --git a/docs/PROJECT_STATE.md b/docs/PROJECT_STATE.md
+index 113ef33..00906ab 100644
+--- a/docs/PROJECT_STATE.md
++++ b/docs/PROJECT_STATE.md
+@@ -4,10 +4,10 @@
+ 
+ - **Gameplay repository:** Adventurehkus/pocket-habitat
+ - **Gameplay branch:** ai/game-build
+-- **Current checkout:** `522d1df` (Run #39 cycle 6 follow-up; documentation-only changes from cycle 5). Gameplay source remains unchanged from `c09a0f4`, which contains the resource-cooldown rollback repair.
++- **Current checkout:** `62ebdd4` (Run #39 cycle 7 follow-up). Changes since the reviewed gameplay checkpoint `c09a0f4` are documentation-only; the resource-cooldown rollback repair remains unchanged.
+ - **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation and quota-pool carry-forward; the provider-reset cutoff experiment was reverted (main workflow rollback: `647b5bd885d673dca3e31bb5b518e8b8da746800`).
+ - **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion is carried forward; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`. No provider-reset calendar or pre-reset model-call cutoff is applied.
+-- **Verification boundary:** The Run #39 cycle-2 record covers independent review/QA and deterministic validation for the shutdown follow-up. The cycle-5 independent reviewer reported no findings for the cooldown transaction repair, but its QA stage did not produce a trustworthy decision. On 2026-11-14 the current source passed Rojo (66,824-byte artifact), StyLua, Selene, and `git diff --check`. TestEZ and Roblox engine tests remain unexecuted.
++- **Verification boundary:** The Run #39 cycle-2 record covers independent review/QA and deterministic validation for the shutdown follow-up. The cycle-5 independent reviewer reported no findings for the cooldown transaction repair, but its QA stage did not produce a trustworthy decision; the cycle-7 review attempt also returned no decision for the accumulated documentation-only diff. In this continuation, the unchanged gameplay source passed Rojo (66,824-byte artifact), StyLua, Selene, and `git diff --check`. TestEZ and Roblox engine tests remain unexecuted.
+ 
+ This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
+ 
+@@ -17,9 +17,9 @@ The current source implements a server-owned join flow: automatic character load
+ 
+ `DataStoreManager` uses `UpdateAsync` for session acquisition, lease renewal, saving, and release. A failed operation, active foreign lease, malformed record, or unsupported schema does not expose a fabricated default session. The five-minute lease is renewed every two minutes with current session data. Existing legacy fields are normalized to the live gameplay schema; spawn vectors are serialized as numeric tables. Per-player resource cooldowns are now part of session data, schema-validated, and saved with the player's next periodic/final save; cooldown reservations occur before reward mutation and are rolled back when the reward is rejected. A crash before the next save can still lose the newest cooldown state. Final release is atomic and bounded. If it fails transiently, the in-memory session is retained and up to three release-only retries are scheduled at 5, 15, and 30 seconds; the departing session is not renewed indefinitely. A stale-token release is discarded because the server no longer owns that data. Shutdown now makes bounded synchronous release attempts against the absolute deadline to avoid retry tasks surviving process exit. Resource gathering requires an active session and living character, is server-rate-limited, and validates the owned node and interaction distance. These are source-level changes only; Roblox engine and actual DataStore behavior have not been tested.
+ 
+-**Current recovery status:** The Run #39 shutdown/session source fixes have prior independent review/QA and deterministic validation evidence. `docs/AUTONOMOUS_RECOVERY.md` remains OPEN because the cooldown rollback QA finding was repaired but no trustworthy QA decision was returned; a later review attempt also returned no decision for the accumulated checkpoint. The production-backed repair was reviewed with no findings in cycle 5, and current deterministic checks pass. TestEZ, Roblox Studio, multiplayer, save/rejoin, lease contention, failed DataStore calls, and shutdown behavior remain unverified.
++**Current recovery status:** The Run #39 shutdown/session source fixes have prior independent review/QA and deterministic validation evidence. `docs/AUTONOMOUS_RECOVERY.md` remains OPEN because the cooldown rollback QA finding was repaired but no trustworthy QA decision was returned. The production-backed repair was reviewed with no findings in cycle 5; cycle 7 made no gameplay-source changes, and current deterministic checks pass. TestEZ, Roblox Studio, multiplayer, save/rejoin, lease contention, failed DataStore calls, and shutdown behavior remain unverified.
+ 
+-**Current highest-priority task:** Obtain a trustworthy independent QA decision for the production-backed cooldown rollback repair, then execute its TestEZ specs in a compatible runner. After that, verify gather cooldown behavior alongside two-client habitat isolation and DataStore save/rejoin/contention in Studio. No compatible TestEZ runner or Roblox runtime is available in this environment.
++**Current highest-priority task:** Obtain a trustworthy independent QA decision for the production-backed cooldown rollback repair and execute its TestEZ specs in a compatible Roblox runner. Then verify gather cooldown behavior alongside two-client habitat isolation and DataStore save/rejoin/contention in Studio. This environment has no compatible TestEZ runner or Roblox runtime.
+ 
+ ## Historical workflow — Run #32
+ 
+@@ -114,4 +114,4 @@ See `docs/TESTING.md` for "Checkpoint-push retry regression coverage — local r
+ 
+ ## Recovery checkpoint
+ 
+-The current checkpoint repairs the Run #38 QA findings, the DataStore/session defects found during source verification, the `BindToClose` wait deadline, shutdown handling for asynchronous failed-release retries, and the tautological cooldown rollback test finding. Run #39 cycle 2 records independent review/QA and deterministic validation for the earlier recovery fixes; the cycle-5 independent review reported no findings for the cooldown transaction repair, while its QA stage produced no trustworthy decision. Current deterministic checks pass. TestEZ and Roblox runtime tests remain unexecuted. Do not manually commit or push this work.
+\ No newline at end of file
++The current gameplay source repairs the Run #38 QA findings, the DataStore/session defects found during source verification, the `BindToClose` wait deadline, shutdown handling for asynchronous failed-release retries, and the tautological cooldown rollback test finding. Run #39 cycle 2 records independent review/QA and deterministic validation for the earlier recovery fixes; the cycle-5 independent review reported no findings for the cooldown transaction repair, while its QA stage produced no trustworthy decision. Cycle 7 changed documentation only. Current deterministic checks pass. TestEZ and Roblox runtime tests remain unexecuted. Do not manually commit or push this work.
+\ No newline at end of file
+diff --git a/docs/ROADMAP.md b/docs/ROADMAP.md
+index 3f624a3..01db91d 100644
+--- a/docs/ROADMAP.md
++++ b/docs/ROADMAP.md
+@@ -168,7 +168,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
+ 
+ ## Current focus
+ 
+-**Immediate priority:** Obtain a trustworthy independent QA decision for the current cooldown transaction repair, then execute TestEZ with a compatible runner. Afterward verify the resource-cooldown slice with two clients, and test spawn/respawn, DataStore save/rejoin/contention, and shutdown in Roblox Studio. The Run #39 cycle-2 session/shutdown fixes received review/QA; the cycle-5 code review of the cooldown repair reported no findings, but no trustworthy QA decision was returned. TestEZ and all Roblox runtime checks remain outstanding.
++**Immediate priority:** Obtain a trustworthy independent QA decision for the current cooldown transaction repair, then execute TestEZ with a compatible runner. Afterward verify the resource-cooldown slice with two clients, and test spawn/respawn, DataStore save/rejoin/contention, and shutdown in Roblox Studio. The Run #39 cycle-2 session/shutdown fixes received review/QA; the cycle-5 code review of the cooldown repair reported no findings, but no trustworthy QA decision was returned. Cycle 7 changed documentation only; gameplay source remains unchanged from the reviewed repair. TestEZ and all Roblox runtime checks remain outstanding.
+ 
+ **Source-level completed (runtime verification pending):**
+ - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
+diff --git a/docs/TESTING.md b/docs/TESTING.md
+index cc098c5..4bdf216 100644
+--- a/docs/TESTING.md
++++ b/docs/TESTING.md
+@@ -43,7 +43,7 @@ Use mocks for external Roblox service boundaries, not for the production busines
+ 
+ ## Current recovery verification — 2026-11-14
+ 
+-The cooldown rollback repair is present in gameplay source at `c09a0f4`; the current checkout is `522d1df` (cycle 6), whose changes since cycle 5 are documentation-only. Its TestEZ cases call the production `ResourceRules.tryGrantReward` helper used by `ResourceManager`. The cycle-5 independent review reported no code findings, but no trustworthy QA decision was returned, so the recovery remains open.
++The cooldown rollback repair is present in gameplay source at `c09a0f4`; the current checkout is `62ebdd4` (cycle 7), whose changes since cycle 5 are documentation-only. Its TestEZ cases call the production `ResourceRules.tryGrantReward` helper used by `ResourceManager`. The cycle-5 independent review reported no code findings, but no trustworthy QA decision was returned. Cycle 7 introduced no gameplay-source changes, so recovery remains open for missing QA evidence; TestEZ and runtime checks are still unexecuted.
+ 
+ Checks actually run against the current worktree:
+ 
+@@ -56,6 +56,8 @@ Checks actually run against the current worktree:
+ 
+ These deterministic checks do not substitute for TestEZ or runtime verification.
+ 
++The deterministic commands were rerun in the current continuation against unchanged gameplay source: Rojo generated a nonempty 66,824-byte artifact; StyLua, Selene (0 errors, 0 warnings, 0 parse errors), and `git diff --check` passed. TestEZ and Roblox runtime checks remain unexecuted.
++
+ ## Studio testing procedure for habitat/multiplayer
+ 
+ Since automated execution of the Roblox engine or Studio is not available in this environment, perform the following tests in Roblox Studio to verify Milestone 2 functionality:
