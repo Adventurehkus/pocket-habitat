@@ -3,8 +3,8 @@
 ## Current source state
 
 - Gameplay branch: `ai/game-build`.
-- Current checkout: `54fa2e1d0613a7b82d3a02debfc0d92ae9bac70c`; this recovery pass changes documentation only, with gameplay source unchanged.
-- `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for automation-resolvable source-level findings. Cycle 6's review gap is not treated as a gameplay-source finding; no independent pipeline QA pass for current gameplay source is claimed.
+- Current checkout: `721f7d4` on `ai/game-build`; this pass adds production-backed test coverage and recovery documentation.
+- `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for the recorded automation-resolvable source findings. Cycle 8 returned no trustworthy independent pipeline review decision; no pipeline QA pass is claimed.
 
 ## Implementation and recovery
 
@@ -12,13 +12,15 @@ The current source implements server-owned session loading and character spawn/r
 
 The latest recovery check independently verified that the three reported spawn, lease-acquisition, and startup-validation claims are non-actionable in current source, so no source patch was needed. The recovery record is RESOLVED for automation-resolvable source findings only. TestEZ, Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown behavior remain unverified.
 
+`PocketHabitat.spec.lua` now exercises the production `PlantRules` path from planting each defined seed through watering and harvest readiness. The spec is written but not executed.
+
 ## Verification
 
-- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated local artifact, 76,447 bytes.
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated local artifact, 76,921 bytes.
 - `stylua --check src`: PASS.
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
 - `git diff --check`: PASS after the documentation updates.
-- TestEZ: NOT RUN; no compatible runner is available. The vendored TestEZ CLI targets library/plugin projects and requires Lua, which is not installed.
+- TestEZ: NOT RUN; no compatible runner is available. The vendored TestEZ CLI targets library/plugin projects and requires Lua, which is not installed. The new all-plants seed-to-harvest spec remains unexecuted.
 - Independent pipeline review/QA of current gameplay source: NOT confirmed; do not infer a pass from the failed evidence-access attempt or the empty cycle-5 documentation diff.
 - Roblox engine, Studio, multiplayer, DataStore, and manual tests: NOT RUN.
 

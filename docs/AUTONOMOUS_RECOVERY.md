@@ -2,6 +2,25 @@
 
 RECOVERY_STATUS: OPEN
 
+## 2026-11-14 — current-worktree source adjudication
+
+Direct source review at branch HEAD `721f7d4` confirmed that the recorded automation-resolvable recovery claims remain non-actionable or fixed:
+
+1. Both character-spawn call sites pass `Vector3` position and orientation values to the manager's matching `Vector3` API.
+2. `DataStoreManager.loadPlayerData` uses `UpdateAsync`, validates the resulting lease/token and normalized session data, and registers the active session only after validation.
+3. `ServerMain` stops a player when session loading fails, before allocating a habitat.
+
+The cycle-8 report's review route did not return a trustworthy independent pipeline decision. No pipeline review/QA pass is claimed; the current recovery marker closes the source-level findings only. This work adds one TestEZ specification that exercises the production `PlantRules` seed, watering, growth, and harvest path for each defined plant. The spec has not run because no compatible TestEZ/Roblox runner is available.
+
+Current deterministic verification after the test and documentation edits:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated local artifact.
+- `stylua --check src`: PASS.
+- `selene src`: PASS.
+- `git diff --check`: PASS.
+- TestEZ, Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
+
+Older recovery entries below preserve their historical status and are superseded by this current source-level adjudication.
+
 ## 2026-11-14 — current-checkout recovery closure
 
 An independent source inspection against checkout `54fa2e1d0613a7b82d3a02debfc0d92ae9bac70c` confirms that all recorded automation-resolvable source findings are fixed or non-actionable:
@@ -3035,11 +3054,13 @@ index a239894..2120ebf 100644
 
 ---
 
-# Pocket Habitat — unresolved autonomous recovery work
+# Pocket Habitat — historical unresolved recovery report (Run #42, Cycle 8)
 
 - Run: 42
 - Cycle: 8
-- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+- Status at that checkpoint: RECOVERY REQUIRED; no deterministic validation or QA pass was claimed.
+
+The source-level disposition in the current-worktree adjudication at the start of this file supersedes this checkpoint's unresolved source claims. The cycle-8 independent pipeline review still did not return a trustworthy decision and remains explicitly unclaimed.
 
 ## Required next action
 
@@ -3169,3 +3190,140 @@ index 2120ebf..af5422b 100644
  
  ## Standard deterministic checks
  
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 42
+- Cycle: 9
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 9 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-implementation.diff
+
+-- **Verification boundary:** This checkout built a nonempty 76,447-byte artifact; `stylua --check src`, `selene src`, and `git diff --check` pass. The Run #42 cycle-3 source claims were independently checked and found non-actionable. The recovery marker is RESOLVED for automation-resolvable source findings only; this does not claim a current independent pipeline QA pass. TestEZ and Roblox engine tests remain unexecuted.
++- **Verification boundary:** Current-worktree Rojo build produced a nonempty 76,921-byte artifact; `stylua --check src`, `selene src`, and `git diff --check` pass. The new all-plants TestEZ spec is written but unexecuted. Recovery is RESOLVED for recorded source findings only; cycle 8 returned no trustworthy independent pipeline review decision, and no pipeline QA pass is claimed. Roblox engine tests remain unexecuted.
+ 
+ This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
+ 
+@@ -17,12 +17,14 @@ The current source implements a server-owned join flow: automatic character load
+ 
+ `DataStoreManager` uses `UpdateAsync` for session acquisition, lease renewal, saving, and release. A failed operation, active foreign lease, malformed record, or unsupported schema does not expose a fabricated default session. The five-minute lease is renewed every two minutes with current session data. Existing legacy fields are normalized to the live gameplay schema; spawn vectors are serialized as numeric tables. Per-player resource cooldowns are now part of session data, schema-validated, and saved with the player's next periodic/final save; cooldown reservations occur before reward mutation and are rolled back when the reward is rejected. A crash before the next save can still lose the newest cooldown state. Final release is atomic and bounded. If it fails transiently, the in-memory session is retained and up to three release-only retries are scheduled at 5, 15, and 30 seconds; the departing session is not renewed indefinitely. A stale-token release is discarded because the server no longer owns that data. Shutdown now makes bounded synchronous release attempts against the absolute deadline to avoid retry tasks surviving process exit. Resource gathering requires an active session and living character, is server-rate-limited, and validates the owned node and interaction distance. These are source-level changes only; Roblox engine and actual DataStore behavior have not been tested.
+ 
+-**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for automation-resolvable source-level findings. Direct inspection verified the `Vector3` spawn updates, atomic `UpdateAsync` lease acquisition, and fail-closed session validation; cycle 6 changed documentation only. This does not claim a pipeline QA pass for the current gameplay source. TestEZ and Roblox runtime gaps remain explicitly unverified.
++**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for the recorded automation-resolvable source findings. Direct review confirms both spawn call sites match the manager's `Vector3` API, session acquisition and validation are atomic/fail-closed, and failed loads stop before habitat allocation. Cycle 8 did not produce a trustworthy independent pipeline review decision; no pipeline review/QA pass is claimed. TestEZ and Roblox runtime gaps remain explicitly unverified.
+ 
+ **Current highest-priority task:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify the seed-to-harvest loop, habitat isolation, and save/rejoin behavior in Roblox Studio. This environment has no compatible TestEZ/Roblox runner; the vendored TestEZ CLI is not suitable for this game project. Do not treat source inspection or static checks as a TestEZ or pipeline QA pass. Decorative-tile purchases remain disabled until their visual effect is implemented.
+ 
+ The current source wires `PurchaseUpgrade` through `EconomyManager.init()`. Plot expansion creates an owned plot instance with an interaction prompt, restores its saved plant state on expansion, and commits Bells/upgrade/progression only after plot construction succeeds. Session normalization preserves saved plots that exceed a player's current expansion in `lockedPlots`; these are excluded from interaction and habitat rendering until unlocked, then restored. Duplicate or unsupported plot indices remain fail-closed. Storage expansion remains available because inventory capacity already uses its level. Watering-can purchases are enabled: `PlantRules` calculates a persisted-level-based dewdrop cost, and `PlantManager` consumes only that amount; level 2 charges one drop per two waterings and level 3 per three. The cycle-1 review/QA evidence applies only to its checkpoint; no current gameplay-source pipeline QA pass is claimed. Decorative-tile purchases remain disabled. `DataStoreManager` loads `Constants` synchronously from the replicated shared folder at module initialization.
+ 
++`PocketHabitat.spec.lua` now includes a production-rule path test for every defined plant from seed validation through watering and growth readiness to harvest eligibility/reward mapping. It is written but not executed; the current environment has no compatible TestEZ/Roblox runner.
++
+ `Constants.RESOURCE_NODES` now defines resource IDs, rewards, positions, and cooldowns for both world construction and server gathering. Each plant definition names its seed item; every seed is gatherable from an owner-scoped habitat node, with visuals derived from the plant color. `PlantRules` derives its seed lookup from those plant definitions. A production-rule spec checks unique node IDs, prompt ID/name alignment, and that each plant's seed has a gatherable node. This spec is written but TestEZ has not run.
+ 
+ The quest source now defines a single ten-quest order, migrates old sessions with no current quest to the next incomplete quest, and records gather, plant, water, harvest, discovery, and upgrade progress in backward-compatible session data. Upgrade progress is bounded by the matching upgrade definition. Resource reward sync now follows quest-progress recording, avoiding an intermediate client snapshot. Claims validate actual harvests, the specific Leafling discovery, and current upgrade levels; item rewards are capacity-checked and committed with Bells and quest completion without yielding between mutations. Completing the first-creature quest awards the Sun Petal seed required by the following quest. These are source-level changes; gameplay and the new TestEZ cases remain unverified in Roblox.
+diff --git a/docs/ROADMAP.md b/docs/ROADMAP.md
+index 0efd7f7..48c1dd0 100644
+--- a/docs/ROADMAP.md
++++ b/docs/ROADMAP.md
+@@ -128,7 +128,7 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
+ - [x] Implement the watering-can dewdrop-efficiency effect and enable its server-validated purchase; TestEZ and gameplay runtime verification remain pending.
+ - [x] Make every defined plant seed obtainable from a server-owned habitat resource node, and use one shared node definition for world presentation and server reward resolution. (Production-backed mapping spec added; TestEZ/Studio verification pending)
+ - [x] Keep decorative-tile purchases disabled until the visual effect exists.
+-- [ ] Complete production-backed coverage and runtime verification for every plant definition through obtain → plant → grow → water → harvest → reward → quest → persistence.
++- [ ] Complete production-backed coverage and runtime verification for every plant definition through obtain → plant → grow → water → harvest → reward → quest → persistence. A TestEZ case now exercises the shared seed/watering/growth/harvest rules for each plant definition; TestEZ execution and manager/quest/persistence integration remain unverified.
+ - [ ] Implement distinct, habitat-scoped behavior for every released creature.
+ - [ ] Implement and restore the decorative-tile effect before making it purchasable.
+ - [ ] Add rare/special resources only after normal resource isolation is reliable.
+@@ -177,7 +177,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
+ 
+ ## Current focus
+ 
+-**Immediate priority:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify seed gathering through plant harvest and persistence in Roblox Studio. No compatible TestEZ/Roblox runner is available in this environment; the vendored TestEZ CLI is not suitable for this game project. Run #42 cycle-3's source claims are independently adjudicated non-actionable, and the recovery record is RESOLVED for source-level findings only. No current independent pipeline QA pass is claimed for gameplay source. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, and shutdown remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
++**Immediate priority:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify seed gathering through plant harvest and persistence in Roblox Studio. A new production-rule spec now covers every plant's seed-to-harvest eligibility path, but it has not run. No compatible TestEZ/Roblox runner is available in this environment; the vendored TestEZ CLI is not suitable for this game project. The recovery record is RESOLVED for recorded source-level findings only; cycle 8 did not provide a trustworthy independent pipeline review decision, and no pipeline review/QA pass is claimed. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, and shutdown remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
+ 
+ **Source-level completed (runtime verification pending):**
+ - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
+diff --git a/docs/TESTING.md b/docs/TESTING.md
+index af5422b..d248ff6 100644
+--- a/docs/TESTING.md
++++ b/docs/TESTING.md
+@@ -8,7 +8,21 @@
+ - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
+ - Keep historical results, but label them by run and do not present them as the current baseline.
+ 
+-## Current-checkout recovery source adjudication — 2026-11-14
++## Current-worktree verification — 2026-11-14
++
++Added a TestEZ specification in `src/shared/PocketHabitat.spec.lua` that exercises the production `PlantRules` seed validation, watering, growth boundary, and harvest/reward mapping for each defined plant.
++
++- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 76,921-byte local artifact.
++- `stylua --check src`: PASS.
++- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
++- `git diff --check`: PASS.
++- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed.
++- Roblox Studio/server, multiplayer, DataStore save/rejoin/contention, shutdown, and manual gameplay tests: NOT RUN.
++- Independent pipeline review/QA: no trustworthy decision was returned in cycle 8; none is claimed for this worktree.
++
++This spec checks shared production rules, not manager reward mutation, quest delivery, persistence, or Roblox interactions. It remains unexecuted and does not establish an end-to-end gameplay pass.
++
++## Prior-checkpoint recovery source adjudication — 2026-11-14
+ 
+ The QA appendix reported a spawn argument type mismatch, non-atomic session acquisition, and startup acceptance of malformed session data. Independent inspection of the current source found all three claims non-actionable: both spawn call sites pass `Vector3` values; `DataStoreManager.loadPlayerData` acquires with `UpdateAsync` and validates the returned token, lease, and normalized data before registering a session; and `ServerMain` stops and kicks a player when session loading fails. No gameplay source change was necessary. The recovery marker is RESOLVED for these source findings only. The cycle-3 QA agent could not read the implementation diff, and no independent pipeline QA pass is claimed.
+ 
+diff --git a/src/shared/PocketHabitat.spec.lua b/src/shared/PocketHabitat.spec.lua
+index 5c693cb..21e14ce 100644
+--- a/src/shared/PocketHabitat.spec.lua
++++ b/src/shared/PocketHabitat.spec.lua
+@@ -345,6 +345,45 @@ return function()
+             local plan = validateInteraction(data, 1, "harvest", nil, NOW)
+             expect(plan).to.equal(nil)
+         end)
++
++        it("supports the seed-to-harvest rules for every defined plant", function()
++            for plantId, plantDef in pairs(Constants.PLANTS) do
++                local plot = { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 }
++                local data = {
++                    inventory = {
++                        [plantDef.seedId] = 1,
++                        [DEWDROP] = plantDef.waterNeeded,
++                    },
++                    plots = { [1] = plot },
++                    upgrades = {},
++                }
++
++                local planting = validateInteraction(data, 1, "plant", plantDef.seedId, NOW)
++                expect(planting.action).to.equal("plant")
++                expect(planting.plantDef.id).to.equal(plantId)
++                plot.seedId = planting.seedId
++                plot.plantedTime = NOW - plantDef.growthTime
++                data.inventory[plantDef.seedId] -= 1
++
++                while plot.waterCount < plantDef.waterNeeded do
++                    local watering = validateInteraction(data, 1, "water", nil, NOW)
++                    expect(watering.action).to.equal("water")
++                    expect(watering.dewdropCost).to.equal(1)
++                    data.inventory[DEWDROP] -= watering.dewdropCost
++                    plot.waterCount += 1
++                end
++
++                local growing = validateInteraction(data, 1, "harvest", nil, NOW - 1)
++                expect(growing).to.equal(nil)
++
++                local harvest = validateInteraction(data, 1, "harvest", nil, NOW)
++                expect(harvest.action).to.equal("harvest")
++                expect(harvest.plantDef.id).to.equal(plantId)
++                expect(harvest.plantDef.harvestReward.itemId).to.equal(
++                    Constants.RESOURCES["CROP_" .. string.upper(plantId)]
++                )
++            end
++        end)
+     end)
+     describe("ResourceRules — persisted cooldown validation", function()
+         it("blocks a node until its saved cooldown expires", function()

@@ -8,7 +8,21 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
-## Current-checkout recovery source adjudication — 2026-11-14
+## Current-worktree verification — 2026-11-14
+
+Added a TestEZ specification in `src/shared/PocketHabitat.spec.lua` that exercises the production `PlantRules` seed validation, watering, growth boundary, and harvest/reward mapping for each defined plant.
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 76,921-byte local artifact.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed.
+- Roblox Studio/server, multiplayer, DataStore save/rejoin/contention, shutdown, and manual gameplay tests: NOT RUN.
+- Independent pipeline review/QA: no trustworthy decision was returned in cycle 8; none is claimed for this worktree.
+
+This spec checks shared production rules, not manager reward mutation, quest delivery, persistence, or Roblox interactions. It remains unexecuted and does not establish an end-to-end gameplay pass.
+
+## Prior-checkpoint recovery source adjudication — 2026-11-14
 
 The QA appendix reported a spawn argument type mismatch, non-atomic session acquisition, and startup acceptance of malformed session data. Independent inspection of the current source found all three claims non-actionable: both spawn call sites pass `Vector3` values; `DataStoreManager.loadPlayerData` acquires with `UpdateAsync` and validates the returned token, lease, and normalized data before registering a session; and `ServerMain` stops and kicks a player when session loading fails. No gameplay source change was necessary. The recovery marker is RESOLVED for these source findings only. The cycle-3 QA agent could not read the implementation diff, and no independent pipeline QA pass is claimed.
 

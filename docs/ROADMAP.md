@@ -128,7 +128,7 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 - [x] Implement the watering-can dewdrop-efficiency effect and enable its server-validated purchase; TestEZ and gameplay runtime verification remain pending.
 - [x] Make every defined plant seed obtainable from a server-owned habitat resource node, and use one shared node definition for world presentation and server reward resolution. (Production-backed mapping spec added; TestEZ/Studio verification pending)
 - [x] Keep decorative-tile purchases disabled until the visual effect exists.
-- [ ] Complete production-backed coverage and runtime verification for every plant definition through obtain → plant → grow → water → harvest → reward → quest → persistence.
+- [ ] Complete production-backed coverage and runtime verification for every plant definition through obtain → plant → grow → water → harvest → reward → quest → persistence. A TestEZ case now exercises the shared seed/watering/growth/harvest rules for each plant definition; TestEZ execution and manager/quest/persistence integration remain unverified.
 - [ ] Implement distinct, habitat-scoped behavior for every released creature.
 - [ ] Implement and restore the decorative-tile effect before making it purchasable.
 - [ ] Add rare/special resources only after normal resource isolation is reliable.
@@ -177,7 +177,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify seed gathering through plant harvest and persistence in Roblox Studio. No compatible TestEZ/Roblox runner is available in this environment; the vendored TestEZ CLI is not suitable for this game project. Run #42 cycle-3's source claims are independently adjudicated non-actionable, and the recovery record is RESOLVED for source-level findings only. No current independent pipeline QA pass is claimed for gameplay source. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, and shutdown remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
+**Immediate priority:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify seed gathering through plant harvest and persistence in Roblox Studio. A new production-rule spec now covers every plant's seed-to-harvest eligibility path, but it has not run. No compatible TestEZ/Roblox runner is available in this environment; the vendored TestEZ CLI is not suitable for this game project. The recovery record is RESOLVED for recorded source-level findings only; cycle 8 did not provide a trustworthy independent pipeline review decision, and no pipeline review/QA pass is claimed. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, and shutdown remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
 
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)

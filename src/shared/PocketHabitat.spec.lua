@@ -345,6 +345,45 @@ return function()
             local plan = validateInteraction(data, 1, "harvest", nil, NOW)
             expect(plan).to.equal(nil)
         end)
+
+        it("supports the seed-to-harvest rules for every defined plant", function()
+            for plantId, plantDef in pairs(Constants.PLANTS) do
+                local plot = { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 }
+                local data = {
+                    inventory = {
+                        [plantDef.seedId] = 1,
+                        [DEWDROP] = plantDef.waterNeeded,
+                    },
+                    plots = { [1] = plot },
+                    upgrades = {},
+                }
+
+                local planting = validateInteraction(data, 1, "plant", plantDef.seedId, NOW)
+                expect(planting.action).to.equal("plant")
+                expect(planting.plantDef.id).to.equal(plantId)
+                plot.seedId = planting.seedId
+                plot.plantedTime = NOW - plantDef.growthTime
+                data.inventory[plantDef.seedId] -= 1
+
+                while plot.waterCount < plantDef.waterNeeded do
+                    local watering = validateInteraction(data, 1, "water", nil, NOW)
+                    expect(watering.action).to.equal("water")
+                    expect(watering.dewdropCost).to.equal(1)
+                    data.inventory[DEWDROP] -= watering.dewdropCost
+                    plot.waterCount += 1
+                end
+
+                local growing = validateInteraction(data, 1, "harvest", nil, NOW - 1)
+                expect(growing).to.equal(nil)
+
+                local harvest = validateInteraction(data, 1, "harvest", nil, NOW)
+                expect(harvest.action).to.equal("harvest")
+                expect(harvest.plantDef.id).to.equal(plantId)
+                expect(harvest.plantDef.harvestReward.itemId).to.equal(
+                    Constants.RESOURCES["CROP_" .. string.upper(plantId)]
+                )
+            end
+        end)
     end)
     describe("ResourceRules — persisted cooldown validation", function()
         it("blocks a node until its saved cooldown expires", function()
