@@ -759,8 +759,8 @@ jobs:
             QUOTA_POOL_KEYS["model:google/gemini-b"]="1"
             QUOTA_POOL_KEYS["provider:cohere"]="1"
             declare -A QUOTA_POOL_RESET_AT=()
-            QUOTA_POOL_RESET_AT["model:google/gemini-a"]="1"
-            QUOTA_POOL_RESET_AT["provider:cohere"]="1"
+            QUOTA_POOL_RESET_AT["model:google/gemini-a"]="9999999999"
+            QUOTA_POOL_RESET_AT["provider:cohere"]="9999999999"
             declare -A MODEL_PERMANENTLY_INELIGIBLE=()
             declare -A PROVIDER_PERMANENTLY_INELIGIBLE=()
             refresh_quota_counts
@@ -768,7 +768,7 @@ jobs:
               echo "::error::Quota target regression test failed for 2/3 exhausted pools."
               exit 1
             fi
-            QUOTA_POOL_RESET_AT["model:google/gemini-b"]="1"
+            QUOTA_POOL_RESET_AT["model:google/gemini-b"]="9999999999"
             refresh_quota_counts
             if [[ "$QUOTA_TARGET_REACHED" != "true" || "$QUOTA_EXHAUSTION_PERCENT" -ne 100 ]]; then
               echo "::error::Quota target regression test failed after all quota pools were exhausted."
@@ -781,7 +781,7 @@ jobs:
             QUOTA_POOL_KEYS["model:google/gemini-a"]="1"
             QUOTA_POOL_KEYS["model:google/gemini-b"]="1"
             declare -A QUOTA_POOL_RESET_AT=()
-            QUOTA_POOL_RESET_AT["model:google/gemini-a"]="1"
+            QUOTA_POOL_RESET_AT["model:google/gemini-a"]="9999999999"
             declare -A MODEL_PERMANENTLY_INELIGIBLE=()
             MODEL_PERMANENTLY_INELIGIBLE["google/gemini-b"]="model unavailable"
             declare -A PROVIDER_PERMANENTLY_INELIGIBLE=()
@@ -1576,7 +1576,7 @@ jobs:
                 echo "::error::All eligible quota pools are exhausted, but unresolved recovery work remains in the latest recovery checkpoint."
               else
                 AUTONOMOUS_STOP_REASON="daily_quota_target_reached"
-                echo "::notice::Daily quota exhaustion target reached: ${QUOTA_POOL_COOLDOWN_COUNT}/$((QUOTA_POOL_COOLDOWN_COUNT + ELIGIBLE_QUOTA_POOL_COUNT)) eligible quota pools."
+                echo "::notice::Quota reset target reached: ${QUOTA_POOL_COOLDOWN_COUNT}/$((QUOTA_POOL_COOLDOWN_COUNT + ELIGIBLE_QUOTA_POOL_COUNT)) eligible quota pools."
               fi
               break
             fi
@@ -1599,7 +1599,7 @@ jobs:
             STAGE_FILES=()
 
             echo "::group::Autonomous development cycle $round"
-            echo "Cycle $round begins. Confirmed daily quota pools exhausted: $QUOTA_POOL_COOLDOWN_COUNT; eligible pools: $ELIGIBLE_QUOTA_POOL_COUNT."
+            echo "Cycle $round begins. Quota pools held until reset: $QUOTA_POOL_COOLDOWN_COUNT; eligible pools: $ELIGIBLE_QUOTA_POOL_COUNT."
             refresh_diff
             before_diff_hash="$(sha256sum "$DIFF_FILE" | awk '{print $1}')"
 
@@ -1970,7 +1970,7 @@ jobs:
             RECOVERY_CONTEXT_ACTIVE=false
             echo "Cycle $round completed: implementation, independent review, deterministic validation, and QA succeeded."
             refresh_quota_counts
-            echo "Quota status: $QUOTA_POOL_COOLDOWN_COUNT exhausted / $((QUOTA_POOL_COOLDOWN_COUNT + ELIGIBLE_QUOTA_POOL_COUNT)) eligible pools (${QUOTA_EXHAUSTION_PERCENT}%; target ${QUOTA_EXHAUSTION_TARGET_PERCENT}%)."
+            echo "Quota status: $QUOTA_POOL_COOLDOWN_COUNT held / $((QUOTA_POOL_COOLDOWN_COUNT + ELIGIBLE_QUOTA_POOL_COUNT)) eligible pools (${QUOTA_EXHAUSTION_PERCENT}%; target ${QUOTA_EXHAUSTION_TARGET_PERCENT}%)."
             echo "::endgroup::"
 
             if [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
