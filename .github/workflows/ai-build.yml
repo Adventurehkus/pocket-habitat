@@ -45,6 +45,10 @@ jobs:
           persist-credentials: true
 
       - name: Install Roblox toolchain
+        env:
+          # Rokit's installer uses this token for authenticated GitHub release API requests.
+          # This avoids anonymous API rate limits (HTTP 403) on fresh hosted runners.
+          GITHUB_PAT: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
