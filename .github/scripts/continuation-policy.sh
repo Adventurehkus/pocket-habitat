@@ -76,16 +76,16 @@ elif provider == "groq":
     except OSError:
         log_text = ""
     headers = re.findall(
-        r"(?im)^\\s*x-ratelimit-reset-requests\\s*:\\s*['\\\"]?([^\\r\\n,}]+)",
+        r'''(?i)x-ratelimit-reset-requests["']?\\s*[:=]\\s*["']?([^"']+?)["'\\s,}]*''',
         log_text,
     )
     delay = None
     if headers:
-        raw = headers[-1].strip().strip('"\\\'')
-        if re.fullmatch(r"[0-9]+(?:\\.[0-9]+)?", raw):
+        raw = headers[-1].strip().strip('"').strip("'")
+        if re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", raw):
             delay = float(raw)
         else:
-            parts = re.findall(r"([0-9]+(?:\\.[0-9]+)?)([hms])", raw, re.I)
+            parts = re.findall(r"([0-9]+(?:\.[0-9]+)?)([hms])", raw, re.I)
             normalized = raw.lower().replace(" ", "")
             if parts and "".join(number + unit for number, unit in parts).lower() == normalized:
                 delay = sum(float(number) * {"h": 3600, "m": 60, "s": 1}[unit.lower()] for number, unit in parts)
@@ -164,6 +164,6 @@ serialize_quota_pool_reset_state() {
   if (( ${#entries[@]} == 0 )); then
     printf ''
   else
-    printf '%s\\n' "${entries[@]}" | sort | paste -sd, -
+    printf '%s\n' "${entries[@]}" | sort | paste -sd, -
   fi
 }
