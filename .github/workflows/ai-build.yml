@@ -7,7 +7,7 @@ on:
         description: Task for the autonomous development pipeline
         required: true
         type: string
-        default: "Read the project state and roadmap. Complete the highest-priority unfinished task, then keep advancing through meaningful reviewed vertical slices until the workflow's daily-quota target or a hard safety budget is reached."
+        default: "Read the project state and roadmap. Complete the highest-priority unfinished task, then keep advancing through meaningful reviewed vertical slices until the workflow's quota-exhaustion target or a hard safety budget is reached."
       exhausted_quota_pools:
         description: "Legacy quota state from older continuation runs; managed automatically."
         required: false
