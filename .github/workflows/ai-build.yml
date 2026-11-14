@@ -9,7 +9,12 @@ on:
         type: string
         default: "Read the project state and roadmap. Complete the highest-priority unfinished task, then keep advancing through meaningful reviewed vertical slices until the workflow's daily-quota target or a hard safety budget is reached."
       exhausted_quota_pools:
-        description: "Internal quota state carried between automatic continuation runs; leave empty for a normal manual run."
+        description: "Legacy quota state from older continuation runs; managed automatically."
+        required: false
+        type: string
+        default: ""
+      quota_pool_resets:
+        description: "Provider-aware quota pool reset timestamps; managed automatically by continuation runs."
         required: false
         type: string
         default: ""
@@ -118,9 +123,10 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           TASK: ${{ inputs.task }}
-          IS_CONTINUATION_RUN: ${{ inputs.quota_day != '' || inputs.exhausted_quota_pools != '' || inputs.continuation_count != '0' || inputs.chain_started_at != '' }}
+          IS_CONTINUATION_RUN: ${{ inputs.quota_pool_resets != '' || inputs.quota_day != '' || inputs.exhausted_quota_pools != '' || inputs.continuation_count != '0' || inputs.chain_started_at != '' }}
           QUOTA_STATE_DAY: ${{ inputs.quota_day }}
           EXHAUSTED_QUOTA_POOLS: ${{ inputs.exhausted_quota_pools }}
+          QUOTA_POOL_RESETS: ${{ inputs.quota_pool_resets }}
           NO_COLOR: "1"
         shell: bash
         run: |
@@ -152,7 +158,7 @@ jobs:
           declare -A MODEL_STAGE_EXHAUSTED=()
           declare -A MODEL_COOLDOWN_UNTIL=()
           declare -A PROVIDER_COOLDOWN_UNTIL=()
-          declare -A DAILY_QUOTA_POOLS=()
+          declare -A QUOTA_POOL_RESET_AT=()
           declare -A QUOTA_POOL_KEYS=()
           declare -A ROLE_LAST_MODEL=()
           declare -A MODEL_RUN_CAP_REACHED=()
@@ -197,8 +203,8 @@ jobs:
           TOTAL_TEMP_WAIT_BUDGET_SECONDS=7200
           TOTAL_TEMP_WAIT_SECONDS=0
           TEMP_LIMIT_EVENTS=0
-          DAILY_QUOTA_EVENTS=0
-          DAILY_QUOTA_POOL_EXHAUSTED_COUNT=0
+          QUOTA_EXHAUSTION_EVENTS=0
+          QUOTA_POOL_COOLDOWN_COUNT=0
           ELIGIBLE_QUOTA_POOL_COUNT=0
           INELIGIBLE_QUOTA_POOL_COUNT=0
           QUOTA_EXHAUSTION_PERCENT=0
@@ -293,42 +299,33 @@ jobs:
             QUOTA_POOL_KEYS["$pool_key"]="1"
           done
 
-          # Carry confirmed daily-quota exhaustion between child runs only for
-          # the same UTC calendar day. Once a new UTC day starts, daily quotas
-          # may have replenished and those pools should be eligible again.
+          # Load provider-specific reset times for carried quota state. New state
+          # stores pool@Unix-epoch entries; older bare pool IDs are migrated
+          # conservatively using that provider's reset policy.
           source "$GITHUB_WORKSPACE/.github/scripts/continuation-policy.sh"
-          CURRENT_QUOTA_DAY="$(date -u +%F)"
-          PREVIOUS_QUOTA_POOL_STATE="$EXHAUSTED_QUOTA_POOLS"
-          EXHAUSTED_QUOTA_POOLS="$(reset_exhausted_quota_pool_keys_for_utc_day "$EXHAUSTED_QUOTA_POOLS" "$QUOTA_STATE_DAY" "$CURRENT_QUOTA_DAY")"
-          if [[ -n "$QUOTA_STATE_DAY" && "$QUOTA_STATE_DAY" != "$CURRENT_QUOTA_DAY" ]]; then
-            echo "::notice::UTC quota day changed from $QUOTA_STATE_DAY to $CURRENT_QUOTA_DAY; clearing prior-day exhausted-pool state."
+          NOW_UTC_EPOCH="$(date -u +%s)"
+          load_quota_pool_reset_state "$QUOTA_POOL_RESETS" QUOTA_POOL_KEYS QUOTA_POOL_RESET_AT "$NOW_UTC_EPOCH"
+          if [[ -z "$QUOTA_POOL_RESETS" && -n "$EXHAUSTED_QUOTA_POOLS" ]]; then
+            echo "::notice::Migrating legacy quota-pool state to provider-aware reset timestamps."
+            load_quota_pool_reset_state "$EXHAUSTED_QUOTA_POOLS" QUOTA_POOL_KEYS QUOTA_POOL_RESET_AT "$NOW_UTC_EPOCH"
           fi
-          if [[ -n "$PREVIOUS_QUOTA_POOL_STATE" && -z "$EXHAUSTED_QUOTA_POOLS" ]]; then
-            echo "::notice::Daily quota-state rollover cleared the previously exhausted quota pools."
-          fi
-          QUOTA_STATE_DAY="$CURRENT_QUOTA_DAY"
-          load_exhausted_quota_pool_keys "$EXHAUSTED_QUOTA_POOLS" QUOTA_POOL_KEYS DAILY_QUOTA_POOLS
-          PREVIOUSLY_EXHAUSTED_POOL_COUNT="${#DAILY_QUOTA_POOLS[@]}"
-          for pool_key in "${!DAILY_QUOTA_POOLS[@]}"; do
-            for model in "${MODEL_CHAIN[@]}"; do
-              [[ "$(quota_pool_for_model "$model")" == "$pool_key" ]] || continue
-              MODEL_BLOCKED["$model"]="daily quota exhausted in an earlier run of this continuation chain"
-              provider="$(provider_for_model "$model")"
-              if [[ "$pool_key" == provider:* ]]; then
-                PROVIDER_BLOCKED["$provider"]="daily quota exhausted in an earlier run of this continuation chain"
-              fi
-            done
+          refresh_quota_pool_reset_state QUOTA_POOL_RESET_AT "$NOW_UTC_EPOCH"
+          PREVIOUSLY_EXHAUSTED_POOL_COUNT="${#QUOTA_POOL_RESET_AT[@]}"
+          for pool_key in "${!QUOTA_POOL_RESET_AT[@]}"; do
+            echo "::notice::Quota pool $pool_key is held until $(date -u -d "@${QUOTA_POOL_RESET_AT[$pool_key]}" +%Y-%m-%dT%H:%M:%SZ)."
           done
 
           refresh_quota_counts() {
-            local pool_key model provider available
-            DAILY_QUOTA_POOL_EXHAUSTED_COUNT=0
+            local pool_key model provider available now_epoch
+            QUOTA_POOL_COOLDOWN_COUNT=0
+            now_epoch="$(date -u +%s)"
+            refresh_quota_pool_reset_state QUOTA_POOL_RESET_AT "$now_epoch"
             ELIGIBLE_QUOTA_POOL_COUNT=0
             INELIGIBLE_QUOTA_POOL_COUNT=0
 
             for pool_key in "${!QUOTA_POOL_KEYS[@]}"; do
-              if [[ -n "${DAILY_QUOTA_POOLS[$pool_key]:-}" ]]; then
-                DAILY_QUOTA_POOL_EXHAUSTED_COUNT=$((DAILY_QUOTA_POOL_EXHAUSTED_COUNT + 1))
+              if [[ -n "${QUOTA_POOL_RESET_AT[$pool_key]:-}" ]]; then
+                QUOTA_POOL_COOLDOWN_COUNT=$((QUOTA_POOL_COOLDOWN_COUNT + 1))
                 continue
               fi
 
@@ -350,9 +347,9 @@ jobs:
               fi
             done
 
-            local denominator=$((DAILY_QUOTA_POOL_EXHAUSTED_COUNT + ELIGIBLE_QUOTA_POOL_COUNT))
+            local denominator=$((QUOTA_POOL_COOLDOWN_COUNT + ELIGIBLE_QUOTA_POOL_COUNT))
             if [[ "$denominator" -gt 0 ]]; then
-              QUOTA_EXHAUSTION_PERCENT=$((DAILY_QUOTA_POOL_EXHAUSTED_COUNT * 100 / denominator))
+              QUOTA_EXHAUSTION_PERCENT=$((QUOTA_POOL_COOLDOWN_COUNT * 100 / denominator))
             else
               # No eligible or exhausted pools means there is no measurable
               # quota denominator; report 0%, and never declare the target met.
@@ -398,7 +395,12 @@ jobs:
             # response, which otherwise makes the broad rate-limit matcher
             # misclassify a permanent account cap as a temporary RPM limit.
             if [[ "$provider" == "cohere" ]] && grep -Eiq 'trial key.{0,120}limited to.{0,60}[0-9][0-9,]*[[:space:]]+API calls?[[:space:]]*/[[:space:]]*month' "$log_file"; then
-              echo "SHARED_DAILY_QUOTA"
+              echo "SHARED_MONTHLY_QUOTA"
+              return 0
+            fi
+
+            if [[ "$provider" == "github-copilot" ]] && grep -Eiq 'premium requests?.{0,100}(exhausted|limit|allowance)|monthly.{0,80}(AI credits|premium requests?|quota|allowance|limit)' "$log_file"; then
+              echo "SHARED_MONTHLY_QUOTA"
               return 0
             fi
 
@@ -417,13 +419,30 @@ jobs:
               return 0
             fi
 
-            if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|daily free allocation|used up.{0,100}daily.{0,100}allocation|quota.{0,200}(per day|per-day|daily)|RPD|TPD|requests per month|monthly quota|monthly limit|quota.{0,30}(per month|monthly)|monthly.{0,30}calls|AI credits.{0,30}(exhausted|limit)|premium request.{0,30}(exhausted|limit)|neurons.{0,30}(exhausted|limit)|workers ai.{0,30}(quota|limit)' "$log_file"; then
+            # OpenRouter identifies its shared free-tier daily cap by this source.
+            if [[ "$provider" == "openrouter" ]] && grep -Eiq 'openrouter_free_tier_daily|free.?tier.{0,40}(daily|requests per day)|requests per day' "$log_file"; then
+              echo "SHARED_DAILY_QUOTA"
+              return 0
+            fi
+
+            if grep -Eiq 'requests per month|monthly quota|monthly limit|quota.{0,30}(per month|monthly)|monthly.{0,30}calls|1000 API calls.{0,20}/.{0,5}month|AI credits.{0,30}(exhausted|limit)|premium request.{0,30}(exhausted|limit)' "$log_file"; then
+              case "$provider" in
+                cohere|github-copilot|openrouter|cloudflare-workers-ai)
+                  echo "SHARED_MONTHLY_QUOTA"
+                  ;;
+                *)
+                  echo "MODEL_MONTHLY_QUOTA"
+                  ;;
+              esac
+              return 0
+            fi
+
+            if grep -Eiq 'requests per day|tokens per day|per-day limit|daily quota|daily limit|daily free allocation|used up.{0,100}daily.{0,100}allocation|quota.{0,200}(per day|per-day|daily)|RPD|TPD|neurons.{0,30}(exhausted|limit)|workers ai.{0,30}(quota|limit)' "$log_file"; then
               case "$provider" in
                 openrouter|cohere|cloudflare-workers-ai|github-copilot)
                   echo "SHARED_DAILY_QUOTA"
                   ;;
                 *)
-                  # Google Gemini free-tier request/day limits are model-specific.
                   echo "MODEL_DAILY_QUOTA"
                   ;;
               esac
@@ -595,7 +614,9 @@ jobs:
           assert_failure_class "google" 'Please retry in 43.4s.' "MODEL_RATE_LIMIT"
           assert_failure_class "groq" 'Request too large for model; input tokens per minute Limit 7000, Requested 12283.' "REQUEST_TOO_LARGE"
           assert_failure_class "cohere" 'Trial key is limited to 20 API calls / minute.' "PROVIDER_RATE_LIMIT"
-          assert_failure_class "cohere" 'You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits.' "SHARED_DAILY_QUOTA"
+          assert_failure_class "cohere" 'You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits.' "SHARED_MONTHLY_QUOTA"
+          assert_failure_class "github-copilot" 'You have exhausted your monthly premium requests allowance.' "SHARED_MONTHLY_QUOTA"
+          assert_failure_class "openrouter" '{"error":{"metadata":{"limit_source":"openrouter_free_tier_daily"}}}' "SHARED_DAILY_QUOTA"
           assert_failure_class "openrouter" 'HTTP 429 rate limit exceeded.' "PROVIDER_RATE_LIMIT"
           assert_failure_class "google" 'This model is currently experiencing high demand. Try again later.' "TEMP_CAPACITY"
           assert_failure_class "google" 'Invalid API key: authentication failed.' "AUTH_FAILURE"
@@ -737,17 +758,17 @@ jobs:
             QUOTA_POOL_KEYS["model:google/gemini-a"]="1"
             QUOTA_POOL_KEYS["model:google/gemini-b"]="1"
             QUOTA_POOL_KEYS["provider:cohere"]="1"
-            declare -A DAILY_QUOTA_POOLS=()
-            DAILY_QUOTA_POOLS["model:google/gemini-a"]="1"
-            DAILY_QUOTA_POOLS["provider:cohere"]="1"
+            declare -A QUOTA_POOL_RESET_AT=()
+            QUOTA_POOL_RESET_AT["model:google/gemini-a"]="1"
+            QUOTA_POOL_RESET_AT["provider:cohere"]="1"
             declare -A MODEL_PERMANENTLY_INELIGIBLE=()
             declare -A PROVIDER_PERMANENTLY_INELIGIBLE=()
             refresh_quota_counts
-            if [[ "$DAILY_QUOTA_POOL_EXHAUSTED_COUNT" -ne 2 || "$ELIGIBLE_QUOTA_POOL_COUNT" -ne 1 || "$QUOTA_EXHAUSTION_PERCENT" -ne 66 || "$QUOTA_TARGET_REACHED" != "false" ]]; then
+            if [[ "$QUOTA_POOL_COOLDOWN_COUNT" -ne 2 || "$ELIGIBLE_QUOTA_POOL_COUNT" -ne 1 || "$QUOTA_EXHAUSTION_PERCENT" -ne 66 || "$QUOTA_TARGET_REACHED" != "false" ]]; then
               echo "::error::Quota target regression test failed for 2/3 exhausted pools."
               exit 1
             fi
-            DAILY_QUOTA_POOLS["model:google/gemini-b"]="1"
+            QUOTA_POOL_RESET_AT["model:google/gemini-b"]="1"
             refresh_quota_counts
             if [[ "$QUOTA_TARGET_REACHED" != "true" || "$QUOTA_EXHAUSTION_PERCENT" -ne 100 ]]; then
               echo "::error::Quota target regression test failed after all quota pools were exhausted."
@@ -759,13 +780,13 @@ jobs:
             declare -A QUOTA_POOL_KEYS=()
             QUOTA_POOL_KEYS["model:google/gemini-a"]="1"
             QUOTA_POOL_KEYS["model:google/gemini-b"]="1"
-            declare -A DAILY_QUOTA_POOLS=()
-            DAILY_QUOTA_POOLS["model:google/gemini-a"]="1"
+            declare -A QUOTA_POOL_RESET_AT=()
+            QUOTA_POOL_RESET_AT["model:google/gemini-a"]="1"
             declare -A MODEL_PERMANENTLY_INELIGIBLE=()
             MODEL_PERMANENTLY_INELIGIBLE["google/gemini-b"]="model unavailable"
             declare -A PROVIDER_PERMANENTLY_INELIGIBLE=()
             refresh_quota_counts
-            if [[ "$DAILY_QUOTA_POOL_EXHAUSTED_COUNT" -ne 1 || "$ELIGIBLE_QUOTA_POOL_COUNT" -ne 0 || "$INELIGIBLE_QUOTA_POOL_COUNT" -ne 1 || "$QUOTA_EXHAUSTION_PERCENT" -ne 100 || "$QUOTA_TARGET_REACHED" != "true" ]]; then
+            if [[ "$QUOTA_POOL_COOLDOWN_COUNT" -ne 1 || "$ELIGIBLE_QUOTA_POOL_COUNT" -ne 0 || "$INELIGIBLE_QUOTA_POOL_COUNT" -ne 1 || "$QUOTA_EXHAUSTION_PERCENT" -ne 100 || "$QUOTA_TARGET_REACHED" != "true" ]]; then
               echo "::error::Quota target regression test failed when every remaining eligible pool was exhausted and one route was ineligible."
               exit 1
             fi
@@ -774,12 +795,12 @@ jobs:
             MODEL_CHAIN=("google/gemini-a")
             declare -A QUOTA_POOL_KEYS=()
             QUOTA_POOL_KEYS["model:google/gemini-a"]="1"
-            declare -A DAILY_QUOTA_POOLS=()
+            declare -A QUOTA_POOL_RESET_AT=()
             declare -A MODEL_PERMANENTLY_INELIGIBLE=()
             MODEL_PERMANENTLY_INELIGIBLE["google/gemini-a"]="authentication/configuration failure"
             declare -A PROVIDER_PERMANENTLY_INELIGIBLE=()
             refresh_quota_counts
-            if [[ "$DAILY_QUOTA_POOL_EXHAUSTED_COUNT" -ne 0 || "$ELIGIBLE_QUOTA_POOL_COUNT" -ne 0 || "$INELIGIBLE_QUOTA_POOL_COUNT" -ne 1 || "$QUOTA_EXHAUSTION_PERCENT" -ne 0 || "$QUOTA_TARGET_REACHED" != "false" ]]; then
+            if [[ "$QUOTA_POOL_COOLDOWN_COUNT" -ne 0 || "$ELIGIBLE_QUOTA_POOL_COUNT" -ne 0 || "$INELIGIBLE_QUOTA_POOL_COUNT" -ne 1 || "$QUOTA_EXHAUSTION_PERCENT" -ne 0 || "$QUOTA_TARGET_REACHED" != "false" ]]; then
               echo "::error::Quota target regression test failed with zero eligible/exhausted pools; expected 0% and no target."
               exit 1
             fi
@@ -844,6 +865,12 @@ jobs:
                   continue
                 fi
                 if [[ -n "${MODEL_BLOCKED[$model]:-}" || -n "${PROVIDER_BLOCKED[$provider]:-}" ]]; then
+                  continue
+                fi
+                pool_key="$(quota_pool_for_model "$model")"
+                refresh_quota_pool_reset_state QUOTA_POOL_RESET_AT "$(date -u +%s)"
+                if [[ -n "${QUOTA_POOL_RESET_AT[$pool_key]:-}" ]]; then
+                  stage_cooldown_skips=$((stage_cooldown_skips + 1))
                   continue
                 fi
                 if [[ -n "${MODEL_STAGE_EXHAUSTED[$attempt_key]:-}" ]]; then
@@ -959,22 +986,14 @@ jobs:
                 now="$(date +%s)"
 
                 case "$failure_class" in
-                  SHARED_DAILY_QUOTA)
-                    MODEL_BLOCKED["$model"]="shared daily/monthly quota exhausted"
-                    PROVIDER_BLOCKED["$provider"]="shared daily/monthly quota exhausted"
+                  SHARED_DAILY_QUOTA|SHARED_MONTHLY_QUOTA|MODEL_DAILY_QUOTA|MODEL_MONTHLY_QUOTA)
                     pool_key="$(quota_pool_for_model "$model")"
-                    DAILY_QUOTA_POOLS["$pool_key"]="1"
-                    DAILY_QUOTA_EVENTS=$((DAILY_QUOTA_EVENTS + 1))
-                    record_attempt "$stage" "$provider" "$model" "$retry_count" "PROVIDER_DISABLED" "shared daily/monthly quota exhausted; pool $pool_key disabled"
-                    echo "::warning::$provider shared quota is exhausted; disabling that provider pool for the remainder of this run."
-                    ;;
-                  MODEL_DAILY_QUOTA)
-                    MODEL_BLOCKED["$model"]="model-specific daily/monthly quota exhausted"
-                    pool_key="$(quota_pool_for_model "$model")"
-                    DAILY_QUOTA_POOLS["$pool_key"]="1"
-                    DAILY_QUOTA_EVENTS=$((DAILY_QUOTA_EVENTS + 1))
-                    record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_DISABLED" "model-specific daily/monthly quota exhausted; pool $pool_key disabled"
-                    echo "::warning::$model has exhausted its model-specific daily quota; its quota pool is disabled for the remainder of this run."
+                    reset_at="$(quota_pool_reset_epoch "$pool_key" "$log_file" "$now")"
+                    QUOTA_POOL_RESET_AT["$pool_key"]="$reset_at"
+                    QUOTA_EXHAUSTION_EVENTS=$((QUOTA_EXHAUSTION_EVENTS + 1))
+                    reset_label="$(date -u -d "@$reset_at" +%Y-%m-%dT%H:%M:%SZ)"
+                    record_attempt "$stage" "$provider" "$model" "$retry_count" "QUOTA_COOLDOWN" "$failure_class; pool $pool_key held until $reset_label"
+                    echo "::warning::$provider quota pool $pool_key is held until $reset_label ($failure_class)."
                     ;;
                   REQUEST_TOO_LARGE)
                     MODEL_BLOCKED["$model"]="request exceeds model token/rate limit"
@@ -1557,7 +1576,7 @@ jobs:
                 echo "::error::All eligible quota pools are exhausted, but unresolved recovery work remains in the latest recovery checkpoint."
               else
                 AUTONOMOUS_STOP_REASON="daily_quota_target_reached"
-                echo "::notice::Daily quota exhaustion target reached: ${DAILY_QUOTA_POOL_EXHAUSTED_COUNT}/$((DAILY_QUOTA_POOL_EXHAUSTED_COUNT + ELIGIBLE_QUOTA_POOL_COUNT)) eligible quota pools."
+                echo "::notice::Daily quota exhaustion target reached: ${QUOTA_POOL_COOLDOWN_COUNT}/$((QUOTA_POOL_COOLDOWN_COUNT + ELIGIBLE_QUOTA_POOL_COUNT)) eligible quota pools."
               fi
               break
             fi
@@ -1580,7 +1599,7 @@ jobs:
             STAGE_FILES=()
 
             echo "::group::Autonomous development cycle $round"
-            echo "Cycle $round begins. Confirmed daily quota pools exhausted: $DAILY_QUOTA_POOL_EXHAUSTED_COUNT; eligible pools: $ELIGIBLE_QUOTA_POOL_COUNT."
+            echo "Cycle $round begins. Confirmed daily quota pools exhausted: $QUOTA_POOL_COOLDOWN_COUNT; eligible pools: $ELIGIBLE_QUOTA_POOL_COUNT."
             refresh_diff
             before_diff_hash="$(sha256sum "$DIFF_FILE" | awk '{print $1}')"
 
@@ -1951,7 +1970,7 @@ jobs:
             RECOVERY_CONTEXT_ACTIVE=false
             echo "Cycle $round completed: implementation, independent review, deterministic validation, and QA succeeded."
             refresh_quota_counts
-            echo "Quota status: $DAILY_QUOTA_POOL_EXHAUSTED_COUNT exhausted / $((DAILY_QUOTA_POOL_EXHAUSTED_COUNT + ELIGIBLE_QUOTA_POOL_COUNT)) eligible pools (${QUOTA_EXHAUSTION_PERCENT}%; target ${QUOTA_EXHAUSTION_TARGET_PERCENT}%)."
+            echo "Quota status: $QUOTA_POOL_COOLDOWN_COUNT exhausted / $((QUOTA_POOL_COOLDOWN_COUNT + ELIGIBLE_QUOTA_POOL_COUNT)) eligible pools (${QUOTA_EXHAUSTION_PERCENT}%; target ${QUOTA_EXHAUSTION_TARGET_PERCENT}%)."
             echo "::endgroup::"
 
             if [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
@@ -1981,7 +2000,7 @@ jobs:
           # Retry only when a run-local budget or retryable implementation
           # availability barrier was reached while daily quota pools remain.
           # Successful no-progress cycles and hard failures stay terminal.
-          EXHAUSTED_QUOTA_POOLS_NEXT="$(serialize_exhausted_quota_pool_keys DAILY_QUOTA_POOLS QUOTA_POOL_KEYS)"
+          QUOTA_POOL_RESETS_NEXT="$(serialize_quota_pool_reset_state QUOTA_POOL_RESET_AT QUOTA_POOL_KEYS "$(date -u +%s)")"
           if should_auto_continue_after_run \
             "$AUTONOMOUS_STOP_REASON" \
             "$QUOTA_TARGET_REACHED" \
@@ -2031,14 +2050,14 @@ jobs:
             echo "- Execution mode: LIVE MULTI-CYCLE"
             echo "- Models configured: ${#MODEL_CHAIN[@]}"
             echo "- Quota pools: ${#QUOTA_POOL_KEYS[@]}"
-            echo "- Daily quota pools exhausted: ${DAILY_QUOTA_POOL_EXHAUSTED_COUNT}"
-            echo "- Previously exhausted pools carried from earlier chain runs: ${PREVIOUSLY_EXHAUSTED_POOL_COUNT}"
+            echo "- Quota pools held until reset: ${QUOTA_POOL_COOLDOWN_COUNT}"
+            echo "- Previously held pools carried from earlier continuation runs: ${PREVIOUSLY_EXHAUSTED_POOL_COUNT}"
             echo "- Eligible quota pools remaining: ${ELIGIBLE_QUOTA_POOL_COUNT}"
             echo "- Permanently ineligible quota pools: ${INELIGIBLE_QUOTA_POOL_COUNT}"
             echo "- Quota exhaustion: ${QUOTA_EXHAUSTION_PERCENT}% (target: ${QUOTA_EXHAUSTION_TARGET_PERCENT}%)"
             echo "- Quota target reached: ${QUOTA_TARGET_REACHED}"
             echo "- Automatic continuation requested: ${AUTO_CONTINUE}"
-            echo "- UTC quota-state day: ${QUOTA_STATE_DAY}"
+            echo "- Provider-aware quota reset state: ${QUOTA_POOL_RESETS_NEXT:-none}"
             echo "- Continuation decision: ${AUTO_CONTINUE_REASON}"
             echo "- Autonomous cycles completed: ${AUTONOMOUS_ROUNDS_COMPLETED}/${MAX_AUTONOMOUS_ROUNDS}"
             echo "- Total model calls: ${TOTAL_MODEL_CALLS}/${MAX_TOTAL_MODEL_CALLS}"
@@ -2050,7 +2069,7 @@ jobs:
             echo "- Models at per-run call cap: ${#MODEL_RUN_CAP_REACHED[@]}"
             echo "- Stop reason: ${AUTONOMOUS_STOP_REASON}"
             echo "- Automatic temporary-limit wait: ${TOTAL_TEMP_WAIT_SECONDS}s across ${TEMP_LIMIT_EVENTS} classified events"
-            echo "- Daily/shared quota exhaustion events: ${DAILY_QUOTA_EVENTS}"
+            echo "- Quota exhaustion events: ${QUOTA_EXHAUSTION_EVENTS}"
             echo "- Per-model call cap: ${MAX_MODEL_CALLS_PER_MODEL}; per-stage temporary-failure cap: ${MAX_MODEL_TEMP_ATTEMPTS}"
             echo "- Per-stage wait budget: ${STAGE_TEMP_WAIT_BUDGET_SECONDS}s; workflow-wide wait budget: ${TOTAL_TEMP_WAIT_BUDGET_SECONDS}s"
             echo
@@ -2067,7 +2086,7 @@ jobs:
             echo
             echo "## Quota accounting note"
             echo
-            echo "Quota exhaustion is detected from explicit provider/model errors. The workflow does not query live account balances. Provider-scoped pools group models that share an account-level quota; Google/Groq routes are treated as model-scoped. Transient rate limits, request-size errors, authentication failures, and unavailable models do not count as daily quota exhaustion."
+            echo "Quota exhaustion is detected from explicit provider/model errors. Resets are provider-aware: Google at midnight Pacific; OpenRouter and Cloudflare at 00:00 UTC; GitHub Copilot at the first UTC day of the month; Cohere at the next UTC month boundary as an approximation because its public docs do not state an exact reset clock; Groq uses x-ratelimit-reset-requests when visible in the transcript and otherwise a conservative 24-hour fallback. The workflow does not query live account balances. Transient rate limits, request-size errors, authentication failures, and unavailable models do not count as exhausted quota."
             echo
             echo "## Billing safety"
             echo
@@ -2088,8 +2107,9 @@ jobs:
           echo "===== PIPELINE REPORT ====="
           cat "$RUN_REPORT"
           echo "auto_continue=$AUTO_CONTINUE" >> "$GITHUB_OUTPUT"
+          echo "quota_pool_resets=$QUOTA_POOL_RESETS_NEXT" >> "$GITHUB_OUTPUT"
           echo "quota_day=$QUOTA_STATE_DAY" >> "$GITHUB_OUTPUT"
-          echo "exhausted_quota_pools=$EXHAUSTED_QUOTA_POOLS_NEXT" >> "$GITHUB_OUTPUT"
+          echo "exhausted_quota_pools=" >> "$GITHUB_OUTPUT"
 
           exit "$PIPELINE_EXIT"
 
@@ -2141,8 +2161,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TASK: ${{ inputs.task }}
-          QUOTA_STATE_DAY: ${{ steps.pipeline.outputs.quota_day }}
-          EXHAUSTED_QUOTA_POOLS: ${{ steps.pipeline.outputs.exhausted_quota_pools }}
+          QUOTA_POOL_RESETS: ${{ steps.pipeline.outputs.quota_pool_resets }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2151,8 +2170,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
             --raw-field "task=$TASK" \
-            --raw-field "quota_day=$QUOTA_STATE_DAY" \
-            --raw-field "exhausted_quota_pools=$EXHAUSTED_QUOTA_POOLS"
+            --raw-field "quota_pool_resets=$QUOTA_POOL_RESETS"
           echo "::notice::A continuation run was dispatched. It will start after the current run releases the workflow concurrency lock."
 
       - name: Verify continuation handoff
