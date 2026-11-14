@@ -3546,3 +3546,29 @@ index f250741..51d1bba 100644
          local now = os.clock()
          if behavior.jumpInterval and now - lastJumpTime >= behavior.jumpInterval then
              lastJumpTime = now
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 47
+- Cycle: 1
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-validation.log
+
+Building project 'Pocket Habitat'
+Built project to pocket-habitat.rbxl
+PASS: Rojo build -> build/pocket-habitat.rbxl
+PASS: StyLua check src
+Results:
+0 errors
+0 warnings
+0 parse errors
+PASS: Selene src
