@@ -41,6 +41,21 @@ Expand tests around production logic for:
 
 Use mocks for external Roblox service boundaries, not for the production business rules being tested.
 
+## Current recovery verification — 2026-11-14
+
+The cycle-5 cooldown rollback repair is present in the checked-out `c09a0f4` checkpoint. Its TestEZ cases call the production `ResourceRules.tryGrantReward` helper used by `ResourceManager`. The independent review report found no code findings; the QA stage did not produce a trustworthy decision, so the recovery remains open.
+
+Checks actually run against the current worktree:
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 66,824-byte artifact.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; no `run-in-roblox`, `luau`, `lune`, `lua`, or `luajit` runner is available.
+- Roblox Studio/engine, multiplayer, DataStore, and shutdown tests: NOT RUN.
+
+These deterministic checks do not substitute for TestEZ or runtime verification.
+
 ## Studio testing procedure for habitat/multiplayer
 
 Since automated execution of the Roblox engine or Studio is not available in this environment, perform the following tests in Roblox Studio to verify Milestone 2 functionality:

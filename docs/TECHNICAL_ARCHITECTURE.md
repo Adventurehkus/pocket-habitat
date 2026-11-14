@@ -62,7 +62,7 @@ Current source facts:
 - `ResourceManager` and `PlantManager` register remote handlers in `init()` and validate player session, habitat membership, and server-measured distance. Resource gathering also requires a living Humanoid and uses saved per-player cooldowns. `QuestManager.init()` owns the claim callback.
 - `WorldBuilder` builds per-habitat geometry and restores saved plot plant visuals and basic growth/water state from the loaded session. Full upgrade effects and runtime Roblox restoration remain unverified.
 - `CreatureManager` scopes runtime instances and movement to each player's habitat and restores discovered creature types from the session; engine lifecycle and multiplayer isolation remain unverified.
-- No TestEZ runner, Roblox Studio/engine, multiplayer, or DataStore integration test has been executed for the current changes. The latest cooldown rollback repair has local static-check evidence only and awaits independent pipeline review/QA. The generated `.rbxl` is only a Rojo build artifact.
+- No TestEZ runner, Roblox Studio/engine, multiplayer, or DataStore integration test has been executed for the current changes. The cycle-5 independent code review of the cooldown rollback repair reported no findings, but QA did not return a trustworthy decision. Current static checks pass. The generated `.rbxl` is only a Rojo build artifact.
 
 Earlier run notes below are historical. The source currently uses `PlayerDataStoreV1`; prior documentation referring to `PocketHabitat_v2_PlayerData` did not match the implementation and must not be used to infer a second store or migration.
 
