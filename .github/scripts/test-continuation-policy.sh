@@ -13,7 +13,7 @@ assert_policy() {
     actual=true
   fi
   if [[ "$actual" != "$expected" ]]; then
-    printf 'FAIL: expected %s, got %s for: %s\\n' "$expected" "$actual" "$*" >&2
+    printf 'FAIL: expected %s, got %s for: %s\n' "$expected" "$actual" "$*" >&2
     exit 1
   fi
 }
