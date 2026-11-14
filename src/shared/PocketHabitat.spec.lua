@@ -283,6 +283,50 @@ return function()
             expect(HabitatRules.isPlotIndexUnlocked({}, 5)).to.equal(false)
             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 2 }, 5)).to.equal(true)
         end)
+
+        it("preserves excess saved plot state outside the currently unlocked plot set", function()
+            local plantedPlot = {
+                seedId = BERRY_SEED,
+                plantedTime = NOW - 10,
+                waterCount = 1,
+                stage = 1,
+            }
+            local active, archived = HabitatRules.partitionPlotData(
+                { [1] = makeData().plots[1], [6] = plantedPlot },
+                {},
+                4
+            )
+
+            expect(active[6]).to.equal(nil)
+            expect(archived[6].seedId).to.equal(BERRY_SEED)
+            expect(archived[6].plantedTime).to.equal(NOW - 10)
+            expect(archived[6].waterCount).to.equal(1)
+        end)
+
+        it("restores archived plot data when that plot becomes unlocked", function()
+            local archivedPlot = { seedId = BERRY_SEED, plantedTime = NOW - 10 }
+            local active, archived = HabitatRules.partitionPlotData({}, { [5] = archivedPlot }, 5)
+
+            expect(active[5].seedId).to.equal(BERRY_SEED)
+            expect(archived[5]).to.equal(nil)
+        end)
+
+        it(
+            "rejects duplicate and unrepresentable saved plots without discarding either copy",
+            function()
+                local active, duplicateError = HabitatRules.partitionPlotData(
+                    { [5] = {} },
+                    { [5] = {} },
+                    5
+                )
+                local outOfRange, rangeError = HabitatRules.partitionPlotData({ [8] = {} }, {}, 4)
+
+                expect(active).to.equal(nil)
+                expect(duplicateError).to.equal("Duplicate plot entry")
+                expect(outOfRange).to.equal(nil)
+                expect(rangeError).to.equal("Malformed plot entry")
+            end
+        )
     end)
     describe("QuestRules — server-recorded action progress", function()
         it("uses validated action counters instead of the current inventory", function()

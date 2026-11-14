@@ -157,25 +157,6 @@ local function createGardenPlot(folder: Folder, index: number, position: Vector3
     return plotPart
 end
 
-function WorldBuilder.addGardenPlot(habitat: Folder, index: number): BasePart?
-    local position = getPlotPosition(index)
-    local plotsFolder = habitat:FindFirstChild("GardenPlots")
-    if not position or not plotsFolder or not plotsFolder:IsA("Folder") then
-        return nil
-    end
-    if plotsFolder:FindFirstChild("Plot_" .. tostring(index)) then
-        return nil
-    end
-
-    local baseOffset = habitat:GetAttribute("BaseOffset") or Vector3.zero
-    local plotPart = createGardenPlot(plotsFolder, index, position + baseOffset)
-    local pathsFolder = habitat:FindFirstChild("Paths")
-    if pathsFolder and pathsFolder:IsA("Folder") then
-        createPathSegment(pathsFolder, position, baseOffset)
-    end
-    return plotPart
-end
-
 local function restorePlotState(folder: Folder, plotData: any, plotIndex: number)
     local plotName = "Plot_" .. tostring(plotIndex)
     local plotsFolder = folder:FindFirstChild("GardenPlots") or folder
@@ -227,6 +208,28 @@ local function restorePlotState(folder: Folder, plotData: any, plotIndex: number
             waterIndicator.Parent = plotPart
         end
     end
+end
+
+function WorldBuilder.addGardenPlot(habitat: Folder, index: number, plotData: any?): BasePart?
+    local position = getPlotPosition(index)
+    local plotsFolder = habitat:FindFirstChild("GardenPlots")
+    if not position or not plotsFolder or not plotsFolder:IsA("Folder") then
+        return nil
+    end
+    if plotsFolder:FindFirstChild("Plot_" .. tostring(index)) then
+        return nil
+    end
+
+    local baseOffset = habitat:GetAttribute("BaseOffset") or Vector3.zero
+    local plotPart = createGardenPlot(plotsFolder, index, position + baseOffset)
+    local pathsFolder = habitat:FindFirstChild("Paths")
+    if pathsFolder and pathsFolder:IsA("Folder") then
+        createPathSegment(pathsFolder, position, baseOffset)
+    end
+    if plotData then
+        restorePlotState(habitat, plotData, index)
+    end
+    return plotPart
 end
 
 function WorldBuilder.buildHabitat(folder: Folder, owner: Player, sessionData: any?)

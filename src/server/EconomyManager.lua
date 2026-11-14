@@ -112,7 +112,14 @@ function EconomyManager.purchaseUpgrade(player: Player, upgradeId: any): (boolea
         return false, "Not enough Bells"
     end
 
+    local nextLevel = currentLevel + 1
+    local updatedQuestProgress = table.clone(data.questProgress)
+    if not QuestRules.setProgress(updatedQuestProgress, "upgrade", upgradeId, nextLevel) then
+        return false, "Unable to record upgrade progress"
+    end
+
     local newPlotIndex: number? = nil
+    local newPlotData: any? = nil
     if upgradeId == "plot_expansion" then
         local currentPlotCount = HabitatRules.getPlotCount(data.upgrades)
         if not currentPlotCount or #data.plots ~= currentPlotCount then
@@ -124,28 +131,30 @@ function EconomyManager.purchaseUpgrade(player: Player, upgradeId: any): (boolea
             return false, "Player habitat not found"
         end
         newPlotIndex = currentPlotCount + 1
-        if not WorldBuilder.addGardenPlot(habitat, newPlotIndex) then
+        newPlotData = data.lockedPlots[newPlotIndex]
+            or { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 }
+        newPlotData = table.clone(newPlotData)
+        if not WorldBuilder.addGardenPlot(habitat, newPlotIndex, newPlotData) then
             return false, "Unable to expand habitat"
         end
     end
 
     data.bells -= cost
-    data.upgrades[upgradeId] = currentLevel + 1
-    if not QuestRules.setProgress(data.questProgress, "upgrade", upgradeId, currentLevel + 1) then
-        warn("Failed to record upgrade quest progress for user " .. tostring(player.UserId))
-    end
+    data.upgrades[upgradeId] = nextLevel
+    data.questProgress = updatedQuestProgress
 
     if newPlotIndex then
-        data.plots[newPlotIndex] = { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 }
+        data.plots[newPlotIndex] = newPlotData
+        data.lockedPlots[newPlotIndex] = nil
     end
 
     -- Fire visual effect
-    RemoteEvents.UpgradeEffect:FireClient(player, upgradeId, currentLevel + 1)
+    RemoteEvents.UpgradeEffect:FireClient(player, upgradeId, nextLevel)
 
     RemoteEvents.SyncData:FireClient(player, data)
     RemoteEvents.Notification:FireClient(
         player,
-        "Upgraded " .. def.name .. " to Level " .. tostring(currentLevel + 1) .. "!"
+        "Upgraded " .. def.name .. " to Level " .. tostring(nextLevel) .. "!"
     )
     return true, "Success"
 end

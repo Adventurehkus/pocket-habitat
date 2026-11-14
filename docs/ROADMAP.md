@@ -62,6 +62,7 @@ The DataStoreManager module now implements:
 - [x] Lease renewal recurs every 120 seconds with a five-minute lease and bounded retries before expiry.
 - [x] PlayerRemoving and BindToClose call per-player release; shutdown retries are attempted synchronously within one absolute deadline after normal cleanup (runtime behavior unverified).
 - [x] Gameplay defaults include the current four-plot/quest/economy/discovery schema; legacy `currency` and spawn-vector shapes are normalized.
+- [x] Preserve supported plot state that exceeds the currently purchased expansion in a validated `lockedPlots` map and restore it when the plot is later unlocked. (Production shared-rule specs added; TestEZ and DataStore runtime remain unverified)
 - [x] Character spawn data is periodically refreshed in memory, stored as numeric tables, and restores Euler orientation consistently.
 - [x] The client handles both session-load payloads and direct gameplay data updates.
 - [x] Run #40 cycle-1 recovery entry reports review/QA for the historical session/shutdown/cooldown source repairs.
@@ -123,6 +124,7 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 - [x] Bound persisted/set upgrade quest progress to each upgrade definition's maximum level. (Source implemented; focused TestEZ case added but not executed)
 - [x] Publish resource inventory and quest progress after both mutations are applied, without an intermediate inventory-only sync. (Source implemented; Roblox client behavior unverified)
 - [x] Wire the purchase remote to the server manager; plot expansion creates a usable owned plot and restores it from the validated session, while storage expansion changes inventory capacity. (Source implemented; runtime-unverified)
+- [x] Keep plot purchases from charging or advancing progression when plot creation fails; prevalidate quest progress and commit after successful plot creation. (Source implemented; runtime-unverified)
 - [x] Reject purchases of watering-can and decorative-tile upgrades until their effects are implemented.
 - [ ] Audit every plant definition through obtain → plant → grow → water → harvest → reward → quest → persistence.
 - [ ] Implement distinct, habitat-scoped behavior for every released creature.
@@ -173,7 +175,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Execute the production-backed TestEZ specs in a compatible runner, then verify quest progression, plot-expansion interactions/restoration, independent gathering, habitat isolation, save/rejoin, lease contention, and shutdown in Roblox Studio. This environment has no compatible TestEZ runner or Roblox runtime. The plot-expansion/persistence source changes in the current cycle have not received a separate pipeline review/QA decision. After that, implement real watering-can and decorative-tile effects before enabling their purchases.
+**Immediate priority:** Obtain independent review/QA of the latest recovery follow-up, then execute the production-backed TestEZ specs and verify quest progression, plot-expansion/restoration, independent gathering, habitat isolation, save/rejoin, lease contention, and shutdown in Roblox Studio. This environment has no compatible TestEZ runner or Roblox runtime. After those checks, implement real watering-can and decorative-tile effects before enabling their purchases.
 
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)

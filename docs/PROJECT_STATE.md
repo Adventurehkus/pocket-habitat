@@ -4,10 +4,10 @@
 
 - **Gameplay repository:** Adventurehkus/pocket-habitat
 - **Gameplay branch:** ai/game-build
-- **Source baseline checkout:** `0775e39` (Run #40 cycle 3). The current cycle adds a production plot-expansion path and repairs the missing `Constants` import in `DataStoreManager`; the workflow persists changes to `ai/game-build`.
+- **Source baseline checkout:** `6bd618c` (Run #40 cycle 5). This worktree adds validated preservation/restoration of saved plots beyond the currently unlocked expansion and hardens plot-upgrade commit ordering; the workflow persists changes to `ai/game-build`.
 - **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation and quota-pool carry-forward; the provider-reset cutoff experiment was reverted (main workflow rollback: `647b5bd885d673dca3e31bb5b518e8b8da746800`).
 - **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion is carried forward; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`. No provider-reset calendar or pre-reset model-call cutoff is applied.
-- **Verification boundary:** Run #40 cycle-1 review/QA and deterministic validation covered the historical recovery repairs. The cycle-2 quest repairs and this cycle's source changes have not received a separate pipeline review/QA decision. Current Rojo, StyLua, Selene, and diff checks pass locally; TestEZ and Roblox engine tests remain unexecuted.
+- **Verification boundary:** Run #40 cycle-1 review/QA and deterministic validation covered the historical recovery repairs. The cycle-2 quest changes, cycle-5 plot-expansion changes, and this follow-up have not received a separate pipeline review/QA decision. This follow-up's Rojo, StyLua, Selene, and diff checks pass locally; TestEZ and Roblox engine tests remain unexecuted.
 
 This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
 
@@ -17,11 +17,11 @@ The current source implements a server-owned join flow: automatic character load
 
 `DataStoreManager` uses `UpdateAsync` for session acquisition, lease renewal, saving, and release. A failed operation, active foreign lease, malformed record, or unsupported schema does not expose a fabricated default session. The five-minute lease is renewed every two minutes with current session data. Existing legacy fields are normalized to the live gameplay schema; spawn vectors are serialized as numeric tables. Per-player resource cooldowns are now part of session data, schema-validated, and saved with the player's next periodic/final save; cooldown reservations occur before reward mutation and are rolled back when the reward is rejected. A crash before the next save can still lose the newest cooldown state. Final release is atomic and bounded. If it fails transiently, the in-memory session is retained and up to three release-only retries are scheduled at 5, 15, and 30 seconds; the departing session is not renewed indefinitely. A stale-token release is discarded because the server no longer owns that data. Shutdown now makes bounded synchronous release attempts against the absolute deadline to avoid retry tasks surviving process exit. Resource gathering requires an active session and living character, is server-rate-limited, and validates the owned node and interaction distance. These are source-level changes only; Roblox engine and actual DataStore behavior have not been tested.
 
-**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for the Run #38/39 and Run #40 cycle-2 automation-resolvable source findings. The cycle-2 quest progress bound and resource sync ordering fixes pass static validation; focused TestEZ specs and Roblox runtime gaps remain unverified.
+**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` remains OPEN pending independent review/QA of the latest follow-up. The Run #40 cycle-5 plot-index issue is handled by preserving over-unlocked plot state in a validated, non-active `lockedPlots` map and restoring it when unlocked. The purchase-order and Constants-import findings were not present in the inspected source; purchase progress now commits only after successful plot creation. TestEZ and Roblox runtime gaps remain unverified.
 
-**Current highest-priority task:** Run the production-backed TestEZ specs and verify quest, plot-expansion, habitat-isolation, and DataStore save/rejoin/contention behavior in Roblox Studio when compatible runners are available. Meanwhile, complete real effects for the watering-can and decorative-tile upgrades; purchases for those unfinished effects are now rejected server-side.
+**Current highest-priority task:** Obtain independent review/QA of the recovery follow-up, then run the production-backed TestEZ specs and verify quest, plot-expansion/restoration, habitat-isolation, and DataStore save/rejoin/contention behavior in Roblox Studio when compatible runners are available. The watering-can and decorative-tile upgrades remain unavailable until their effects are implemented.
 
-The current source wires `PurchaseUpgrade` through `EconomyManager.init()`. Plot expansion now creates an owned plot instance with an interaction prompt, adds its saved plot state, restores every unlocked plot on rejoin, and shares unlock validation with production plant rules. The player-data normalizer fills missing unlocked plot records and rejects unknown/out-of-range upgrade levels and plots beyond the purchased expansion. Storage expansion remains available because inventory capacity already uses its level. Watering-can and decorative-tile purchases are disabled until their effects are implemented. The missing `Constants` import in `DataStoreManager` was also fixed; default session creation and quest migration previously referenced an undeclared global. These changes are source-level and have not received independent review/QA or Roblox runtime verification.
+The current source wires `PurchaseUpgrade` through `EconomyManager.init()`. Plot expansion creates an owned plot instance with an interaction prompt, restores its saved plant state on expansion, and commits Bells/upgrade/progression only after plot construction succeeds. Session normalization preserves saved plots that exceed a player's current expansion in `lockedPlots`; these are excluded from interaction and habitat rendering until unlocked, then restored. Duplicate or unsupported plot indices remain fail-closed. Storage expansion remains available because inventory capacity already uses its level. Watering-can and decorative-tile purchases are disabled until their effects are implemented. `DataStoreManager` loads `Constants` synchronously from the replicated shared folder at module initialization. This source follow-up has not received independent review/QA or Roblox runtime verification.
 
 The quest source now defines a single ten-quest order, migrates old sessions with no current quest to the next incomplete quest, and records gather, plant, water, harvest, discovery, and upgrade progress in backward-compatible session data. Upgrade progress is bounded by the matching upgrade definition. Resource reward sync now follows quest-progress recording, avoiding an intermediate client snapshot. Claims validate actual harvests, the specific Leafling discovery, and current upgrade levels; item rewards are capacity-checked and committed with Bells and quest completion without yielding between mutations. Completing the first-creature quest awards the Sun Petal seed required by the following quest. These are source-level changes; gameplay and the new TestEZ cases remain unverified in Roblox.
 
@@ -78,7 +78,7 @@ The provider-reset cutoff experiment was reverted by main workflow commit `647b5
 
 The shared continuation policy helper/tests are stored under `.github/scripts/` on `ai/game-build`. The reset-schedule functions and related test cases have been removed; the remaining tests cover bounded continuation and carrying forward confirmed exhausted quota-pool IDs. No reset-time cutoff is part of current workflow behavior.
 
-Do not confuse the workflow-policy rollback with gameplay verification. The shutdown/session source fixes have prior review evidence. The recovery marker is RESOLVED for the enumerated source findings; latest quest changes have no separate pipeline review/QA decision, and Roblox runtime gaps remain open. Changes are local and not yet persisted by the workflow.
+Do not confuse the workflow-policy rollback with gameplay verification. The shutdown/session source fixes have prior review evidence. The recovery record remains OPEN pending independent review/QA of the latest follow-up; Roblox runtime gaps remain open. Changes are local and not yet persisted by the workflow.
 
 ## Run #32 findings and current status
 
@@ -91,17 +91,17 @@ Current remaining risks and gaps:
 1. Character lifecycle, lease contention/renewal, persistence, and shutdown have no Roblox runtime verification; release retry timing and lease expiry are untested in-engine.
 2. TestEZ has not been executed; production cooldown transaction and persistence/concurrency specs still need execution and broader coverage.
 3. Resource cooldown state is saved on the next periodic or final write; a crash before that write can allow an early repeat gather after recovery.
-4. **Source-level: Saved plot/world progression is now restored from session data on habitat load (implemented in WorldBuilder). Runtime verification pending.**
+4. **Source-level: Saved plot/world progression is restored on habitat load and on purchasing a plot expansion; excess-but-supported saved plots are preserved in `lockedPlots` until unlocked. Runtime verification pending.**
 5. **Source-level: Creature runtime is now fully scoped to each player's habitat with distinct models and bounded movement (implemented in CreatureManager). Runtime verification pending.**
 
 Do not mark checklist items complete based on a folder, helper module, static build, reviewer assertion, or generated .rbxl. Require source verification and runtime evidence at the appropriate level.
 
 ## Current next-task sequence
 
-1. Execute TestEZ, especially the new production `ResourceRules` cooldown cases, in a compatible runner; `run-in-roblox`, `luau`, and `lune` are unavailable here.
-2. Verify two-client gathering, independent cooldowns, character spawn/respawn, and habitat ownership in Roblox Studio.
-3. Verify DataStore cooldown save/rejoin, lease contention, failed requests, and shutdown in Studio with test data.
-4. Add and execute production-backed tests for session schema normalization and duplicate concurrent gather requests; rejected reward rollback now has a production-helper spec but remains unexecuted.
+1. Obtain independent pipeline review/QA of the plot preservation and purchase-order follow-up; recovery remains OPEN until that evidence is recorded.
+2. Execute TestEZ, including the production plot partition/restoration and resource cooldown cases, in a compatible runner; `run-in-roblox`, `luau`, and `lune` are unavailable here.
+3. Verify two-client gathering, plot expansion/restoration, character spawn/respawn, and habitat ownership in Roblox Studio.
+4. Verify DataStore cooldown and plot save/rejoin, lease contention, failed requests, and shutdown in Studio with test data.
 
 ## Workflow and model/provider routing status
 

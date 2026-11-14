@@ -4,6 +4,25 @@ RECOVERY_STATUS: OPEN
 
 This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 cycle-2 quest-progress findings. All automation-resolvable source findings are fixed or adjudicated as non-actionable. The latest recovery pass bounds upgrade progress to defined upgrade levels and delays the resource-data sync until quest progress has been recorded. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing.
 
+## 2026-11-14 follow-up — plot save recovery and purchase ordering
+
+The latest Run #40 cycle-5 report identified three items:
+
+- The purchase-order finding was not present in the inspected source: `EconomyManager.purchaseUpgrade` already called `WorldBuilder.addGardenPlot` before deducting Bells. The current implementation now also validates quest progress on a cloned table before the world mutation, then commits Bells, upgrade level, quest progress, and plot data only after plot creation succeeds. A failed plot creation therefore leaves the player's saved/economy state unchanged.
+- The plot-index finding was actionable. Session normalization now separates plots beyond the purchased expansion into a validated `lockedPlots` map rather than rejecting the entire save or discarding plant state. When an expansion unlocks one of those plots, the data is restored into the active plot and its plant visuals are reconstructed. Indices beyond the maximum supported plot count and duplicate plot entries still fail closed.
+- The Constants-import finding was not present in the inspected source: `DataStoreManager` loads `Constants` at module initialization with `ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Constants")` before session normalization can run.
+
+Verification after this follow-up:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty local artifact.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- Production `HabitatRules.partitionPlotData` specs were added for preserving excess plot state, restoring archived state after unlock, and rejecting duplicate/out-of-range entries; TestEZ was NOT RUN because no compatible runner is installed.
+- Roblox Studio/server, multiplayer, DataStore save/rejoin/contention, and shutdown tests: NOT RUN.
+- Independent pipeline review/QA of this follow-up: NOT RUN.
+
+The source-level findings are fixed or adjudicated as non-actionable. Keep recovery OPEN pending independent review/QA of this follow-up. Runtime and TestEZ gaps remain explicitly unverified.
+
 ## Resolution evidence — 2026-11-14
 
 Source inspection confirms `ResourceManager` calls `ResourceRules.tryGrantReward`; the TestEZ spec calls that same production helper and asserts that a rejected reward restores the prior `tree_1` cooldown. The atomic session lease, session retention, safe shutdown retry, and character lifecycle source repairs described below remain in place. The Run #40 cycle-2 finding about upgrade progress is fixed by validating stored, set, and incremented upgrade progress against `Constants.UPGRADES[id].maxLevel`; a focused production-rule spec covers maximum, overflow, and unknown-upgrade cases. Its data-sync finding is fixed by allowing the resource reward path to suppress `EconomyManager.addItem`'s intermediate sync, so `ResourceManager` sends the updated inventory and recorded quest progress together. The normalization finding required no source change: nil progress is initialized for legacy saves and malformed progress is rejected without replacing the save.
@@ -2056,3 +2075,140 @@ REVIEW_FINDINGS: YES
 
 ### Summary
 The cycle successfully implemented the requested infrastructure for plot expansions and corrected the missing `Constants` reference. However, the `EconomyManager` purchase logic is not currently transactional; a failure during habitat modification will result in currency loss. The `DataStoreManager` should be updated to prune corrupted or excess plot data rather than rejecting the entire player session. TestEZ specs were added, but as noted in the project documentation, they remain unexecuted in this environment.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 40
+- Cycle: 6
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 6 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-implementation.diff
+
+ 
++function HabitatRules.getMaxPlotCount(): number
++    return HabitatRules.INITIAL_PLOT_COUNT + Constants.UPGRADES.plot_expansion.maxLevel - 1
++end
++
++function HabitatRules.partitionPlotData(
++    plots: any,
++    archivedPlots: any,
++    unlockedPlotCount: any
++): (any?, any?, string?)
++    local maxPlotCount = HabitatRules.getMaxPlotCount()
++    if
++        type(plots) ~= "table"
++        or type(archivedPlots) ~= "table"
++        or type(unlockedPlotCount) ~= "number"
++        or unlockedPlotCount ~= unlockedPlotCount
++        or unlockedPlotCount % 1 ~= 0
++        or unlockedPlotCount < HabitatRules.INITIAL_PLOT_COUNT
++        or unlockedPlotCount > maxPlotCount
++    then
++        return nil, nil, "Malformed plot data"
++    end
++
++    local active = {}
++    local archived = {}
++    local function addPlot(index: any, plot: any): string?
++        if
++            type(index) ~= "number"
++            or index ~= index
++            or math.abs(index) == math.huge
++            or index < 1
++            or index % 1 ~= 0
++            or index > maxPlotCount
++            or type(plot) ~= "table"
++        then
++            return "Malformed plot entry"
++        end
++
++        local destination = if index <= unlockedPlotCount then active else archived
++        if destination[index] ~= nil then
++            return "Duplicate plot entry"
++        end
++        destination[index] = plot
++        return nil
++    end
++
++    for index, plot in pairs(plots) do
++        local err = addPlot(index, plot)
++        if err then
++            return nil, nil, err
++        end
++    end
++    for index, plot in pairs(archivedPlots) do
++        local err = addPlot(index, plot)
++        if err then
++            return nil, nil, err
++        end
++    end
++
++    return active, archived, nil
++end
++
+ function HabitatRules.isPlotIndexUnlocked(upgrades: any, plotIndex: any): boolean
+     local plotCount = HabitatRules.getPlotCount(upgrades)
+     return plotCount ~= nil
+diff --git a/src/shared/PocketHabitat.spec.lua b/src/shared/PocketHabitat.spec.lua
+index 3a94204..c859a2e 100644
+--- a/src/shared/PocketHabitat.spec.lua
++++ b/src/shared/PocketHabitat.spec.lua
+@@ -283,6 +283,50 @@ return function()
+             expect(HabitatRules.isPlotIndexUnlocked({}, 5)).to.equal(false)
+             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 2 }, 5)).to.equal(true)
+         end)
++
++        it("preserves excess saved plot state outside the currently unlocked plot set", function()
++            local plantedPlot = {
++                seedId = BERRY_SEED,
++                plantedTime = NOW - 10,
++                waterCount = 1,
++                stage = 1,
++            }
++            local active, archived = HabitatRules.partitionPlotData(
++                { [1] = makeData().plots[1], [6] = plantedPlot },
++                {},
++                4
++            )
++
++            expect(active[6]).to.equal(nil)
++            expect(archived[6].seedId).to.equal(BERRY_SEED)
++            expect(archived[6].plantedTime).to.equal(NOW - 10)
++            expect(archived[6].waterCount).to.equal(1)
++        end)
++
++        it("restores archived plot data when that plot becomes unlocked", function()
++            local archivedPlot = { seedId = BERRY_SEED, plantedTime = NOW - 10 }
++            local active, archived = HabitatRules.partitionPlotData({}, { [5] = archivedPlot }, 5)
++
++            expect(active[5].seedId).to.equal(BERRY_SEED)
++            expect(archived[5]).to.equal(nil)
++        end)
++
++        it(
++            "rejects duplicate and unrepresentable saved plots without discarding either copy",
++            function()
++                local active, duplicateError = HabitatRules.partitionPlotData(
++                    { [5] = {} },
++                    { [5] = {} },
++                    5
++                )
++                local outOfRange, rangeError = HabitatRules.partitionPlotData({ [8] = {} }, {}, 4)
++
++                expect(active).to.equal(nil)
++                expect(duplicateError).to.equal("Duplicate plot entry")
++                expect(outOfRange).to.equal(nil)
++                expect(rangeError).to.equal("Malformed plot entry")
++            end
++        )
+     end)
+     describe("QuestRules — server-recorded action progress", function()
+         it("uses validated action counters instead of the current inventory", function()

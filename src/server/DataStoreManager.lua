@@ -76,11 +76,48 @@ local function makeDefaultSessionData(userId: number)
         upgrades = {},
         resourceCooldowns = {},
         plots = plots,
+        lockedPlots = {},
         characterSpawnData = {
             position = Vector3.new(0, 5, 0),
             orientation = Vector3.zero,
         },
     }
+end
+
+local function normalizePlotMap(plotMap: any): (any?, string?)
+    if type(plotMap) ~= "table" then
+        return nil, "Malformed plot data"
+    end
+
+    local normalized = {}
+    for index, plot in pairs(plotMap) do
+        if type(plot) ~= "table" then
+            return nil, "Malformed plot entry"
+        end
+        plot = table.clone(plot)
+        if plot.seedId ~= nil and type(plot.seedId) ~= "string" then
+            return nil, "Malformed plot seed"
+        end
+        if
+            (
+                plot.plantedTime ~= nil
+                and (not isFiniteNumber(plot.plantedTime) or plot.plantedTime < 0)
+            )
+            or (plot.waterCount ~= nil and (not isFiniteNumber(plot.waterCount) or plot.waterCount < 0 or plot.waterCount % 1 ~= 0))
+            or (
+                plot.stage ~= nil
+                and (not isFiniteNumber(plot.stage) or plot.stage < 0 or plot.stage % 1 ~= 0)
+            )
+        then
+            return nil, "Malformed plot state"
+        end
+        plot.plantedTime = plot.plantedTime or 0
+        plot.waterCount = plot.waterCount or 0
+        plot.stage = plot.stage or 0
+        normalized[index] = plot
+    end
+
+    return normalized, nil
 end
 
 local function getDataStore(): (GlobalDataStore?, string?)
@@ -250,57 +287,42 @@ local function normalizeSessionData(
         data.resourceCooldowns = table.clone(data.resourceCooldowns)
     end
 
-    if data.plots == nil then
-        data.plots = {}
+    local unlockedPlotCount = HabitatRules.getPlotCount(data.upgrades)
+    if not unlockedPlotCount then
+        return nil, "Malformed plot expansion level"
     end
-    if type(data.plots) ~= "table" then
-        return nil, "Malformed plot data"
+    local savedPlots = data.plots
+    if savedPlots == nil then
+        savedPlots = {}
     end
-    local normalizedPlots = table.clone(data.plots)
+    local savedLockedPlots = data.lockedPlots
+    if savedLockedPlots == nil then
+        savedLockedPlots = {}
+    end
+    local plots, lockedPlots, partitionError =
+        HabitatRules.partitionPlotData(savedPlots, savedLockedPlots, unlockedPlotCount)
+    if not plots or not lockedPlots then
+        return nil, partitionError or "Malformed plot data"
+    end
+    local normalizedPlots, plotsError = normalizePlotMap(plots)
+    if not normalizedPlots then
+        return nil, plotsError
+    end
+    local normalizedLockedPlots, lockedPlotsError = normalizePlotMap(lockedPlots)
+    if not normalizedLockedPlots then
+        return nil, lockedPlotsError
+    end
     data.plots = normalizedPlots
-    for index, plot in pairs(data.plots) do
-        if not isFiniteNumber(index) or index < 1 or index % 1 ~= 0 or type(plot) ~= "table" then
-            return nil, "Malformed plot entry"
-        end
-        plot = table.clone(plot)
-        data.plots[index] = plot
-        if plot.seedId ~= nil and type(plot.seedId) ~= "string" then
-            return nil, "Malformed plot seed"
-        end
-        if
-            (
-                plot.plantedTime ~= nil
-                and (not isFiniteNumber(plot.plantedTime) or plot.plantedTime < 0)
-            )
-            or (plot.waterCount ~= nil and (not isFiniteNumber(plot.waterCount) or plot.waterCount < 0 or plot.waterCount % 1 ~= 0))
-            or (
-                plot.stage ~= nil
-                and (not isFiniteNumber(plot.stage) or plot.stage < 0 or plot.stage % 1 ~= 0)
-            )
-        then
-            return nil, "Malformed plot state"
-        end
-        plot.plantedTime = plot.plantedTime or 0
-        plot.waterCount = plot.waterCount or 0
-        plot.stage = plot.stage or 0
-    end
+    data.lockedPlots = normalizedLockedPlots
+
     for index = 1, HabitatRules.INITIAL_PLOT_COUNT do
         if data.plots[index] == nil then
             data.plots[index] = makeDefaultPlot()
         end
     end
-    local unlockedPlotCount = HabitatRules.getPlotCount(data.upgrades)
-    if not unlockedPlotCount then
-        return nil, "Malformed plot expansion level"
-    end
     for index = HabitatRules.INITIAL_PLOT_COUNT + 1, unlockedPlotCount do
         if data.plots[index] == nil then
             data.plots[index] = makeDefaultPlot()
-        end
-    end
-    for index in pairs(data.plots) do
-        if index > unlockedPlotCount then
-            return nil, "Plot exceeds purchased expansion"
         end
     end
 
