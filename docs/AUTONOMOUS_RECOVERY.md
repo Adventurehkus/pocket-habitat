@@ -4,6 +4,19 @@ RECOVERY_STATUS: OPEN
 
 This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 quest-progress and plot-state findings. All recorded automation-resolvable source findings are fixed or adjudicated as non-actionable. The latest gameplay follow-up also implements the watering-can effect with focused production-rule specs. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing. Recovery remains OPEN because the accumulated follow-up has no confirmed independent pipeline review/QA decision.
 
+## 2026-11-14 — current source and deterministic verification
+
+The current `ai/game-build` checkout is `8e1287704c15`. Direct inspection of the production upgrade, plant, resource, quest, and plot-persistence paths found the previously recorded source repairs present; no new automation-resolvable recovery defect was identified. Checks rerun against this checkout:
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 75,838 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after this documentation update.
+- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed.
+- Roblox Studio/server, multiplayer, DataStore save/rejoin/contention, shutdown, and manual tests: NOT RUN.
+
+The public Actions API showed workflow run #42 still in progress at 15:32 UTC; it has not provided a review/QA decision in this environment. Keep `RECOVERY_STATUS: OPEN` until a trustworthy independent pipeline review/QA result and required deterministic validation are confirmed. Runtime and TestEZ gaps remain explicitly unverified.
+
 ## 2026-11-14 follow-up — verify current recovery source
 
 The current checkout is `c6fe7a9bf0a8b5974549949f876043f860f6cbed`; gameplay source is unchanged from `82508860f1557d7f55213aed1d74b86f2d48b7ea`. A fresh inspection confirms:
@@ -2527,3 +2540,29 @@ index c859a2e..271b7e9 100644
          it(
              "requires both elapsed growth time and the complete water requirement to harvest",
              function()
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 42
+- Cycle: 1
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-validation.log
+
+Building project 'Pocket Habitat'
+Built project to pocket-habitat.rbxl
+PASS: Rojo build -> build/pocket-habitat.rbxl
+PASS: StyLua check src
+Results:
+0 errors
+0 warnings
+0 parse errors
+PASS: Selene src

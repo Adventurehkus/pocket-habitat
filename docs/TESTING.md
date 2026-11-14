@@ -83,6 +83,20 @@ The server now permits the watering-can purchase, and the production `PlantRules
 - Roblox Studio/server, multiplayer, purchase, and save/rejoin tests: NOT RUN.
 - Independent pipeline review/QA: NOT confirmed for this follow-up.
 
+## Current recovery verification rerun — 2026-11-14
+
+At checkout `8e1287704c15`, direct source inspection confirmed the recorded upgrade transaction, locked-plot preservation/restoration, watering-can cost, quest-progress, and reward-cooldown changes remain present. No new automation-resolvable recovery finding was identified.
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 75,838 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after these documentation edits.
+- TestEZ: NOT RUN; no compatible runner is installed.
+- Roblox Studio/server, multiplayer, DataStore, save/rejoin/contention, shutdown, and manual tests: NOT RUN.
+- Public Actions API check: workflow run #42 was still `in_progress` at 15:32 UTC; no independent review/QA result was available yet.
+
+Recovery remains OPEN until a trustworthy review/QA decision and deterministic validation are confirmed. Static checks do not replace TestEZ or runtime verification.
+
 ## Current recovery verification — 2026-11-14
 
 The Run #40 cycle-1 recovery entry reports independent review, QA, and deterministic validation passed for the historical source repairs. This continuation resolved the Run #40 cycle-2 source findings: upgrade progress is bounded against upgrade definitions, and the resource reward flow emits its client data sync only after quest progress is recorded. The malformed-progress report item was reviewed and is non-actionable: nil is initialized for legacy saves, while malformed data fails closed. `docs/AUTONOMOUS_RECOVERY.md` marks the listed source findings RESOLVED. The latest source edits have not received separate pipeline review/QA.

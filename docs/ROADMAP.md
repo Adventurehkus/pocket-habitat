@@ -176,7 +176,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Obtain independent review/QA of the accumulated recovery and watering-can source changes, then execute production-backed TestEZ specs and verify quest progression, plot-expansion/restoration, watering efficiency, independent gathering, habitat isolation, save/rejoin, lease contention, and shutdown in Roblox Studio. This environment has no compatible TestEZ runner or Roblox runtime. The watering-can effect is implemented in source; the decorative-tile effect remains the next upgrade integration task.
+**Immediate priority:** Obtain confirmed independent review/QA of the accumulated recovery and watering-can source changes (the public Actions API showed workflow run #42 in progress at 15:32 UTC), then execute production-backed TestEZ specs and verify quest progression, plot-expansion/restoration, watering efficiency, independent gathering, habitat isolation, save/rejoin, lease contention, and shutdown in Roblox Studio. This environment has no compatible TestEZ runner or Roblox runtime. The watering-can effect is implemented in source; the decorative-tile effect remains the next upgrade integration task.
 
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
