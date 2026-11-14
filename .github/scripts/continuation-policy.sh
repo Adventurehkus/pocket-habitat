@@ -79,6 +79,6 @@ serialize_exhausted_quota_pool_keys() {
   if (( ${#keys[@]} == 0 )); then
     printf ''
   else
-    printf '%s\\n' "${keys[@]}" | sort | paste -sd, -
+    printf '%s\n' "${keys[@]}" | sort | paste -sd, -
   fi
 }
