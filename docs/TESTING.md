@@ -154,6 +154,21 @@ Checks actually run:
 - Independent review/QA of this follow-up: NOT RUN.
 - Roblox Studio/server, multiplayer, DataStore, shutdown, and manual tests: NOT RUN.
 
+## 2026-11-14 — persisted resource cooldowns and recovery resolution
+
+Resource cooldown timestamps now live in each player's session data, are validated by the production `ResourceRules` module, and are saved through the existing session write path. Gather requests require an active session and living character and are throttled per player. The cooldown is reserved before attempting the reward and rolled back if the reward is rejected. TestEZ specifications cover cooldown expiry and malformed timestamp maps.
+
+Checks actually run after the code change:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 65,938 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; `run-in-roblox`, `luau`, and `lune` are unavailable.
+- Roblox Studio/server, multiplayer, DataStore save/rejoin, and shutdown tests: NOT RUN.
+- Run #39 cycle-2 recovery record: records independent review/QA and deterministic validation for the preceding recovery source repairs; it does not cover this resource-cooldown follow-up.
+
+Cooldown changes become durable on the next periodic or final session write, so an abrupt crash before that write can lose the latest cooldown. Runtime persistence and concurrent gather behavior remain unverified.
+
 ## Latest verified gameplay pipeline run
 
 ### Run #32 — 2026-11-11

@@ -6,6 +6,7 @@ local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild(
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local PlantRules = require(Shared:WaitForChild("PlantRules"))
 local EconomyRules = require(Shared:WaitForChild("EconomyRules"))
+local ResourceRules = require(Shared:WaitForChild("ResourceRules"))
 
 local NOW = 10_000
 local BERRY_SEED = Constants.RESOURCES.SEED_BERRY
@@ -236,6 +237,22 @@ return function()
 
             local plan = validateInteraction(data, 1, "harvest", nil, NOW)
             expect(plan).to.equal(nil)
+        end)
+    end)
+    describe("ResourceRules — persisted cooldown validation", function()
+        it("blocks a node until its saved cooldown expires", function()
+            local cooldowns = { tree_1 = NOW + 10 }
+
+            expect(ResourceRules.isReady(cooldowns, "tree_1", NOW)).to.equal(false)
+            expect(ResourceRules.isReady(cooldowns, "tree_1", NOW + 10)).to.equal(true)
+            expect(ResourceRules.isReady(cooldowns, "tree_2", NOW)).to.equal(true)
+        end)
+
+        it("rejects malformed saved cooldown identifiers and timestamps", function()
+            expect(ResourceRules.isValidCooldowns({ [""] = NOW })).to.equal(false)
+            expect(ResourceRules.isValidCooldowns({ tree_1 = 1.5 })).to.equal(false)
+            expect(ResourceRules.isValidCooldowns({ tree_1 = math.huge })).to.equal(false)
+            expect(ResourceRules.isValidCooldowns({ tree_1 = -1 })).to.equal(false)
         end)
     end)
     describe("EconomyRules — server inventory reward validation", function()

@@ -2,14 +2,17 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Constants"))
+local ResourceRules =
+    require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ResourceRules"))
 local RemoteEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RemoteEvents"))
 local EconomyManager = require(script.Parent:WaitForChild("EconomyManager"))
 local CreatureManager = require(script.Parent:WaitForChild("CreatureManager"))
+local DataStoreManager = require(script.Parent:WaitForChild("DataStoreManager"))
 
 local ResourceManager = {}
 
--- Per-player cooldown tracking (keyed by UserId)
-local playerCooldowns: { [number]: { [string]: number } } = {}
+local GATHER_REQUEST_INTERVAL = 0.25
+local lastGatherRequestAt: { [number]: number } = {}
 
 -- Static node templates with base positions (relative to habitat offset)
 local staticNodes = {
@@ -51,34 +54,37 @@ local staticNodes = {
     },
 }
 
--- Per-player cooldown tracking (keyed by UserId)
-local function getPlayerCooldown(player, nodeId)
-    local userId = player.UserId
-    if not playerCooldowns[userId] then
-        playerCooldowns[userId] = {}
-    end
-    return playerCooldowns[userId][nodeId] or 0
-end
-
-local function setPlayerCooldown(player, nodeId, readyTime)
-    local userId = player.UserId
-    if not playerCooldowns[userId] then
-        playerCooldowns[userId] = {}
-    end
-    playerCooldowns[userId][nodeId] = readyTime
-end
-
 function ResourceManager.init()
     RemoteEvents.GatherResource.OnServerInvoke = function(
         player: Player,
         nodeId: any
     ): (boolean, string)
+        local now = os.clock()
+        local lastRequestAt = lastGatherRequestAt[player.UserId]
+        if lastRequestAt and now - lastRequestAt < GATHER_REQUEST_INTERVAL then
+            return false, "Gather request rate limited"
+        end
+        lastGatherRequestAt[player.UserId] = now
+
         if typeof(nodeId) ~= "string" then
             return false, "Invalid argument"
         end
 
+        local sessionData = DataStoreManager.getSession(player)
+        if not sessionData then
+            return false, "No active session"
+        end
+
         local character = player.Character
-        if not character or not character:FindFirstChild("HumanoidRootPart") then
+        local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
+        local rootPart = if character then character:FindFirstChild("HumanoidRootPart") else nil
+        if
+            not character
+            or not humanoid
+            or humanoid.Health <= 0
+            or not rootPart
+            or not rootPart:IsA("BasePart")
+        then
             return false, "Invalid character"
         end
 
@@ -120,24 +126,22 @@ function ResourceManager.init()
         local nodePosition = resourceInstance.Position
 
         -- Check cooldown per player
-        local readyTime = getPlayerCooldown(player, nodeId)
-        if os.time() < readyTime then
+        if not ResourceRules.isReady(sessionData.resourceCooldowns, nodeId, os.time()) then
             return false, "Node on cooldown"
         end
 
-        -- Check distance
-        if (character.HumanoidRootPart.Position - nodePosition).Magnitude > 30 then
+        if (rootPart.Position - nodePosition).Magnitude > 30 then
             return false, "Too far away"
         end
 
-        -- Update cooldown (convert minutes to seconds) - move this after successful reward
         local cooldownSeconds = (staticNode.cooldown or 10) * 60
 
         local rewardItem = staticNode.type
         local rewardAmount = rewardItem == Constants.RESOURCES.DEWDROP and 2 or 1
+        local previousReadyTime = sessionData.resourceCooldowns[nodeId]
+        sessionData.resourceCooldowns[nodeId] = os.time() + cooldownSeconds
 
         if EconomyManager.addItem(player, rewardItem, rewardAmount) then
-            setPlayerCooldown(player, nodeId, os.time() + cooldownSeconds)
             CreatureManager.checkDiscoveries(player)
 
             RemoteEvents.GatherEffect:FireClient(player, nodePosition, rewardItem, rewardAmount)
@@ -149,12 +153,13 @@ function ResourceManager.init()
             return true, "Success"
         end
 
+        sessionData.resourceCooldowns[nodeId] = previousReadyTime
         return false, "Inventory full"
     end
 end
 
 function ResourceManager.removePlayer(player: Player)
-    playerCooldowns[player.UserId] = nil
+    lastGatherRequestAt[player.UserId] = nil
 end
 
 return ResourceManager

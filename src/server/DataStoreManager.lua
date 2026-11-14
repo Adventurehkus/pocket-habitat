@@ -6,6 +6,8 @@ local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CharacterSpawnData =
     require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("CharacterSpawnData"))
+local ResourceRules =
+    require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ResourceRules"))
 local RemoteEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RemoteEvents"))
 
 local PLAYER_DATA_STORE = "PlayerDataStoreV1"
@@ -68,6 +70,7 @@ local function makeDefaultSessionData(userId: number)
         currentQuest = "q1_wood",
         creaturesDiscovered = {},
         upgrades = {},
+        resourceCooldowns = {},
         plots = plots,
         characterSpawnData = {
             position = Vector3.new(0, 5, 0),
@@ -221,6 +224,14 @@ local function normalizeSessionData(
         end
     end
 
+    if data.resourceCooldowns == nil then
+        data.resourceCooldowns = {}
+    elseif not ResourceRules.isValidCooldowns(data.resourceCooldowns) then
+        return nil, "Malformed resource cooldown data"
+    else
+        data.resourceCooldowns = table.clone(data.resourceCooldowns)
+    end
+
     if data.plots == nil then
         data.plots = {}
     end
@@ -272,6 +283,7 @@ end
 
 local function serializeSessionData(data: any): any
     local serialized = table.clone(data)
+    serialized.resourceCooldowns = table.clone(data.resourceCooldowns)
     serialized.characterSpawnData = {
         position = CharacterSpawnData.encodeVector3(data.characterSpawnData.position),
         orientation = CharacterSpawnData.encodeVector3(data.characterSpawnData.orientation),

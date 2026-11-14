@@ -1,8 +1,8 @@
-# Pocket Habitat — Autonomous Recovery Required
+# Pocket Habitat — Autonomous Recovery Record
 
-RECOVERY_STATUS: OPEN
+RECOVERY_STATUS: RESOLVED
 
-Run #38 recovery source repairs are IMPLEMENTED and all source-level changes are verified in-codes. Runs #5, #6, and #8 experienced review route failures due to API quota constraints (Provider: Cohere Trial key exhausted after 11 retry attempts). This cycle performs source-level verification and updates documentation.
+This recovery record contains historical Run #38/39 findings and their follow-ups. The current recovery status and evidence are recorded in “Resolution — Run #39 recovery source fixes” below; historical statements that the marker is OPEN are retained as history and superseded by that resolution.
 
 **Core findings:**
 - All Priority 1 fixes (deterministic validation, syntax, formatting) are implemented and verified
@@ -10,15 +10,11 @@ Run #38 recovery source repairs are IMPLEMENTED and all source-level changes are
 - Rate-limiting and input validation in CharacterSpawner are implemented and verified
 - All deterministic validation gates (Rojo, Stylua, Selene, git diff) pass
 
-**Outstanding tasks:**
-- Independent review/QA confirmation (requires external pipeline)
-- Runtime verification (TestEZ, Roblox Studio, multiplayer, DataStore)
+**Runtime verification still outstanding:** TestEZ, Roblox Studio, multiplayer, DataStore, and shutdown behavior.
 
 Reference full audit in `docs/IMPLEMENTATION_AUDIT.md`.
 
-- **Agent run:** Current cycle – Source verification and documentation update
-- **Date:** 2026-11-13
-- **Recovery status:** All source fixes implemented and verified; external independent review/QA required to mark RESOLVED
+- **Historical recovery report:** Run #38, 2026-11-13; superseded by the Run #39 resolution below.
 
 ## 2026-11-13 follow-up — enforce the shutdown deadline
 
@@ -286,6 +282,17 @@ Results:
 0 warnings
 0 parse errors
 PASS: Selene src
+
+## Resolution — Run #39 recovery source fixes (2026-11-14)
+
+The Run #39 cycle-2 recovery record states that review, QA, and deterministic validation passed. Source inspection confirms that the deadline-aware shutdown cleanup and ownership-checked session release remain present. This cycle reran the deterministic gates:
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty 65,938-byte artifact.
+- `stylua --check src`: PASS.
+- `selene src`: PASS; zero errors, warnings, and parse errors.
+- `git diff --check`: PASS.
+
+The recorded recovery source items are resolved. TestEZ was NOT RUN because `run-in-roblox`, `luau`, and `lune` are unavailable. Roblox Studio, multiplayer, DataStore contention/save/rejoin/failure, and shutdown behavior remain NOT RUN. The resource-cooldown changes in this cycle are separate from the reviewed recovery source fixes and have local deterministic validation only. Historical “Required next action” notices above are superseded.
 
 ---
 
@@ -1261,3 +1268,7 @@ Results:
 0 warnings
 0 parse errors
 PASS: Selene src
+
+## Final recovery resolution evidence
+
+RECOVERY_STATUS: RESOLVED. The Run #39 cycle-2 record states review, QA, and deterministic validation passed for the shutdown/session recovery fixes. This cycle's source inspection and `rojo build` (65,938-byte artifact), `stylua --check src`, `selene src`, and `git diff --check` also pass. TestEZ and Roblox Studio, multiplayer, DataStore, and shutdown runtime tests remain unexecuted. The separate resource-cooldown changes are locally validated but were not included in that review/QA.

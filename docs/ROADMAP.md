@@ -44,9 +44,9 @@ Acceptance criteria:
 
 ## Milestone 2 — Personal habitats and multiplayer/data reliability
 
-**Status: SOURCE RECOVERY REPAIRED IN CURRENT WORKTREE; INDEPENDENT REVIEW/QA AND RUNTIME VERIFICATION PENDING.**
+**Status: SOURCE RECOVERY REVIEWED AND STATICALLY VERIFIED; RUNTIME VERIFICATION PENDING.**
 
-Habitat allocation and source-level ownership validation exist. The current recovery work adds atomic DataStore lease acquisition, renewal/save/release, fail-closed loads, serializable character position state, and a single post-load spawn path. The current source has not yet received independent review/QA or Roblox runtime verification.
+Habitat allocation and source-level ownership validation exist. Run #39 cycle 2 records independent review/QA and deterministic validation for the session/shutdown recovery fixes. This cycle adds persistent per-player resource cooldown state and request throttling; those newest changes have local static checks but not independent pipeline review or Roblox runtime verification.
 
 This milestone establishes the defining Pocket Habitat experience: every player has an independent, persistent world.
 
@@ -64,10 +64,10 @@ The DataStoreManager module now implements:
 - [x] Gameplay defaults include the current four-plot/quest/economy/discovery schema; legacy `currency` and spawn-vector shapes are normalized.
 - [x] Character spawn data is periodically refreshed in memory, stored as numeric tables, and restores Euler orientation consistently.
 - [x] The client handles both session-load payloads and direct gameplay data updates.
-- [ ] Independent review/QA confirms the source repairs.
+- [x] Run #39 cycle-2 review/QA confirms the recovery source repairs. (Does not cover later local resource-cooldown changes.)
 - [ ] Roblox DataStore/runtime tests verify contention, renewal, save/rejoin, failure handling, and shutdown.
 
-The preceding source-level items are present, but this pass still requires independent code review and QA before the recovery record can be closed. Runtime-specific acceptance remains:
+The preceding source-level recovery items have independent review/QA evidence in the Run #39 cycle-2 record. Runtime-specific acceptance remains:
 - [ ] Real-time session contention and stale token rejection in production (Race-positive assertion test pending)
 - [ ] Persistent modified in-memory data across load/save cycles in production (Save/reload test pending)
 - [ ] Failed Get/Update/Set operations retain in-memory state in production (Persistence-failure simulation test pending)
@@ -95,13 +95,14 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 - [x] Validate plot Instance membership in the calling player's habitat, plot index, active session, character, and server-measured interaction distance before any mutation. (Implemented in PlantManager)
 - [x] Derive plot effect positions from the server-resolved plot Instance instead of fixed shared-world coordinates. (Implemented in PlantManager)
 - [x] Resolve each resource node from the calling player's registered habitat; do not trust node positions/owners supplied by clients or accept a bare template ID without server-side instance membership validation. (NodeId now exists on the exact server-built Part; runtime-unverified)
-- [x] Resource cooldown bookkeeping is now per UserId and node ID in memory.
-- [x] Update cooldown only after a successful reward grant.
+- [x] Resource cooldowns are isolated per player/node in session data, schema-validated, and included in normal save/release writes. (Crash before the next write may lose the newest cooldown.)
+- [x] Reserve cooldown before reward mutation and roll it back when reward grant is rejected.
+- [x] Require active session and living character; throttle gather requests per player.
 - [ ] Test full-inventory and duplicate-request behavior.
-- [ ] Decide whether resource cooldown/availability persists across rejoin and implement/document the intended behavior. (Still planned)
+- [x] Define resource cooldown availability as persistent across rejoin, subject to normal periodic/final save durability.
 - [x] Prevent cross-player reward, inventory, cooldown, or habitat mutation. (Source validates registered habitat membership; multiplayer runtime test pending)
-- [x] Clear per-player resource cooldown state and habitat slot ownership on leave.
-- [ ] Add concurrency/idempotency protection against simultaneous duplicate requests. (Still planned)
+- [x] Clear transient per-player request-throttle state and habitat slot ownership on leave.
+- [x] Reserve per-node cooldown before reward grant to reject duplicate gather requests during mutation. (Roblox concurrency/runtime verification pending)
 
 ### Creature isolation
 - [x] **Scope creature instances, registries, behavior loops, movement bounds, discoveries, restoration, and cleanup to the owning habitat/UserId. (Implemented in CreatureManager: per-habitat Creatures folder, distinct models for all 5 types, bounded movement, per-player registry, restore from session data, cleanup on leave; runtime-unverified)**
@@ -166,10 +167,11 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Obtain valid independent review/QA of the latest shutdown-cleanup follow-up and address any source blockers. The shutdown path now passes the absolute deadline into cleanup, avoiding an ordinary retry phase before deadline-aware release. Keep recovery OPEN until the current diff is reviewed. Then execute TestEZ through a compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
+**Immediate priority:** Run TestEZ with a compatible runner and verify the resource-cooldown slice with two clients, then test spawn/respawn, DataStore save/rejoin/contention, and shutdown in Roblox Studio. The Run #39 cycle-2 recovery source fixes received review/QA; resource cooldown changes in this cycle have only local deterministic validation. TestEZ and all Roblox runtime checks remain outstanding.
 
-**Source-level completed this cycle (runtime verification pending):**
+**Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
 - Scope CreatureManager to each player's habitat (per-habitat Creatures folder, distinct creature models, bounded movement, restoration from discovery data, cleanup on leave)
+- Persist each player's resource cooldowns in their validated save data and throttle gather requests
 
 Do not mark persistence or Milestone 2 complete while runtime verification is outstanding. Static CI gates are green, but runtime release readiness requires Roblox Studio/multiplayer/DataStore testing. Consult docs/PROJECT_STATE.md for current facts and docs/AUTONOMOUS_RECOVERY.md for the explicit runtime gaps checklist.
