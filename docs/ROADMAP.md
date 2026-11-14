@@ -87,7 +87,8 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 - [x] Make allocation idempotent and safe against duplicate folders/registry entries. (Implemented in HabitatManager; runtime-unverified)
 - [ ] Verify characters spawn at their own habitat and every respawn uses the existing habitat. (Source flow implemented; runtime test pending)
 - [x] **Restore plots/plants/upgrades/world state from validated saved data before the player can interact. (Fixed in WorldBuilder: resolves the actual `GardenPlots` folder before restoring planted seeds, growth stage, and water count from session data; runtime-unverified)**
-- [ ] Ensure leave and BindToClose cleanup disconnects/destroys only that player's runtime objects and handles failed final saves safely. (Session release exists in source; final cleanup behavior verified by runtime test pending)
+- [x] Route BindToClose cleanup through the absolute shutdown deadline rather than ordinary release retries first. (Implemented in ServerMain; engine behavior unverified)
+- [ ] Ensure leave and BindToClose cleanup disconnects/destroys only that player's runtime objects and handles failed final saves safely. (Source path exists; final cleanup behavior verified by runtime test pending)
 
 ### Prompt, plot, and resource ownership
 - [x] Make LocalScript prompt discovery connect only to the local player's habitat, including an initial lookup and later DescendantAdded/removed handling. (Implemented in ProximityHandler; runtime-unverified)
@@ -165,7 +166,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Obtain valid independent review/QA of the accumulated recovery diff, including synchronous shutdown-scoped retries after failed release, and address any source blockers. The cycle-7 `BindToClose` finding was not supported by source: shutdown-spawned cleanup tasks decrement the pending count. Keep recovery OPEN and do not start unrelated feature work until review/QA confirms the current source. Then execute TestEZ through a compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
+**Immediate priority:** Obtain valid independent review/QA of the latest shutdown-cleanup follow-up and address any source blockers. The shutdown path now passes the absolute deadline into cleanup, avoiding an ordinary retry phase before deadline-aware release. Keep recovery OPEN until the current diff is reviewed. Then execute TestEZ through a compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
 
 **Source-level completed this cycle (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)

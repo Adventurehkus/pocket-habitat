@@ -50,6 +50,20 @@ Current worktree checks after the change:
 
 Recovery remains OPEN: the accumulated diff still lacks valid independent pipeline review/QA, and Roblox runtime evidence is outstanding. Do not treat static validation as approval or as proof that the shutdown deadline bounds a yielding DataStore API call.
 
+## 2026-11-14 follow-up — route shutdown cleanup through the absolute deadline
+
+Source inspection found that `BindToClose` first called the ordinary `cleanupPlayer` path, which could spend its normal release retries before making a second deadline-aware release call. Shutdown now passes its absolute deadline into cleanup and `DataStoreManager.releaseSession` directly, avoiding the redundant normal retry phase. If `PlayerRemoving` cleanup already owns the player, shutdown waits only until its deadline and retries release if that cleanup finishes. A yielding DataStore request itself cannot be cancelled by this deadline.
+
+Checks run after this source change:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; artifact generated locally.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; no compatible runner is installed.
+- Roblox Studio, multiplayer, DataStore, and shutdown tests: NOT RUN.
+
+The preceding cycle report records independent review/QA for its checkpoint; this shutdown follow-up has not received independent review/QA. Keep recovery OPEN until the current diff is independently reviewed. Runtime gaps remain explicitly unverified.
+
 ## Priority 1 — Repair the deterministic validation failures
 
 ✅ **RESOLVED**
@@ -1202,6 +1216,32 @@ index c7323c9..e99c3b3 100644
 
 - Run: 39
 - Cycle: 1
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-validation.log
+
+Building project 'Pocket Habitat'
+Built project to pocket-habitat.rbxl
+PASS: Rojo build -> build/pocket-habitat.rbxl
+PASS: StyLua check src
+Results:
+0 errors
+0 warnings
+0 parse errors
+PASS: Selene src
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 39
+- Cycle: 2
 - Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
 
 ## Required next action

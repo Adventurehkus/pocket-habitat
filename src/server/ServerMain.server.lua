@@ -71,16 +71,24 @@ local function onPlayerAdded(player: Player)
     initializingPlayers[player] = nil
 end
 
-local function cleanupPlayer(player: Player)
+local function cleanupPlayer(player: Player, shutdownDeadline: number?)
     if cleaningPlayers[player] then
         while cleaningPlayers[player] do
-            task.wait(0.1)
+            local remaining = if shutdownDeadline then shutdownDeadline - os.clock() else 0.1
+            if remaining <= 0 then
+                warn("Timed out waiting for player cleanup during server shutdown")
+                return false
+            end
+            task.wait(math.min(0.1, remaining))
         end
-        return
+        if shutdownDeadline then
+            return DataStoreManager.releaseSession(player, nil, shutdownDeadline)
+        end
+        return true
     end
     cleaningPlayers[player] = true
 
-    local sessionReleased = DataStoreManager.releaseSession(player)
+    local sessionReleased = DataStoreManager.releaseSession(player, nil, shutdownDeadline)
     if not sessionReleased then
         warn("Session release failed during cleanup for " .. tostring(player.UserId))
     end
@@ -91,6 +99,7 @@ local function cleanupPlayer(player: Player)
     HabitatManager.removeHabitat(player)
     initializingPlayers[player] = nil
     cleaningPlayers[player] = nil
+    return sessionReleased
 end
 
 Players.PlayerAdded:Connect(function(player: Player)
@@ -109,8 +118,7 @@ game:BindToClose(function()
     for _, player in ipairs(Players:GetPlayers()) do
         pending += 1
         task.spawn(function()
-            cleanupPlayer(player)
-            DataStoreManager.releaseSession(player, nil, deadline)
+            cleanupPlayer(player, deadline)
             pending -= 1
         end)
     end

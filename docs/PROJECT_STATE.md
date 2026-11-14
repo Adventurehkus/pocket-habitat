@@ -4,10 +4,10 @@
 
 - **Gameplay repository:** Adventurehkus/pocket-habitat
 - **Gameplay branch:** ai/game-build
-- **Last persisted source checkpoint:** `bcf4255` (Run #38 cycle 9 recovery checkpoint; current follow-up edits are uncommitted and not persisted).
+- **Last persisted source checkpoint:** `609e954` (Run #39 cycle 1 recovery checkpoint; current shutdown follow-up edits are uncommitted and not persisted).
 - **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation and quota-pool carry-forward; the provider-reset cutoff experiment was reverted (main workflow rollback: `647b5bd885d673dca3e31bb5b518e8b8da746800`).
 - **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion is carried forward; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`. No provider-reset calendar or pre-reset model-call cutoff is applied.
-- **Verification boundary:** The current worktree fixes the saved-plot restore bug by resolving `GardenPlots` under the correct habitat folder before rehydrating plant visuals. Current deterministic checks pass; independent pipeline review/QA, TestEZ, and Roblox engine tests remain pending.
+- **Verification boundary:** The current worktree fixes saved-plot visual restoration and routes shutdown cleanup through the absolute deadline without first running the ordinary retry path. Current deterministic checks pass. The preceding checkpoint's report records review/QA, but this shutdown follow-up has not been independently reviewed; TestEZ and Roblox engine tests remain unexecuted.
 
 This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
 
@@ -17,9 +17,9 @@ The current source implements a server-owned join flow: automatic character load
 
 `DataStoreManager` uses `UpdateAsync` for session acquisition, lease renewal, saving, and release. A failed operation, active foreign lease, malformed record, or unsupported schema does not expose a fabricated default session. The five-minute lease is renewed every two minutes with current session data. Existing legacy fields are normalized to the live gameplay schema; spawn vectors are serialized as numeric tables. Final release is atomic and bounded. If it fails transiently, the in-memory session is retained and up to three release-only retries are scheduled at 5, 15, and 30 seconds; the departing session is not renewed indefinitely. A stale-token release is discarded because the server no longer owns that data. Shutdown now makes bounded synchronous release attempts against the absolute deadline to avoid retry tasks surviving process exit. All ClientSpawner rate-limiting and validation requirements are implemented. These are source-level changes only; Roblox engine and actual DataStore behavior have not been tested.
 
-**Current recovery status:** All source-level recovery fixes verified via source inspection and deterministic CI. Reference `docs/IMPLEMENTATION_AUDIT.md` for full evidence. External independent review/QA confirmation is required before recovery can be marked RESOLVED. TestEZ, Roblox Studio, multiplayer, save/rejoin, lease contention, failed DataStore calls, and shutdown behavior remain unverified.
+**Current recovery status:** Recovery remains OPEN. Earlier recovery source fixes are present, and the preceding cycle report records review/QA for its checkpoint. The latest deadline-aware cleanup adjustment passed local deterministic checks but still requires independent review/QA. TestEZ, Roblox Studio, multiplayer, save/rejoin, lease contention, failed DataStore calls, and shutdown behavior remain unverified.
 
-**Current highest-priority task:** External independent pipeline review/QA of recovery fixes (source already verified). After confirmation, execute TestEZ through compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
+**Current highest-priority task:** Independently review/QA the latest shutdown-cleanup change and repair any findings. Then run TestEZ with a compatible runner if available and perform Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
 
 ## Historical workflow — Run #32
 
@@ -81,7 +81,7 @@ Character startup/respawn and session persistence have been repaired in current 
 
 Current remaining risks and gaps:
 
-1. The current recovery diff has not received valid independent review/QA.
+1. The current shutdown-cleanup follow-up has not received independent review/QA.
 2. Character lifecycle, lease contention/renewal, persistence, and shutdown have no Roblox runtime verification; release retry timing and lease expiry are untested in-engine.
 3. TestEZ has not been executed; persistence and concurrency behaviors need test coverage.
 4. **Source-level: Saved plot/world progression is now restored from session data on habitat load (implemented in WorldBuilder). Runtime verification pending.**
@@ -91,7 +91,7 @@ Do not mark checklist items complete based on a folder, helper module, static bu
 
 ## Current next-task sequence
 
-1. Obtain valid independent review/QA of the current recovery diff and resolve any source blockers.
+1. Obtain valid independent review/QA of the current shutdown-cleanup follow-up and resolve any source blockers.
 2. Execute the TestEZ suites with a compatible runner; no compatible runner is installed in this environment.
 3. Verify startup, character death/respawn, position restoration, DataStore contention/save/rejoin, and shutdown in Roblox Studio with at least two clients.
 4. **Source-level complete:** Restore saved plot/world progression before interactions are enabled (implemented in WorldBuilder; runtime verification pending).

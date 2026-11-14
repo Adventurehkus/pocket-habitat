@@ -141,6 +141,19 @@ Checks run after the source fix:
 - `git diff --check`: PASS.
 - Roblox Studio and multiplayer verification: NOT RUN.
 
+## 2026-11-14 — deadline-aware shutdown cleanup
+
+`ServerMain` now passes the `BindToClose` absolute deadline directly through player cleanup, instead of first allowing the ordinary release retry path and then making a second shutdown release call. If `PlayerRemoving` cleanup is already in progress, the shutdown path waits only through the remaining deadline and retries release after it completes. A yielding DataStore request cannot be cancelled by this deadline.
+
+Checks actually run:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated locally.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; no compatible runner (`run-in-roblox`, `luau`, or `lune`) is installed.
+- Independent review/QA of this follow-up: NOT RUN.
+- Roblox Studio/server, multiplayer, DataStore, shutdown, and manual tests: NOT RUN.
+
 ## Latest verified gameplay pipeline run
 
 ### Run #32 — 2026-11-11
