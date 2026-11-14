@@ -8,17 +8,17 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
-## Current-worktree verification — 2026-11-14
+## Current-worktree verification — 2026-11-14 (`2541fed`)
 
-Added a TestEZ specification in `src/shared/PocketHabitat.spec.lua` that exercises the production `PlantRules` seed validation, watering, growth boundary, and harvest/reward mapping for each defined plant.
+Rechecked the current recovery source claims and resolved the source-level recovery record. The all-plants TestEZ specification in `src/shared/PocketHabitat.spec.lua` exercises production `PlantRules` seed validation, watering, growth boundary, and harvest/reward mapping for each defined plant; it was already present and was not changed in this pass.
 
 - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 76,921-byte local artifact.
 - `stylua --check src`: PASS.
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
-- `git diff --check`: PASS.
-- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed.
+- `git diff --check`: PASS after the documentation update.
+- TestEZ: NOT RUN; `run-in-roblox`, `lune`, `luau`, `lua`, and `luajit` are unavailable; no compatible Roblox/TestEZ runner is installed.
 - Roblox Studio/server, multiplayer, DataStore save/rejoin/contention, shutdown, and manual gameplay tests: NOT RUN.
-- Independent pipeline review/QA: no trustworthy decision was returned in cycle 8; none is claimed for this worktree.
+- Independent pipeline review/QA: no trustworthy decision is claimed for this checkout.
 
 This spec checks shared production rules, not manager reward mutation, quest delivery, persistence, or Roblox interactions. It remains unexecuted and does not establish an end-to-end gameplay pass.
 

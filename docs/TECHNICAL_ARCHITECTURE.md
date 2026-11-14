@@ -48,7 +48,7 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 
 ## Current runtime architecture and known limitations
 
-The Run #42 cycle-3 QA appendix's three persistence/spawn/startup claims were checked against current source and found non-actionable. The recovery record is RESOLVED for those source-level findings, but that QA agent could not read the implementation diff and no independent pipeline QA pass is claimed for the gameplay source. Static checks do not prove Roblox server, network, or DataStore behavior; Roblox runtime verification remains outstanding.
+At checkout `2541fed`, direct source inspection confirmed the recorded spawn, lease-acquisition, and startup-validation recovery claims are non-actionable or fixed. The recovery record is RESOLVED for those source-level findings only; no trustworthy independent pipeline review/QA decision is claimed for this checkout. Static checks do not prove Roblox server, network, or DataStore behavior; Roblox runtime verification remains outstanding.
 
 Current source facts:
 

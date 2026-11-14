@@ -1,25 +1,25 @@
 # Pocket Habitat — Autonomous Recovery Record
 
-RECOVERY_STATUS: OPEN
+RECOVERY_STATUS: RESOLVED
 
 ## 2026-11-14 — current-worktree source adjudication
 
-Direct source review at branch HEAD `721f7d4` confirmed that the recorded automation-resolvable recovery claims remain non-actionable or fixed:
+Direct source review at current branch HEAD `2541fed` confirmed that the three current automation-resolvable recovery claims are non-actionable or fixed:
 
-1. Both character-spawn call sites pass `Vector3` position and orientation values to the manager's matching `Vector3` API.
-2. `DataStoreManager.loadPlayerData` uses `UpdateAsync`, validates the resulting lease/token and normalized session data, and registers the active session only after validation.
-3. `ServerMain` stops a player when session loading fails, before allocating a habitat.
+1. Both `CharacterSpawner` call sites pass `Vector3` position and orientation values to `DataStoreManager.updateCharacterSpawnData`, whose API accepts and finite-validates those vectors.
+2. `DataStoreManager.loadPlayerData` acquires with `UpdateAsync`, verifies the returned owner token and lease, normalizes the returned session data, and only then registers the active session.
+3. `ServerMain.onPlayerAdded` stops the player when loading fails, before allocating a habitat or spawning a character.
 
-The cycle-8 report's review route did not return a trustworthy independent pipeline decision. No pipeline review/QA pass is claimed; the current recovery marker closes the source-level findings only. This work adds one TestEZ specification that exercises the production `PlantRules` seed, watering, growth, and harvest path for each defined plant. The spec has not run because no compatible TestEZ/Roblox runner is available.
+This closes the listed automation-resolvable source findings only. The cycle-8 review route did not return a trustworthy independent pipeline decision, and no pipeline review/QA pass is claimed for this checkout. The all-plants TestEZ specification already present in the source exercises the production `PlantRules` seed, watering, growth, and harvest path, but it has not run because no compatible TestEZ/Roblox runner is available.
 
-Current deterministic verification after the test and documentation edits:
-- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated local artifact.
+Current deterministic verification on `2541fed`:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 76,921-byte local artifact.
 - `stylua --check src`: PASS.
-- `selene src`: PASS.
-- `git diff --check`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after this recovery/documentation update.
 - TestEZ, Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
 
-Older recovery entries below preserve their historical status and are superseded by this current source-level adjudication.
+Older entries below preserve their historical status and are superseded by this current source-level adjudication. Roblox runtime and TestEZ gaps remain explicitly unverified.
 
 ## 2026-11-14 — current-checkout recovery closure
 
@@ -3327,3 +3327,15 @@ index 5c693cb..21e14ce 100644
      end)
      describe("ResourceRules — persisted cooldown validation", function()
          it("blocks a node until its saved cooldown expires", function()
+
+---
+
+## Resolution evidence — current checkout `2541fed` (2026-11-14)
+
+The current source-level recovery claims were independently checked against the server implementations:
+
+- `CharacterSpawner.monitorCharacter` and `spawnOrRestoreCharacter` pass `Vector3` position/orientation values; `DataStoreManager.updateCharacterSpawnData` accepts and finite-validates both vectors.
+- `DataStoreManager.loadPlayerData` calls `UpdateAsync`, verifies the returned owner token and unexpired lease, normalizes session data, and inserts into `activeSessions` only after those checks.
+- `ServerMain.onPlayerAdded` handles a nil/failed load before habitat allocation or character spawn by stopping the player session.
+
+Deterministic checks on this checkout: Rojo build PASS (nonempty artifact, 76,921 bytes); `stylua --check src` PASS; `selene src` PASS (0 errors, 0 warnings, 0 parse errors); `git diff --check` PASS after this documentation update. TestEZ was NOT RUN because no compatible TestEZ/Roblox runner is installed. Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests remain NOT RUN. No independent pipeline review/QA result is claimed. These findings resolve the recorded automation-resolvable source debt only.
