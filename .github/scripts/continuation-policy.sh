@@ -35,7 +35,8 @@ quota_pool_reset_epoch() {
   local pool_key="$1"
   local log_file="${2:-}"
   local now_epoch="${3:-$(date -u +%s)}"
-  python3 - "$pool_key" "$log_file" "$now_epoch" <<'PY'
+  local quota_class="${4:-}"
+  python3 - "$pool_key" "$log_file" "$now_epoch" "$quota_class" <<'PY'
 import datetime
 import math
 import pathlib
@@ -43,7 +44,7 @@ import re
 import sys
 from zoneinfo import ZoneInfo
 
-pool_key, log_path, now_text = sys.argv[1:4]
+pool_key, log_path, now_text, quota_class = (sys.argv[1:5] + [""])[:4]
 utc = datetime.timezone.utc
 now = datetime.datetime.fromtimestamp(int(now_text), utc)
 provider = pool_key.split(":", 1)[1].split("/", 1)[0] if ":" in pool_key else "unknown"
@@ -60,7 +61,12 @@ def next_utc_month():
         year, month = now.year, now.month + 1
     return datetime.datetime(year, month, 1, 0, 5, tzinfo=utc)
 
-if provider == "google":
+if "MONTHLY_QUOTA" in quota_class:
+    # The provider-specific month boundary is fully documented for Cohere's
+    # monthly cap and Copilot's monthly premium allowance. For another provider
+    # explicitly reporting a monthly cap, use UTC month-end as a fallback.
+    reset = next_utc_month()
+elif provider == "google":
     pacific = ZoneInfo("America/Los_Angeles")
     local_now = now.astimezone(pacific)
     next_day = local_now.date() + datetime.timedelta(days=1)
