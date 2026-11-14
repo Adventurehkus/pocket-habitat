@@ -118,6 +118,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           TASK: ${{ inputs.task }}
+          IS_CONTINUATION_RUN: ${{ inputs.quota_day != '' || inputs.exhausted_quota_pools != '' || inputs.continuation_count != '0' || inputs.chain_started_at != '' }}
           QUOTA_STATE_DAY: ${{ inputs.quota_day }}
           EXHAUSTED_QUOTA_POOLS: ${{ inputs.exhausted_quota_pools }}
           NO_COLOR: "1"
@@ -1583,7 +1584,7 @@ jobs:
             refresh_diff
             before_diff_hash="$(sha256sum "$DIFF_FILE" | awk '{print $1}')"
 
-            if [[ "$round" -eq 1 && "$RECOVERY_CONTEXT_ACTIVE" != "true" && "$CONTINUATION_COUNT" -eq 0 ]]; then
+            if [[ "$round" -eq 1 && "$RECOVERY_CONTEXT_ACTIVE" != "true" && "$IS_CONTINUATION_RUN" != "true" ]]; then
               CURRENT_IMPLEMENT_PROMPT="$IMPLEMENT_PROMPT"
             else
               # A child workflow run starts its own round counter at 1, but it
@@ -2152,7 +2153,7 @@ jobs:
             --raw-field "task=$TASK" \
             --raw-field "quota_day=$QUOTA_STATE_DAY" \
             --raw-field "exhausted_quota_pools=$EXHAUSTED_QUOTA_POOLS"
-          echo "::notice::Continuation run $NEXT_CONTINUATION_COUNT was dispatched. It will start after the current run releases the workflow concurrency lock."
+          echo "::notice::A continuation run was dispatched. It will start after the current run releases the workflow concurrency lock."
 
       - name: Verify continuation handoff
         if: always() && github.run_attempt == 1 && steps.pipeline.outputs.auto_continue == 'true' && steps.dispatch.outcome != 'success'
