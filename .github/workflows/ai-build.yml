@@ -56,6 +56,10 @@ jobs:
           echo "$HOME/.rokit/bin" >> "$GITHUB_PATH"
           export PATH="$HOME/.rokit/bin:$PATH"
           rokit --version
+          # The install script's GITHUB_PAT only authenticates the bootstrap download.
+          # Persist the same short-lived Actions token in Rokit's own auth store so
+          # release lookups for project tools (Rojo, StyLua, Selene) are authenticated.
+          rokit authenticate github --token "$GITHUB_PAT"
           rokit install --no-trust-check
           wally install
           rojo --version
