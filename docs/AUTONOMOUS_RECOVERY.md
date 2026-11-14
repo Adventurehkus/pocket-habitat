@@ -18,6 +18,18 @@ All three claims are non-actionable against the checked-out source; no gameplay 
 
 This resolves the listed automation-resolvable source findings only. The cycle-3 QA agent could not read its implementation diff, and cycle 5 returned no trustworthy QA decision (the review described an empty diff); no independent pipeline QA pass is claimed here. TestEZ and Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown behavior remain unverified.
 
+## 2026-11-14 — current source-level recovery resolution
+
+The latest cycle-6 checkpoint changed documentation only; inspection of the current commit confirms there are no new gameplay-source findings in that diff. The cycle-6 review limitation is recorded as a process/evidence gap, not as an unresolved source defect. The three recorded source claims remain non-actionable on the current checkout: both spawn-data call sites pass `Vector3`; session acquisition uses `UpdateAsync` and validates the owned token, lease, and normalized data before registering a session; and failed or invalid session loads stop the player before habitat allocation. Older recovery findings are recorded as fixed in the preceding follow-ups.
+
+Current-checkout deterministic verification:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; artifact is 76,447 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+
+This resolves automation-resolvable source-level recovery items only. It does not claim an independent pipeline review/QA pass for the gameplay source. TestEZ and Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests remain unverified.
+
 ## 2026-11-14 — Run #42 cycle 3 source-claim adjudication
 
 The cycle-3 QA appendix reports that its agent could not read `pocket-habitat-implementation.diff` or `pocket-habitat-validation.log`, then flags three source issues. Direct inspection of the current source independently shows all three claims are non-actionable; no source patch was needed:
@@ -314,7 +326,7 @@ These runtime verification gaps are explicitly documented as outstanding and do 
 - The current run reapplied and independently verified all recovery fixes against the durable source baseline, ran all deterministic validations to green, and stands as the authoritative source of this recovery checkpoint.
 ---
 
-# Pocket Habitat — unresolved autonomous recovery work
+# Pocket Habitat — historical unresolved autonomous recovery work
 
 - Run: 38
 - Cycle: 1
@@ -1401,7 +1413,7 @@ PASS: Selene src
 
 ## Final recovery resolution evidence
 
-RECOVERY_STATUS: OPEN
+Historical marker at that checkpoint: OPEN.
 
 ---
 
@@ -2735,11 +2747,11 @@ PASS: Selene src
 
 - Run: 42
 - Cycle: 6
-- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+- Status at report time: RECOVERY REQUIRED; no independent review decision was returned.
 
 ## Required next action
 
-No trustworthy independent review decision was available in cycle 6 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+At report time, no trustworthy independent review decision was available in cycle 6. Subsequent current-checkout adjudication found that checkpoint changed documentation only and that no automation-resolvable source finding remained. The source-level recovery status is RESOLVED as documented at the top of this file; this does not assert an independent pipeline review/QA pass.
 
 Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
 
@@ -2862,6 +2874,143 @@ index 2a833fd..a239894 100644
  
 -The recovery marker resolves only these source-level claims. It does not assert a QA pass or game/runtime readiness.
 +The recovery marker resolves only the recorded automation-resolvable source claims. It does not assert a QA pass or game/runtime readiness.
+ 
+ ## Standard deterministic checks
+ 
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 42
+- Cycle: 7
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 7 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-implementation.diff
+
+@@ -1,6 +1,6 @@
+ # Pocket Habitat — Autonomous Recovery Record
+ 
+-RECOVERY_STATUS: OPEN
++RECOVERY_STATUS: RESOLVED
+ 
+ ## 2026-11-14 — current-checkout recovery adjudication
+ 
+@@ -18,6 +18,18 @@ All three claims are non-actionable against the checked-out source; no gameplay
+ 
+ This resolves the listed automation-resolvable source findings only. The cycle-3 QA agent could not read its implementation diff, and cycle 5 returned no trustworthy QA decision (the review described an empty diff); no independent pipeline QA pass is claimed here. TestEZ and Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown behavior remain unverified.
+ 
++## 2026-11-14 — current source-level recovery resolution
++
++The latest cycle-6 checkpoint changed documentation only; inspection of the current commit confirms there are no new gameplay-source findings in that diff. The cycle-6 review limitation is recorded as a process/evidence gap, not as an unresolved source defect. The three recorded source claims remain non-actionable on the current checkout: both spawn-data call sites pass `Vector3`; session acquisition uses `UpdateAsync` and validates the owned token, lease, and normalized data before registering a session; and failed or invalid session loads stop the player before habitat allocation. Older recovery findings are recorded as fixed in the preceding follow-ups.
++
++Current-checkout deterministic verification:
++- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; artifact is 76,447 bytes.
++- `stylua --check src`: PASS.
++- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
++- `git diff --check`: PASS.
++
++This resolves automation-resolvable source-level recovery items only. It does not claim an independent pipeline review/QA pass for the gameplay source. TestEZ and Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests remain unverified.
++
+ ## 2026-11-14 — Run #42 cycle 3 source-claim adjudication
+ 
+ The cycle-3 QA appendix reports that its agent could not read `pocket-habitat-implementation.diff` or `pocket-habitat-validation.log`, then flags three source issues. Direct inspection of the current source independently shows all three claims are non-actionable; no source patch was needed:
+@@ -314,7 +326,7 @@ These runtime verification gaps are explicitly documented as outstanding and do
+ - The current run reapplied and independently verified all recovery fixes against the durable source baseline, ran all deterministic validations to green, and stands as the authoritative source of this recovery checkpoint.
+ ---
+ 
+-# Pocket Habitat — unresolved autonomous recovery work
++# Pocket Habitat — historical unresolved autonomous recovery work
+ 
+ - Run: 38
+ - Cycle: 1
+@@ -1401,7 +1413,7 @@ PASS: Selene src
+ 
+ ## Final recovery resolution evidence
+ 
+-RECOVERY_STATUS: OPEN
++Historical marker at that checkpoint: OPEN.
+ 
+ ---
+ 
+@@ -2735,11 +2747,11 @@ PASS: Selene src
+ 
+ - Run: 42
+ - Cycle: 6
+-- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
++- Status at report time: RECOVERY REQUIRED; no independent review decision was returned.
+ 
+ ## Required next action
+ 
+-No trustworthy independent review decision was available in cycle 6 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
++At report time, no trustworthy independent review decision was available in cycle 6. Subsequent current-checkout adjudication found that checkpoint changed documentation only and that no automation-resolvable source finding remained. The source-level recovery status is RESOLVED as documented at the top of this file; this does not assert an independent pipeline review/QA pass.
+ 
+ Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+ 
+diff --git a/docs/PROJECT_STATE.md b/docs/PROJECT_STATE.md
+index 0577974..e7ec7ed 100644
+--- a/docs/PROJECT_STATE.md
++++ b/docs/PROJECT_STATE.md
+@@ -4,10 +4,10 @@
+ 
+ - **Gameplay repository:** Adventurehkus/pocket-habitat
+ - **Gameplay branch:** ai/game-build
+-- **Current checkout:** `a7a65c65e2184c5d2c3fed097ee4ef8ea937150c` on `ai/game-build`; the latest commit updates `docs/AUTONOMOUS_RECOVERY.md` only, with gameplay source unchanged.
++- **Current checkout:** `63aae2e10075f67e25f7093191b166ca6387280a` on `ai/game-build`; the latest commit updates documentation only, with gameplay source unchanged.
+ - **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation and quota-pool carry-forward; the provider-reset cutoff experiment was reverted (main workflow rollback: `647b5bd885d673dca3e31bb5b518e8b8da746800`).
+ - **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion is carried forward; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`. No provider-reset calendar or pre-reset model-call cutoff is applied.
+-- **Verification boundary:** Rojo built a nonempty 76,447-byte artifact; `stylua --check src` and `selene src` pass. The Run #42 cycle-3 source claims were directly checked and found non-actionable. The recovery marker is RESOLVED for those source findings only; neither the cycle-3 QA attempt nor the cycle-5 review provides an independent pipeline QA pass for the gameplay source. TestEZ and Roblox engine tests remain unexecuted.
++- **Verification boundary:** Current-checkout rerun: Rojo built a nonempty 76,447-byte artifact; `stylua --check src`, `selene src`, and `git diff --check` pass. The Run #42 cycle-3 source claims were directly checked and found non-actionable; cycle 6 changed documentation only. The recovery marker is RESOLVED for automation-resolvable source findings only; this does not claim a current independent pipeline QA pass. TestEZ and Roblox engine tests remain unexecuted.
+ 
+ This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
+ 
+@@ -17,7 +17,7 @@ The current source implements a server-owned join flow: automatic character load
+ 
+ `DataStoreManager` uses `UpdateAsync` for session acquisition, lease renewal, saving, and release. A failed operation, active foreign lease, malformed record, or unsupported schema does not expose a fabricated default session. The five-minute lease is renewed every two minutes with current session data. Existing legacy fields are normalized to the live gameplay schema; spawn vectors are serialized as numeric tables. Per-player resource cooldowns are now part of session data, schema-validated, and saved with the player's next periodic/final save; cooldown reservations occur before reward mutation and are rolled back when the reward is rejected. A crash before the next save can still lose the newest cooldown state. Final release is atomic and bounded. If it fails transiently, the in-memory session is retained and up to three release-only retries are scheduled at 5, 15, and 30 seconds; the departing session is not renewed indefinitely. A stale-token release is discarded because the server no longer owns that data. Shutdown now makes bounded synchronous release attempts against the absolute deadline to avoid retry tasks surviving process exit. Resource gathering requires an active session and living character, is server-rate-limited, and validates the owned node and interaction distance. These are source-level changes only; Roblox engine and actual DataStore behavior have not been tested.
+ 
+-**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for the recorded source-level claims after direct inspection verified the `Vector3` spawn updates, atomic `UpdateAsync` lease acquisition, and fail-closed session validation. This does not claim that cycle-3 pipeline QA passed; the diff was not available to that agent. TestEZ and Roblox runtime gaps remain explicitly unverified.
++**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for automation-resolvable source-level findings. Direct inspection verified the `Vector3` spawn updates, atomic `UpdateAsync` lease acquisition, and fail-closed session validation; cycle 6 changed documentation only. This does not claim a pipeline QA pass for the current gameplay source. TestEZ and Roblox runtime gaps remain explicitly unverified.
+ 
+ **Current highest-priority task:** Run the production-backed TestEZ suite in a compatible runner, then verify the seed-to-harvest loop, habitat isolation, and save/rejoin behavior in Roblox Studio. No compatible TestEZ or Roblox runner is available in this environment. The cycle-3 source claims were independently checked and found absent from current source; the failed evidence access is not treated as a QA pass. Decorative-tile purchases remain disabled until their visual effect is implemented.
+ 
+diff --git a/docs/ROADMAP.md b/docs/ROADMAP.md
+index ad931cb..5dff934 100644
+--- a/docs/ROADMAP.md
++++ b/docs/ROADMAP.md
+@@ -177,7 +177,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
+ 
+ ## Current focus
+ 
+-**Immediate priority:** Run the production-backed TestEZ suite in a compatible runner and verify seed gathering through plant harvest and persistence in Roblox Studio. Run #42 cycle-3's three source claims are adjudicated non-actionable and the recovery record is RESOLVED for source-level findings only; the QA agent could not read the diff, so no independent pipeline QA pass is claimed. This environment has no compatible TestEZ runner or Roblox runtime. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, and shutdown also remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
++**Immediate priority:** Run the production-backed TestEZ suite in a compatible runner and verify seed gathering through plant harvest and persistence in Roblox Studio. Run #42 cycle-3's three source claims are adjudicated non-actionable, and cycle 6 changed documentation only; the recovery record is RESOLVED for source-level findings only. No current independent pipeline QA pass is claimed for gameplay source. This environment has no compatible TestEZ runner or Roblox runtime. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, and shutdown also remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
+ 
+ **Source-level completed (runtime verification pending):**
+ - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
+diff --git a/docs/TESTING.md b/docs/TESTING.md
+index a239894..2120ebf 100644
+--- a/docs/TESTING.md
++++ b/docs/TESTING.md
+@@ -12,7 +12,7 @@
+ 
+ The QA appendix reported a spawn argument type mismatch, non-atomic session acquisition, and startup acceptance of malformed session data. Direct inspection of the current source found all three claims non-actionable: both spawn call sites pass `Vector3` values; `DataStoreManager.loadPlayerData` acquires with `UpdateAsync` and validates the returned token, lease, and normalized data before registering a session; and `ServerMain` stops and kicks a player when session loading fails. No gameplay source change was necessary. The recovery marker is RESOLVED for these source findings only. The cycle-3 QA agent could not read the implementation diff, and no independent pipeline QA pass is claimed.
+ 
+-- Current checkout: `a7a65c65e2184c5d2c3fed097ee4ef8ea937150c`; latest commit changes recovery documentation only.
++- Current checkout: `63aae2e10075f67e25f7093191b166ca6387280a`; latest commit changes documentation only, with gameplay source unchanged.
+ - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 76,447 bytes.
+ - `stylua --check src`: PASS.
+ - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+@@ -21,7 +21,7 @@ The QA appendix reported a spawn argument type mismatch, non-atomic session acqu
+ - Pipeline review/QA: no valid independent QA pass for the current gameplay source; the cycle-5 review describes an empty diff and its QA stage returned no trustworthy decision.
+ - Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
+ 
+-The recovery marker resolves only the recorded automation-resolvable source claims. It does not assert a QA pass or game/runtime readiness.
++Current-checkout rerun on `63aae2e10075f67e25f7093191b166ca6387280a`: the build, format, lint, and diff checks above all passed. Cycle 6 changed documentation only; direct source verification confirms no recorded automation-resolvable source finding remains. The recovery marker resolves source findings only and does not assert a pipeline QA pass or game/runtime readiness.
  
  ## Standard deterministic checks
  

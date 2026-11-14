@@ -177,7 +177,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Run the production-backed TestEZ suite in a compatible runner and verify seed gathering through plant harvest and persistence in Roblox Studio. Run #42 cycle-3's three source claims are adjudicated non-actionable and the recovery record is RESOLVED for source-level findings only; the QA agent could not read the diff, so no independent pipeline QA pass is claimed. This environment has no compatible TestEZ runner or Roblox runtime. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, and shutdown also remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
+**Immediate priority:** Run the production-backed TestEZ suite in a compatible runner and verify seed gathering through plant harvest and persistence in Roblox Studio. Run #42 cycle-3's three source claims are adjudicated non-actionable, and cycle 6 changed documentation only; the recovery record is RESOLVED for source-level findings only. No current independent pipeline QA pass is claimed for gameplay source. This environment has no compatible TestEZ runner or Roblox runtime. Quest progression, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, and shutdown also remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
 
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)

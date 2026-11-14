@@ -3,8 +3,8 @@
 ## Current source state
 
 - Gameplay branch: `ai/game-build`.
-- Current checkout: `a7a65c65e2184c5d2c3fed097ee4ef8ea937150c`; the latest commit changes the recovery record only, with gameplay source unchanged.
-- `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for its listed source-level findings. The cycle-3 QA agent could not read the implementation diff; this is not a pipeline QA pass.
+- Current checkout: `63aae2e10075f67e25f7093191b166ca6387280a`; the latest commit changes documentation only, with gameplay source unchanged.
+- `docs/AUTONOMOUS_RECOVERY.md` is RESOLVED for automation-resolvable source-level findings. Cycle 6's review gap is not treated as a gameplay-source finding; no independent pipeline QA pass for current gameplay source is claimed.
 
 ## Implementation and recovery
 

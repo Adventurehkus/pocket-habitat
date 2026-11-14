@@ -12,7 +12,7 @@
 
 The QA appendix reported a spawn argument type mismatch, non-atomic session acquisition, and startup acceptance of malformed session data. Direct inspection of the current source found all three claims non-actionable: both spawn call sites pass `Vector3` values; `DataStoreManager.loadPlayerData` acquires with `UpdateAsync` and validates the returned token, lease, and normalized data before registering a session; and `ServerMain` stops and kicks a player when session loading fails. No gameplay source change was necessary. The recovery marker is RESOLVED for these source findings only. The cycle-3 QA agent could not read the implementation diff, and no independent pipeline QA pass is claimed.
 
-- Current checkout: `a7a65c65e2184c5d2c3fed097ee4ef8ea937150c`; latest commit changes recovery documentation only.
+- Current checkout: `63aae2e10075f67e25f7093191b166ca6387280a`; latest commit changes documentation only, with gameplay source unchanged.
 - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 76,447 bytes.
 - `stylua --check src`: PASS.
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
@@ -21,7 +21,7 @@ The QA appendix reported a spawn argument type mismatch, non-atomic session acqu
 - Pipeline review/QA: no valid independent QA pass for the current gameplay source; the cycle-5 review describes an empty diff and its QA stage returned no trustworthy decision.
 - Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
 
-The recovery marker resolves only the recorded automation-resolvable source claims. It does not assert a QA pass or game/runtime readiness.
+Current-checkout rerun on `63aae2e10075f67e25f7093191b166ca6387280a`: the build, format, lint, and diff checks above all passed. Cycle 6 changed documentation only; direct source verification confirms no recorded automation-resolvable source finding remains. The recovery marker resolves source findings only and does not assert a pipeline QA pass or game/runtime readiness.
 
 ## Standard deterministic checks
 
