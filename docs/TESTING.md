@@ -171,7 +171,7 @@ Checks actually run:
 - Independent review/QA of this follow-up: NOT RUN.
 - Roblox Studio/server, multiplayer, DataStore, shutdown, and manual tests: NOT RUN.
 
-## 2026-11-14 — persisted resource cooldowns and recovery resolution
+## 2026-11-14 — persisted resource cooldowns (initial implementation)
 
 Resource cooldown timestamps now live in each player's session data, are validated by the production `ResourceRules` module, and are saved through the existing session write path. Gather requests require an active session and living character and are throttled per player. The cooldown is reserved before attempting the reward and rolled back if the reward is rejected. TestEZ specifications cover cooldown expiry and malformed timestamp maps.
 
@@ -185,6 +185,21 @@ Checks actually run after the code change:
 - Run #39 cycle-2 recovery record: records independent review/QA and deterministic validation for the preceding recovery source repairs; it does not cover this resource-cooldown follow-up.
 
 Cooldown changes become durable on the next periodic or final session write, so an abrupt crash before that write can lose the latest cooldown. Runtime persistence and concurrent gather behavior remain unverified.
+
+## 2026-11-14 — production-backed cooldown rollback recovery
+
+The latest QA report found that the cooldown rollback spec only manipulated local test variables. `ResourceRules.tryGrantReward` now owns the production cooldown reservation/reward/rollback transaction, and `ResourceManager` calls that helper. The spec invokes the same production function to check rollback after a rejected reward and to ensure a cooling-down node does not call the reward callback.
+
+Checks actually run after the repair:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated non-empty artifact, 66,824 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; `run-in-roblox`, `luau`, `lune`, and an installed TestEZ runner are unavailable.
+- Independent pipeline review/QA of this repair: NOT RUN.
+- Roblox Studio/server, multiplayer, DataStore save/rejoin, and shutdown tests: NOT RUN.
+
+The source-level tautological-test finding is repaired, but `docs/AUTONOMOUS_RECOVERY.md` remains OPEN pending independent review/QA of this repair. TestEZ could not run because no compatible runner is available; Roblox runtime and persistence gaps remain unverified.
 
 ## Latest verified gameplay pipeline run
 

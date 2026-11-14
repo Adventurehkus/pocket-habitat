@@ -311,15 +311,44 @@ return function()
                 expect(badUpgrade).to.equal(false)
             end
         )
-        it("rolls back resource cooldown reservation if reward is rejected", function()
+        it("rolls back a production cooldown reservation when the reward is rejected", function()
+            local cooldowns = { tree_1 = NOW - 1 }
+            local rewardCalls = 0
+
+            local granted, reason = ResourceRules.tryGrantReward(
+                cooldowns,
+                "tree_1",
+                NOW,
+                NOW + 60,
+                function()
+                    rewardCalls += 1
+                    return false
+                end
+            )
+
+            expect(granted).to.equal(false)
+            expect(reason).to.equal("Reward rejected")
+            expect(rewardCalls).to.equal(1)
+            expect(cooldowns.tree_1).to.equal(NOW - 1)
+        end)
+
+        it("does not grant a reward or reserve a cooldown for a cooling-down node", function()
             local cooldowns = { tree_1 = NOW + 10 }
-            -- Mocked interaction: reserve cooldown
-            cooldowns.tree_1 = NOW + 60
-            -- Simulate reward rejection (e.g. inventory full)
-            local rewardGranted = false
-            if not rewardGranted then
-                cooldowns.tree_1 = NOW + 10 -- Rollback
-            end
+            local rewardCalls = 0
+
+            local granted = ResourceRules.tryGrantReward(
+                cooldowns,
+                "tree_1",
+                NOW,
+                NOW + 60,
+                function()
+                    rewardCalls += 1
+                    return true
+                end
+            )
+
+            expect(granted).to.equal(false)
+            expect(rewardCalls).to.equal(0)
             expect(cooldowns.tree_1).to.equal(NOW + 10)
         end)
     end)

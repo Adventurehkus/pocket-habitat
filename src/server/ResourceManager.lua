@@ -125,11 +125,6 @@ function ResourceManager.init()
         -- Use the actual resource Instance position, not the template position
         local nodePosition = resourceInstance.Position
 
-        -- Check cooldown per player
-        if not ResourceRules.isReady(sessionData.resourceCooldowns, nodeId, os.time()) then
-            return false, "Node on cooldown"
-        end
-
         if (rootPart.Position - nodePosition).Magnitude > 30 then
             return false, "Too far away"
         end
@@ -138,23 +133,33 @@ function ResourceManager.init()
 
         local rewardItem = staticNode.type
         local rewardAmount = rewardItem == Constants.RESOURCES.DEWDROP and 2 or 1
-        local previousReadyTime = sessionData.resourceCooldowns[nodeId]
-        sessionData.resourceCooldowns[nodeId] = os.time() + cooldownSeconds
+        local currentTimestamp = os.time()
+        local granted, grantError = ResourceRules.tryGrantReward(
+            sessionData.resourceCooldowns,
+            nodeId,
+            currentTimestamp,
+            currentTimestamp + cooldownSeconds,
+            function()
+                return EconomyManager.addItem(player, rewardItem, rewardAmount)
+            end
+        )
 
-        if EconomyManager.addItem(player, rewardItem, rewardAmount) then
-            CreatureManager.checkDiscoveries(player)
-
-            RemoteEvents.GatherEffect:FireClient(player, nodePosition, rewardItem, rewardAmount)
-            RemoteEvents.Notification:FireClient(
-                player,
-                "Gathered " .. rewardAmount .. " " .. rewardItem .. "!"
-            )
-
-            return true, "Success"
+        if not granted then
+            if grantError == "Reward rejected" then
+                return false, "Inventory full"
+            end
+            return false, grantError or "Gather failed"
         end
 
-        sessionData.resourceCooldowns[nodeId] = previousReadyTime
-        return false, "Inventory full"
+        CreatureManager.checkDiscoveries(player)
+
+        RemoteEvents.GatherEffect:FireClient(player, nodePosition, rewardItem, rewardAmount)
+        RemoteEvents.Notification:FireClient(
+            player,
+            "Gathered " .. rewardAmount .. " " .. rewardItem .. "!"
+        )
+
+        return true, "Success"
     end
 end
 

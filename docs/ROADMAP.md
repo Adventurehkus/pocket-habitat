@@ -46,7 +46,7 @@ Acceptance criteria:
 
 **Status: SOURCE RECOVERY REVIEWED AND STATICALLY VERIFIED; RUNTIME VERIFICATION PENDING.**
 
-Habitat allocation and source-level ownership validation exist. Run #39 cycle 2 records independent review/QA and deterministic validation for the session/shutdown recovery fixes. This cycle adds persistent per-player resource cooldown state and request throttling; those newest changes have local static checks but not independent pipeline review or Roblox runtime verification.
+Habitat allocation and source-level ownership validation exist. Run #39 cycle 2 records independent review/QA and deterministic validation for the session/shutdown recovery fixes. The current resource cooldown transaction helper is shared by production gathering and its rollback spec; Rojo, StyLua, and Selene pass locally, but this repair has not received independent pipeline review/QA or Roblox runtime verification, and TestEZ has not run.
 
 This milestone establishes the defining Pocket Habitat experience: every player has an independent, persistent world.
 
@@ -97,6 +97,7 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 - [x] Resolve each resource node from the calling player's registered habitat; do not trust node positions/owners supplied by clients or accept a bare template ID without server-side instance membership validation. (NodeId now exists on the exact server-built Part; runtime-unverified)
 - [x] Resource cooldowns are isolated per player/node in session data, schema-validated, and included in normal save/release writes. (Crash before the next write may lose the newest cooldown.)
 - [x] Reserve cooldown before reward mutation and roll it back when reward grant is rejected.
+- [x] Use the production cooldown/reward transaction helper in the rejection rollback spec; TestEZ execution is pending.
 - [x] Require active session and living character; throttle gather requests per player.
 - [ ] Test full-inventory and duplicate-request behavior.
 - [x] Define resource cooldown availability as persistent across rejoin, subject to normal periodic/final save durability.
@@ -167,11 +168,12 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Run TestEZ with a compatible runner and verify the resource-cooldown slice with two clients, then test spawn/respawn, DataStore save/rejoin/contention, and shutdown in Roblox Studio. The Run #39 cycle-2 recovery source fixes received review/QA; resource cooldown changes in this cycle have only local deterministic validation. TestEZ and all Roblox runtime checks remain outstanding.
+**Immediate priority:** Independently review/QA the current cooldown transaction repair, then execute TestEZ with a compatible runner. Afterward verify the resource-cooldown slice with two clients, and test spawn/respawn, DataStore save/rejoin/contention, and shutdown in Roblox Studio. The Run #39 cycle-2 session/shutdown fixes received review/QA; this cooldown repair has only local deterministic validation. TestEZ and all Roblox runtime checks remain outstanding.
 
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
 - Scope CreatureManager to each player's habitat (per-habitat Creatures folder, distinct creature models, bounded movement, restoration from discovery data, cleanup on leave)
 - Persist each player's resource cooldowns in their validated save data and throttle gather requests
+- Reserve and roll back gather cooldowns through production logic shared with focused TestEZ cases (execution pending)
 
 Do not mark persistence or Milestone 2 complete while runtime verification is outstanding. Static CI gates are green, but runtime release readiness requires Roblox Studio/multiplayer/DataStore testing. Consult docs/PROJECT_STATE.md for current facts and docs/AUTONOMOUS_RECOVERY.md for the explicit runtime gaps checklist.

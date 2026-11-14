@@ -2,7 +2,7 @@
 
 RECOVERY_STATUS: OPEN
 
-This recovery record contains historical Run #38/39 findings and their follow-ups. The current recovery status and evidence are recorded in “Resolution — Run #39 recovery source fixes” below; historical statements that the marker is OPEN are retained as history and superseded by that resolution.
+This recovery record contains historical Run #38/39 findings and their follow-ups. The Run #39 shutdown/session source fixes were resolved with prior review/QA evidence, but the latest cooldown rollback QA finding reopened recovery. Its production-code repair and current evidence are appended at the end; the status remains OPEN pending independent review/QA. TestEZ is unavailable in this environment and remains unexecuted.
 
 **Core findings:**
 - All Priority 1 fixes (deterministic validation, syntax, formatting) are implemented and verified
@@ -1313,6 +1313,190 @@ QA_BLOCKER: YES
 
 **Release-Readiness Assessment:**
 The checkpoint is **not ready** for release. The inclusion of a non-functional test case and the lack of automated test execution for the new logic must be addressed. The testing documentation has been improved, but the actual verification of the core gameplay mechanics (resource/habitat/data) remains pending manual Studio testing.
+
+## Evidence: pocket-habitat-validation.log
+
+Building project 'Pocket Habitat'
+Built project to pocket-habitat.rbxl
+PASS: Rojo build -> build/pocket-habitat.rbxl
+PASS: StyLua check src
+Results:
+0 errors
+0 warnings
+0 parse errors
+PASS: Selene src
+
+## 2026-11-14 — repair the cooldown rollback test
+
+The latest QA report found that the cooldown rollback spec only manipulated local test variables. The production transaction is now implemented in `ResourceRules.tryGrantReward`, which `ResourceManager` calls to reserve a cooldown before granting the item and restore the prior timestamp if the reward is rejected. The spec now invokes this production helper and checks both rejected-reward rollback and that a node still on cooldown never calls the reward callback.
+
+Verification after this source repair:
+- Rojo build: PASS; `build/pocket-habitat.rbxl` generated and non-empty (66,824 bytes).
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; `run-in-roblox`, `luau`, `lune`, and an installed TestEZ runner are unavailable.
+- Independent pipeline review/QA of this repair: NOT RUN.
+- Roblox Studio/server, multiplayer, DataStore save/rejoin, and shutdown: NOT RUN.
+
+The tautological source test is replaced with production-backed coverage, but recovery remains OPEN pending independent review/QA of this repair. TestEZ remains unexecuted because no compatible runner is available; runtime gaps remain unverified.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 39
+- Cycle: 5
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy QA decision was available in cycle 5 after trying the QA and fallback routes. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-review-67.log
+
+[0m
+> reviewer · gemini-3.1-flash-lite
+REVIEW_FINDINGS: NO
+
+The current implementation changes in `ResourceManager.lua`, `ResourceRules.lua`, and `PocketHabitat.spec.lua` correctly address the previously identified defect where the cooldown rollback test was tautological (manipulating test state instead of production code).
+
+- `ResourceRules.tryGrantReward` now encapsulates the cooldown reservation and rollback transaction.
+- `ResourceManager.init` now consumes this helper.
+- The updated TestEZ specification in `PocketHabitat.spec.lua` correctly invokes the production logic to verify both successful rollback on rejection and guarded access for nodes already on cooldown.
+
+As documented in the diff, these changes have passed static analysis (StyLua, Selene, Rojo build). While TestEZ remains unexecuted due to environmental limitations and Roblox runtime behavior (DataStore persistence/multiplayer isolation) remains unverified, the requested source-level repair is complete and logically sound.
+
+Remaining runtime checks that still require verification in Roblox Studio:
+1. **DataStore Persistence:** Verify that cooldowns are correctly saved and restored after a player re-joins the game, ensuring the `sessionData` normalization is correct.
+2. **Multiplayer Isolation:** Confirm that node cooldowns are tracked per-player/per-node correctly when multiple players are present.
+3. **Shutdown:** Validate that the 25-second shutdown deadline allows for pending `EconomyManager` transactions and final `DataStoreManager` saves to complete.
+4. **TestEZ:** Execute the provided specs in a compatible Roblox environment to confirm the transaction logic behavior under actual engine execution.
+
+## Evidence: pocket-habitat-implementation.diff
+
+-            RemoteEvents.GatherEffect:FireClient(player, nodePosition, rewardItem, rewardAmount)
+-            RemoteEvents.Notification:FireClient(
+-                player,
+-                "Gathered " .. rewardAmount .. " " .. rewardItem .. "!"
+-            )
++        CreatureManager.checkDiscoveries(player)
+ 
+-            return true, "Success"
+-        end
++        RemoteEvents.GatherEffect:FireClient(player, nodePosition, rewardItem, rewardAmount)
++        RemoteEvents.Notification:FireClient(
++            player,
++            "Gathered " .. rewardAmount .. " " .. rewardItem .. "!"
++        )
+ 
+-        sessionData.resourceCooldowns[nodeId] = previousReadyTime
+-        return false, "Inventory full"
++        return true, "Success"
+     end
+ end
+ 
+diff --git a/src/shared/PocketHabitat.spec.lua b/src/shared/PocketHabitat.spec.lua
+index 6b29df8..b86c69e 100644
+--- a/src/shared/PocketHabitat.spec.lua
++++ b/src/shared/PocketHabitat.spec.lua
+@@ -311,15 +311,44 @@ return function()
+                 expect(badUpgrade).to.equal(false)
+             end
+         )
+-        it("rolls back resource cooldown reservation if reward is rejected", function()
++        it("rolls back a production cooldown reservation when the reward is rejected", function()
++            local cooldowns = { tree_1 = NOW - 1 }
++            local rewardCalls = 0
++
++            local granted, reason = ResourceRules.tryGrantReward(
++                cooldowns,
++                "tree_1",
++                NOW,
++                NOW + 60,
++                function()
++                    rewardCalls += 1
++                    return false
++                end
++            )
++
++            expect(granted).to.equal(false)
++            expect(reason).to.equal("Reward rejected")
++            expect(rewardCalls).to.equal(1)
++            expect(cooldowns.tree_1).to.equal(NOW - 1)
++        end)
++
++        it("does not grant a reward or reserve a cooldown for a cooling-down node", function()
+             local cooldowns = { tree_1 = NOW + 10 }
+-            -- Mocked interaction: reserve cooldown
+-            cooldowns.tree_1 = NOW + 60
+-            -- Simulate reward rejection (e.g. inventory full)
+-            local rewardGranted = false
+-            if not rewardGranted then
+-                cooldowns.tree_1 = NOW + 10 -- Rollback
+-            end
++            local rewardCalls = 0
++
++            local granted = ResourceRules.tryGrantReward(
++                cooldowns,
++                "tree_1",
++                NOW,
++                NOW + 60,
++                function()
++                    rewardCalls += 1
++                    return true
++                end
++            )
++
++            expect(granted).to.equal(false)
++            expect(rewardCalls).to.equal(0)
+             expect(cooldowns.tree_1).to.equal(NOW + 10)
+         end)
+     end)
+diff --git a/src/shared/ResourceRules.lua b/src/shared/ResourceRules.lua
+index 9455f67..c1df6f6 100644
+--- a/src/shared/ResourceRules.lua
++++ b/src/shared/ResourceRules.lua
+@@ -40,4 +40,37 @@ function ResourceRules.isReady(cooldowns: any, nodeId: any, now: any): boolean
+     return (cooldowns[nodeId] or 0) <= now
+ end
+ 
++function ResourceRules.tryGrantReward(
++    cooldowns: any,
++    nodeId: any,
++    now: any,
++    readyAt: any,
++    grantReward: any
++): (boolean, string?)
++    if not ResourceRules.isValidCooldowns(cooldowns) then
++        return false, "Invalid cooldown state"
++    end
++    if type(nodeId) ~= "string" or nodeId == "" then
++        return false, "Invalid node identifier"
++    end
++    if not ResourceRules.isReady(cooldowns, nodeId, now) then
++        return false, "Node on cooldown"
++    end
++    if not isFiniteNumber(readyAt) or readyAt < 0 or readyAt % 1 ~= 0 or readyAt <= now then
++        return false, "Invalid cooldown timestamp"
++    end
++    if type(grantReward) ~= "function" then
++        return false, "Invalid reward callback"
++    end
++
++    local previousReadyAt = cooldowns[nodeId]
++    cooldowns[nodeId] = readyAt
++    if not grantReward() then
++        cooldowns[nodeId] = previousReadyAt
++        return false, "Reward rejected"
++    end
++
++    return true, nil
++end
++
+ return ResourceRules
 
 ## Evidence: pocket-habitat-validation.log
 
