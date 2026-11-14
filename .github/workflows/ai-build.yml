@@ -29,7 +29,7 @@ on:
         type: string
         default: ""
       quota_day:
-        description: "UTC date associated with carried daily quota state; managed by automatic continuation."
+        description: "Legacy continuation marker from older UTC-day quota state; ignored for reset scheduling."
         required: false
         type: string
         default: ""
@@ -2000,7 +2000,7 @@ jobs:
           AUTO_CONTINUE=false
           AUTO_CONTINUE_REASON="The stop condition is not an eligible run-local limit."
           # Retry only when a run-local budget or retryable implementation
-          # availability barrier was reached while daily quota pools remain.
+          # availability barrier was reached while quota pools remain eligible.
           # Successful no-progress cycles and hard failures stay terminal.
           QUOTA_POOL_RESETS_NEXT="$(serialize_quota_pool_reset_state QUOTA_POOL_RESET_AT QUOTA_POOL_KEYS "$(date -u +%s)")"
           if should_auto_continue_after_run \
@@ -2011,13 +2011,13 @@ jobs:
             AUTO_CONTINUE=true
             case "$AUTONOMOUS_STOP_REASON" in
               no_implementation_progress)
-                AUTO_CONTINUE_REASON="run-local model caps or temporary cooldowns blocked implementation while daily quota pools remain"
+                AUTO_CONTINUE_REASON="run-local model caps or temporary cooldowns blocked implementation while quota pools remain eligible"
                 ;;
               total_model_call_budget)
-                AUTO_CONTINUE_REASON="per-run total model-call budget reached while daily quota pools remain"
+                AUTO_CONTINUE_REASON="per-run total model-call budget reached while quota pools remain eligible"
                 ;;
               autonomous_round_budget)
-                AUTO_CONTINUE_REASON="per-run autonomous-round budget reached while daily quota pools remain"
+                AUTO_CONTINUE_REASON="per-run autonomous-round budget reached while quota pools remain eligible"
                 ;;
             esac
             echo "::notice::Queueing a fresh run to resume from the latest persisted checkpoint: $AUTO_CONTINUE_REASON."
@@ -2025,7 +2025,7 @@ jobs:
             if [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
               AUTO_CONTINUE_REASON="100% of currently eligible quota pools reached; no continuation needed"
             elif [[ "$ELIGIBLE_QUOTA_POOL_COUNT" -eq 0 ]]; then
-              AUTO_CONTINUE_REASON="no eligible daily quota pools remain"
+              AUTO_CONTINUE_REASON="no eligible quota pools remain"
             elif [[ "$AUTONOMOUS_STOP_REASON" == "no_implementation_progress" && "$IMPLEMENTATION_RETRYABLE_RUN_LIMIT" != "true" ]]; then
               AUTO_CONTINUE_REASON="models ran but failed to produce source changes; automatic retry would risk a no-progress loop"
             fi
