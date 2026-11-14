@@ -43,7 +43,7 @@ Use mocks for external Roblox service boundaries, not for the production busines
 
 ## Current recovery verification — 2026-11-14
 
-The cycle-5 cooldown rollback repair is present in the checked-out `c09a0f4` checkpoint. Its TestEZ cases call the production `ResourceRules.tryGrantReward` helper used by `ResourceManager`. The independent review report found no code findings; the QA stage did not produce a trustworthy decision, so the recovery remains open.
+The cooldown rollback repair is present in gameplay source at `c09a0f4`; the current checkout is `522d1df` (cycle 6), whose changes since cycle 5 are documentation-only. Its TestEZ cases call the production `ResourceRules.tryGrantReward` helper used by `ResourceManager`. The cycle-5 independent review reported no code findings, but no trustworthy QA decision was returned, so the recovery remains open.
 
 Checks actually run against the current worktree:
 
