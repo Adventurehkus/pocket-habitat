@@ -1,6 +1,6 @@
 # Pocket Habitat — Autonomous Recovery Record
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
 
 ## 2026-11-14 — current-worktree source adjudication
 
@@ -3339,3 +3339,55 @@ The current source-level recovery claims were independently checked against the 
 - `ServerMain.onPlayerAdded` handles a nil/failed load before habitat allocation or character spawn by stopping the player session.
 
 Deterministic checks on this checkout: Rojo build PASS (nonempty artifact, 76,921 bytes); `stylua --check src` PASS; `selene src` PASS (0 errors, 0 warnings, 0 parse errors); `git diff --check` PASS after this documentation update. TestEZ was NOT RUN because no compatible TestEZ/Roblox runner is installed. Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests remain NOT RUN. No independent pipeline review/QA result is claimed. These findings resolve the recorded automation-resolvable source debt only.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 43
+- Cycle: 5
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+The independent reviewer found actionable defects, but no repair model completed a fix in this cycle. Resolve the attached findings before unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-review-38.log
+
+[0m
+> reviewer · gemini-3.1-flash-lite
+REVIEW_FINDINGS: YES
+
+### Findings
+
+#### 1. CRITICAL: Incorrect Creature Movement Clamping Logic
+- **File:** `src/server/CreatureManager.lua` (lines 53-73)
+- **Evidence:** The current implementation modifies the Y-coordinate of `targetPos` only when `behavior.hoverHeight` is defined. However, the subsequent clamping logic (lines 64-68) does not account for the `habitat` Y-bounds, only X and Z.
+- **Why it is wrong:** While X and Z are clamped to the habitat's horizontal bounds, the Y-coordinate is left untouched. If a `hoverHeight` creature moves, it could potentially drift to a height far above or below the intended habitat floor/ceiling if `baseOffset.Y` shifts or if unexpected physics events occur. More importantly, for non-hovering creatures, the `targetPos.Y` remains at the `currentPos.Y` without verifying if that position is still valid relative to the habitat floor.
+- **Impact:** Creatures may behave erratically or "float" out of the defined habitat vertical range during movement updates, leading to visual clipping or creatures moving outside the intended bounds.
+- **Recommended Correction:** The `targetPos` should be explicitly clamped to both the horizontal (X, Z) and vertical (Y) bounds of the habitat.
+    ```lua
+    targetPos = Vector3.new(
+        math.clamp(targetPos.X, minBound.X, maxBound.X),
+        math.clamp(targetPos.Y, minBound.Y, maxBound.Y),
+        math.clamp(targetPos.Z, minBound.Z, maxBound.Z)
+    )
+    ```
+
+#### 2. MEDIUM: Potential `HumanoidRootPart` Reference Failure
+- **File:** `src/server/CreatureManager.lua` (line 34, 46)
+- **Evidence:** `idleBehavior` accepts `root` (the `HumanoidRootPart`) but calls `root.Position` inside the `while` loop.
+- **Why it is wrong:** While `root` is passed from `createCreatureModel`, there is no guarantee that the `HumanoidRootPart` will persist throughout the lifespan of the `idleBehavior` thread. If the creature model is destroyed or the `HumanoidRootPart` is removed (e.g., during cleanup or despawning), accessing `root.Position` will throw a runtime error, terminating the loop and effectively killing the thread for that specific creature.
+- **Impact:** Runtime errors in server-side threads handling creature logic will break behavioral updates for that creature, leaving it stuck.
+- **Recommended Correction:** Add a safety check for the existence of the `root` part before accessing its properties inside the loop:
+    ```lua
+    if not root or not root:IsDescendantOf(workspace) then break end
+    local currentPos = root.Position
+    ```
+
+---
+
+### Summary
+The creature movement implementation has a logical flaw in boundary clamping that could allow creatures to drift outside the vertical limits of the habitat. Additionally, the behavioral loop lacks sufficient robustness against the removal of the creature's root part, which could lead to runtime errors. All other modules (Constants and Specs) appear correctly integrated for the intended design.

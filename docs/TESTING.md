@@ -8,6 +8,18 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
+## Creature movement profiles — current worktree
+
+Added distinct server-driven movement timing, wander distance, jumping, and hover-height profiles for all five creature types. Targets remain bounded by the owning habitat. A TestEZ spec checks that profiles exist, are unique, and have valid configuration shapes; actual Humanoid movement and physics require Roblox runtime verification.
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated nonempty 77,860-byte artifact.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS on the complete source and documentation diff.
+- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed.
+- Roblox Studio creature movement, multiplayer isolation, and visual behavior: NOT RUN.
+- Artifact upload: NOT performed or confirmed.
+
 ## Quest-claim HUD integration — 2026-11-14
 
 The HUD previously hardcoded claims for q1-q6 and attempted several subsequent claims when the first request failed, leaving q7-q10 without a claim path. It now submits only the quest ID in the server-synced `currentQuest`, changes the button label as quest state updates, and stops sending the unused client session-token argument.

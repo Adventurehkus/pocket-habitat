@@ -163,6 +163,12 @@ Constants.CREATURES = {
         requiredFlora = 1,
         requiredWater = 1,
         bellReward = 50,
+        behavior = {
+            mode = "hop",
+            moveInterval = 3,
+            wanderRadius = 10,
+            jumpInterval = 5,
+        },
     },
     sprite = {
         id = "sprite",
@@ -171,6 +177,12 @@ Constants.CREATURES = {
         requiredFlora = 3,
         requiredWater = 5,
         bellReward = 100,
+        behavior = {
+            mode = "drift",
+            moveInterval = 4,
+            wanderRadius = 5,
+            hoverHeight = 5,
+        },
     },
     leafling = {
         id = "leafling",
@@ -179,6 +191,11 @@ Constants.CREATURES = {
         requiredFlora = 2,
         requiredWater = 2,
         bellReward = 75,
+        behavior = {
+            mode = "forage",
+            moveInterval = 6,
+            wanderRadius = 3,
+        },
     },
     tortoise = {
         id = "tortoise",
@@ -187,6 +204,11 @@ Constants.CREATURES = {
         requiredFlora = 0,
         requiredWater = 1,
         bellReward = 65,
+        behavior = {
+            mode = "stroll",
+            moveInterval = 8,
+            wanderRadius = 3,
+        },
     },
     finch = {
         id = "finch",
@@ -195,6 +217,13 @@ Constants.CREATURES = {
         requiredFlora = 2,
         requiredWater = 2,
         bellReward = 85,
+        behavior = {
+            mode = "flutter",
+            moveInterval = 3,
+            wanderRadius = 8,
+            jumpInterval = 4,
+            hoverHeight = 7,
+        },
     },
 }
 

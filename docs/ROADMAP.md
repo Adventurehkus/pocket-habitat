@@ -131,7 +131,7 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 - [x] Make every defined plant seed obtainable from a server-owned habitat resource node, and use one shared node definition for world presentation and server reward resolution. (Production-backed mapping spec added; TestEZ/Studio verification pending)
 - [x] Keep decorative-tile purchases disabled until the visual effect exists.
 - [ ] Complete production-backed coverage and runtime verification for every plant definition through obtain → plant → grow → water → harvest → reward → quest → persistence. A TestEZ case now exercises the shared seed/watering/growth/harvest rules for each plant definition; TestEZ execution and manager/quest/persistence integration remain unverified.
-- [ ] Implement distinct, habitat-scoped behavior for every released creature.
+- [x] Implement distinct, habitat-scoped movement profiles for every released creature. (Server source is integrated; Roblox movement/physics remains runtime-unverified.)
 - [ ] Implement and restore the decorative-tile effect before making it purchasable.
 - [ ] Add rare/special resources only after normal resource isolation is reliable.
 - [ ] Preserve save compatibility for every added progression field.
@@ -144,7 +144,7 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 - [ ] Natural feedback for gathering, planting, watering, harvesting, discovery, quests, and purchases.
 - [ ] Desktop, touch, and gamepad usability where practical.
 - [ ] Cohesive low-poly environment, lighting, day/night atmosphere, and environmental details.
-- [ ] Distinct creature animations and readable behaviors.
+- [ ] Add distinct creature animations and polish/readability for their movement behaviors.
 - [ ] Sound and subtle environmental effects.
 - [ ] Performance profiling and budgets for mobile hardware.
 
@@ -184,6 +184,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
 - Scope CreatureManager to each player's habitat (per-habitat Creatures folder, distinct creature models, bounded movement, restoration from discovery data, cleanup on leave)
+- Give each creature a distinct server-driven movement profile while keeping targets inside its owner's habitat bounds
 - Persist each player's resource cooldowns in their validated save data and throttle gather requests
 - Reserve and roll back gather cooldowns through production logic shared with focused TestEZ cases (execution pending)
 - Record all quest actions in backward-compatible player data; restore the full ten-quest sequence and validate real harvest, upgrade, and discovery objectives

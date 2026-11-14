@@ -23,25 +23,42 @@ end
 local function idleBehavior(
     model: Model,
     humanoid: Humanoid,
-    body: BasePart,
+    root: BasePart,
     creatureId: string,
     habitat: Folder
 )
+    local behavior = Constants.CREATURES[creatureId].behavior
     local lastMoveTime = 0
-    local moveInterval = creatureId == "bunny" and 3 or 5
+    local lastJumpTime = 0
     local minBound, maxBound = getHabitatBounds(habitat)
 
     while model.Parent and humanoid.Health > 0 do
         task.wait(1)
 
-        local now = tick()
-        if now - lastMoveTime >= moveInterval then
+        local now = os.clock()
+        if behavior.jumpInterval and now - lastJumpTime >= behavior.jumpInterval then
+            lastJumpTime = now
+            humanoid.Jump = true
+        end
+
+        if now - lastMoveTime >= behavior.moveInterval then
             lastMoveTime = now
 
-            -- Random wander within habitat bounds
-            local currentPos = body.Position
+            local currentPos = root.Position
             local targetPos = currentPos
-                + Vector3.new(math.random(-10, 10), 0, math.random(-10, 10))
+                + Vector3.new(
+                    math.random(-behavior.wanderRadius, behavior.wanderRadius),
+                    0,
+                    math.random(-behavior.wanderRadius, behavior.wanderRadius)
+                )
+            local baseOffset = habitat:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)
+            if behavior.hoverHeight then
+                targetPos = Vector3.new(
+                    targetPos.X,
+                    baseOffset.Y + behavior.hoverHeight + math.random(-1, 1),
+                    targetPos.Z
+                )
+            end
 
             -- Keep within habitat bounds
             targetPos = Vector3.new(
@@ -66,6 +83,7 @@ local function createCreatureModel(
     model.Name = creatureId .. "_" .. tostring(ownerUserId)
     model:SetAttribute("CreatureId", creatureId)
     model:SetAttribute("OwnerUserId", ownerUserId)
+    model:SetAttribute("Behavior", def.behavior.mode)
 
     local root = Instance.new("Part")
     root.Name = "HumanoidRootPart"
@@ -268,7 +286,7 @@ local function createCreatureModel(
 
     -- Start idle behavior scoped to habitat
     task.spawn(function()
-        idleBehavior(model, humanoid, body, creatureId, habitat)
+        idleBehavior(model, humanoid, root, creatureId, habitat)
     end)
 
     return model

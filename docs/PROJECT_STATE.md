@@ -4,10 +4,10 @@
 
 - **Gameplay repository:** Adventurehkus/pocket-habitat
 - **Gameplay branch:** ai/game-build
-- **Current source baseline:** `33b8e78` on `ai/game-build`; this worktree adds a quest-claim HUD integration fix.
+- **Current source baseline:** `eb5ceda` on `ai/game-build`; this worktree adds per-creature habitat-bounded movement profiles.
 - **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation and quota-pool carry-forward; the provider-reset cutoff experiment was reverted (main workflow rollback: `647b5bd885d673dca3e31bb5b518e8b8da746800`).
 - **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion is carried forward; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`. No provider-reset calendar or pre-reset model-call cutoff is applied.
-- **Verification boundary:** The quest HUD worktree Rojo build produced a nonempty 77,065-byte artifact; `stylua --check src` and `selene src` pass. TestEZ remains unexecuted because no compatible runner is installed. Recovery is RESOLVED for recorded source findings only; no trustworthy independent pipeline review/QA decision is claimed for this checkout. Roblox engine tests remain unexecuted.
+- **Verification boundary:** The creature behavior worktree Rojo build produced a nonempty 77,860-byte artifact; `stylua --check src`, `selene src`, and `git diff --check` pass. TestEZ remains unexecuted because no compatible runner is installed. Recovery is RESOLVED for recorded source findings only; no trustworthy independent pipeline review/QA decision is claimed for this checkout. Roblox engine tests remain unexecuted.
 
 This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
 
@@ -30,6 +30,8 @@ The current source wires `PurchaseUpgrade` through `EconomyManager.init()`. Plot
 The quest source now defines a single ten-quest order, migrates old sessions with no current quest to the next incomplete quest, and records gather, plant, water, harvest, discovery, and upgrade progress in backward-compatible session data. Upgrade progress is bounded by the matching upgrade definition. Resource reward sync now follows quest-progress recording, avoiding an intermediate client snapshot. Claims validate actual harvests, the specific Leafling discovery, and current upgrade levels; item rewards are capacity-checked and committed with Bells and quest completion without yielding between mutations. Completing the first-creature quest awards the Sun Petal seed required by the following quest. These are source-level changes; gameplay and the new TestEZ cases remain unverified in Roblox.
 
 The client quest-claim button now follows the server-synced `currentQuest`, dispatches only that quest ID, and updates through the entire ten-quest sequence; the former hardcoded q1-q6 fallback could not claim later quests and sent repeated invalid requests. Client remotes no longer receive the unused session-token argument. The UI behavior is source- and static-build-verified only; Roblox interaction remains untested.
+
+Creature definitions now carry distinct server-driven movement profiles: the bunny hops and wanders quickly, the sprite drifts at a target height, the leafling forages in short steps, the tortoise strolls slowly, and the finch flutters at a higher target height. Movement targets are clamped to the owning habitat bounds; discovery, restoration, and per-player cleanup remain unchanged. A TestEZ spec checks profile uniqueness and configuration shape, but it has not run. Rojo/StyLua/Selene passed for this source update; creature physics and behavior have not been tested in Roblox.
 
 ## Historical workflow — Run #32
 

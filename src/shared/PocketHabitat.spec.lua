@@ -745,4 +745,34 @@ return function()
             expect(serialized.z).to.equal(3)
         end)
     end)
+    describe("Creature movement profiles", function()
+        it("defines a unique valid movement profile for each creature", function()
+            local seenModes = {}
+            local creatureCount = 0
+
+            for _, creatureDef in pairs(Constants.CREATURES) do
+                local behavior = creatureDef.behavior
+                creatureCount += 1
+
+                expect(type(behavior)).to.equal("table")
+                expect(type(behavior.mode)).to.equal("string")
+                expect(seenModes[behavior.mode]).to.equal(nil)
+                seenModes[behavior.mode] = true
+
+                expect(behavior.moveInterval > 0 and behavior.moveInterval % 1 == 0).to.equal(true)
+                expect(behavior.wanderRadius > 0 and behavior.wanderRadius % 1 == 0).to.equal(true)
+                expect(
+                    behavior.jumpInterval == nil
+                        or (behavior.jumpInterval > 0 and behavior.jumpInterval % 1 == 0)
+                ).to.equal(true)
+                expect(behavior.hoverHeight == nil or behavior.hoverHeight > 0).to.equal(true)
+            end
+
+            local modeCount = 0
+            for _ in pairs(seenModes) do
+                modeCount += 1
+            end
+            expect(modeCount).to.equal(creatureCount)
+        end)
+    end)
 end
