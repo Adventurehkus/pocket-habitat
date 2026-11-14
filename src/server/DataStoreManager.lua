@@ -8,6 +8,7 @@ local CharacterSpawnData =
     require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("CharacterSpawnData"))
 local ResourceRules =
     require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ResourceRules"))
+local QuestRules = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("QuestRules"))
 local RemoteEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RemoteEvents"))
 
 local PLAYER_DATA_STORE = "PlayerDataStoreV1"
@@ -67,7 +68,8 @@ local function makeDefaultSessionData(userId: number)
         bells = 0,
         inventory = {},
         questsCompleted = {},
-        currentQuest = "q1_wood",
+        currentQuest = Constants.QUEST_ORDER[1],
+        questProgress = {},
         creaturesDiscovered = {},
         upgrades = {},
         resourceCooldowns = {},
@@ -188,11 +190,22 @@ local function normalizeSessionData(
             return nil, "Malformed quest completion entry"
         end
     end
-    if data.currentQuest == nil and next(data.questsCompleted) == nil then
-        data.currentQuest = "q1_wood"
-    end
     if data.currentQuest ~= nil and type(data.currentQuest) ~= "string" then
         return nil, "Malformed current quest"
+    end
+    if data.currentQuest ~= nil and not Constants.QUESTS[data.currentQuest] then
+        return nil, "Unknown current quest"
+    end
+    if data.questProgress == nil then
+        data.questProgress = {}
+    elseif not QuestRules.isValidProgress(data.questProgress) then
+        return nil, "Malformed quest progress"
+    else
+        data.questProgress = table.clone(data.questProgress)
+    end
+    local nextQuest = QuestRules.nextQuest(data.questsCompleted)
+    if data.currentQuest ~= nextQuest then
+        data.currentQuest = nextQuest
     end
 
     if data.creaturesDiscovered == nil then

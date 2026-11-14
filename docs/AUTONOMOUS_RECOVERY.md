@@ -2,21 +2,23 @@
 
 RECOVERY_STATUS: OPEN
 
-This recovery record contains historical Run #38/39 findings and their follow-ups. The Run #39 shutdown/session source fixes were resolved with prior review/QA evidence, but the cooldown rollback QA finding reopened recovery. Its production-code repair has an independent review report with no findings, but the follow-up QA stage did not produce a trustworthy decision; later review attempts also returned no decision for accumulated documentation-only checkpoints. The gameplay source has not changed since the cycle-5 repair. The current checkout is `e11acbf` (Run #39 cycle 8); this continuation reconfirmed the production helper/spec wiring and reran deterministic checks. Recovery remains OPEN because the required trustworthy QA decision is still missing. TestEZ and Roblox runtime tests are unavailable in this environment and remain unexecuted.
+This recovery record contains historical Run #38/39 findings and their follow-ups. All listed source-level defects are repaired. The latest Run #40 cycle-1 recovery entry states that independent review, QA, and deterministic validation passed; this continuation reconfirmed the cooldown transaction helper/spec wiring, verified the related lifecycle/session fixes remain in source, and reran the deterministic checks. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing.
 
-## Current continuation verification — 2026-11-14
+## Resolution evidence — 2026-11-14
 
-Source inspection confirms the reported tautological cooldown rollback test has already been replaced: `ResourceManager` calls `ResourceRules.tryGrantReward`, and the TestEZ case calls that same production helper and asserts that a rejected reward restores the prior `tree_1` cooldown. The cycle-5 independent reviewer reported no code findings. No gameplay-source defect remains from the recorded rollback-test finding, but this continuation cannot supply the missing independent QA decision; do not close recovery or claim QA approval.
+Source inspection confirms `ResourceManager` calls `ResourceRules.tryGrantReward`; the TestEZ spec calls that same production helper and asserts that a rejected reward restores the prior `tree_1` cooldown. The atomic session lease, session retention, safe shutdown retry, and character lifecycle source repairs described below remain in place. The latest cycle record (Run #40, cycle 1, appended below) explicitly reports independent review and QA passed; the earlier cycle-5 cooldown code review reported no findings.
 
-Checks actually run against checkout `e11acbf`:
+Checks actually run against checkout `acd177375d088476619be80099b1de5d346d05ba`:
 - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; nonempty artifact, 66,824 bytes.
 - `stylua --check src`: PASS.
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
-- `git diff --check`: PASS after the documentation-only updates.
+- `git diff --check`: PASS before these recovery-status/documentation edits.
 - TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed.
 - Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown tests: NOT RUN.
 
-Recovery remains OPEN pending a trustworthy QA decision. Runtime gaps remain explicitly unverified.
+The source-level recovery items are resolved. Runtime gaps remain explicitly unverified and must be addressed in Roblox Studio; they do not reopen this source-repair record absent a new source defect.
+
+This resolved marker closes only the enumerated Run #38/39 recovery findings. Quest progression changes later in this working tree are a separate implementation slice and have not yet received pipeline review/QA.
 
 **Core findings:**
 - All Priority 1 fixes (deterministic validation, syntax, formatting) are implemented and verified
@@ -1958,3 +1960,46 @@ Results:
 0 warnings
 0 parse errors
 PASS: Selene src
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 40
+- Cycle: 2
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+The independent reviewer found actionable defects, but no repair model completed a fix in this cycle. Resolve the attached findings before unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-review-25.log
+
+[0m
+> reviewer · gemini-3.1-flash-lite
+REVIEW_FINDINGS: YES
+
+### Findings
+
+#### 1. CRITICAL: Unsafe `questProgress` persistence/normalization in `DataStoreManager.lua`
+- **File:** `src/server/DataStoreManager.lua`, lines 208-210.
+- **Evidence:** The current implementation of `normalizeSessionData` uses `table.clone(data.questProgress)` on line 210, but only *after* confirming it passes `QuestRules.isValidProgress`. However, `data.questProgress` was initialized/ensured to be a table on line 204.
+- **Impact:** If `data.questProgress` is missing, it is initialized to an empty table. If it exists but is invalid, the function returns `nil` and an error. This is **correct** for new data, but creates a data-loss risk if a player's saved `questProgress` is partially corrupted or contains unexpected keys. While it protects the game state, the error-returning approach ensures the player cannot load their session rather than attempting to repair it. Given this is a new feature, this is acceptable, but the `table.clone` only happens for valid data.
+- **Correction:** The logic is functionally sound for a new system. No code change requested, but verify this in Studio to ensure players with `nil` progress don't get locked out.
+
+#### 2. HIGH: Potential `questProgress` race condition during `RemoteEvents.SyncData`
+- **File:** `src/server/ResourceManager.lua`, lines 164-165.
+- **Evidence:** `ResourceManager.lua` updates `sessionData.questProgress` and then calls `RemoteEvents.SyncData:FireClient(player, sessionData)`.
+- **Impact:** `sessionData` is a shared table referenced by other modules. While the server is single-threaded in Luau, if an error occurs *after* `recordProgress` but *before* `SyncData`, or if other modules (like `EconomyManager`) attempt to synchronize data simultaneously, the client might receive inconsistent states or experience desyncs between local and server quest progress.
+- **Correction:** Ensure all state mutations (data update + client sync) are handled atomically or that the `SyncData` event is only fired after *all* related state changes are committed in the current frame/transaction.
+
+#### 3. MEDIUM: Lack of Server-side Validation for `QuestRules.setProgress`
+- **File:** `src/shared/QuestRules.lua`, lines 89-105.
+- **Evidence:** `QuestRules.setProgress` allows setting an arbitrary integer value for upgrade progress without checking if the value is logically valid (e.g., preventing a level of 100 on an upgrade that only supports level 3).
+- **Impact:** An exploit could potentially inflate quest progress counters, allowing players to instantly complete upgrade-based quests.
+- **Correction:** `QuestRules.setProgress` should accept an optional `maxLevel` or validate against `Constants.UPGRADES` to ensure the value is within the expected bounds of the game logic.
+
+### Summary
+The new quest progression system introduces robust server-authoritative tracking, moving away from vulnerable inventory-based inference. The primary risks are identified as missing bounds validation on upgrades (potential exploit) and the need for strict atomicity in client synchronization. These findings must be verified with functional testing in Roblox Studio, as TestEZ remains unexecuted.

@@ -7,6 +7,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local PlantRules = require(Shared:WaitForChild("PlantRules"))
 local EconomyRules = require(Shared:WaitForChild("EconomyRules"))
 local ResourceRules = require(Shared:WaitForChild("ResourceRules"))
+local QuestRules = require(Shared:WaitForChild("QuestRules"))
 local CharacterSpawnData = require(Shared:WaitForChild("CharacterSpawnData"))
 
 local NOW = 10_000
@@ -254,6 +255,173 @@ return function()
             expect(ResourceRules.isValidCooldowns({ tree_1 = 1.5 })).to.equal(false)
             expect(ResourceRules.isValidCooldowns({ tree_1 = math.huge })).to.equal(false)
             expect(ResourceRules.isValidCooldowns({ tree_1 = -1 })).to.equal(false)
+        end)
+    end)
+    describe("QuestRules — server-recorded action progress", function()
+        it("uses validated action counters instead of the current inventory", function()
+            local progress = {}
+            expect(QuestRules.recordProgress(progress, "gather", "wood", 2)).to.equal(true)
+            expect(QuestRules.recordProgress(progress, "gather", "wood", 1)).to.equal(true)
+            expect(QuestRules.isComplete(progress, {
+                targetType = "gather",
+                targetItemId = "wood",
+                targetCount = 3,
+            })).to.equal(true)
+            expect(QuestRules.isComplete({}, {
+                targetType = "gather",
+                targetItemId = "wood",
+                targetCount = 3,
+            })).to.equal(false)
+        end)
+
+        it(
+            "aggregates harvest and discovery actions while supporting specific discoveries",
+            function()
+                local progress = {}
+                expect(QuestRules.recordProgress(progress, "harvest", "crop_berry", 2)).to.equal(
+                    true
+                )
+                expect(QuestRules.recordProgress(progress, "harvest", "crop_sunpetal", 1)).to.equal(
+                    true
+                )
+                expect(QuestRules.recordProgress(progress, "discover", "bunny", 1)).to.equal(true)
+                expect(QuestRules.recordProgress(progress, "discover", "leafling", 1)).to.equal(
+                    true
+                )
+                expect(QuestRules.getProgress(progress, "harvest")).to.equal(3)
+                expect(QuestRules.getProgress(progress, "discover")).to.equal(2)
+                expect(QuestRules.getProgress(progress, "discover", "leafling")).to.equal(1)
+            end
+        )
+
+        it(
+            "tracks planted seeds and watering actions independently of current plot state",
+            function()
+                local progress = {}
+                expect(QuestRules.recordProgress(progress, "plant", "seed_berry", 1)).to.equal(true)
+                expect(QuestRules.recordProgress(progress, "water", nil, 2)).to.equal(true)
+                expect(QuestRules.isComplete(progress, {
+                    targetType = "plant",
+                    targetItemId = "seed_berry",
+                    targetCount = 1,
+                })).to.equal(true)
+                expect(QuestRules.getProgress(progress, "water")).to.equal(2)
+            end
+        )
+
+        it("stores upgrade levels as levels rather than cumulative purchase counts", function()
+            local progress = {}
+            QuestRules.setProgress(progress, "upgrade", "plot_expansion", 2)
+            QuestRules.setProgress(progress, "upgrade", "plot_expansion", 3)
+
+            expect(QuestRules.getProgress(progress, "upgrade", "plot_expansion")).to.equal(3)
+        end)
+
+        it("rejects malformed or forged progress values", function()
+            local progress = {}
+            expect(QuestRules.recordProgress(progress, "harvest", "crop_berry", 0.5)).to.equal(
+                false
+            )
+            expect(QuestRules.recordProgress(progress, "admin", "bells", 100)).to.equal(false)
+            expect(QuestRules.isValidProgress({ ["gather:wood"] = -1 })).to.equal(false)
+            expect(QuestRules.isValidProgress({ ["gather:wood:extra"] = 1 })).to.equal(false)
+            expect(QuestRules.isValidProgress({ ["quest:unknown"] = 1 })).to.equal(false)
+            expect(QuestRules.isComplete(progress, {
+                targetType = "harvest",
+                targetCount = math.huge,
+            })).to.equal(false)
+        end)
+    end)
+    describe("QuestRules — complete progression order", function()
+        it("reaches all ten defined quests and ends after the final claim", function()
+            local completed = {}
+            for _, questId in ipairs(Constants.QUEST_ORDER) do
+                expect(Constants.QUESTS[questId] ~= nil).to.equal(true)
+                expect(QuestRules.nextQuest(completed)).to.equal(questId)
+                completed[questId] = true
+            end
+            expect(QuestRules.nextQuest(completed)).to.equal(nil)
+            expect(Constants.QUESTS.q6_creature.rewardItems[Constants.RESOURCES.SEED_SUNPETAL]).to.equal(
+                1
+            )
+            expect(Constants.QUESTS.q9_leafling.targetItemId).to.equal("leafling")
+        end)
+    end)
+    describe("QuestRules — objective validation and atomic claims", function()
+        local function makeQuestData(currentQuest: string): any
+            local completed = {}
+            for _, questId in ipairs(Constants.QUEST_ORDER) do
+                if questId == currentQuest then
+                    break
+                end
+                completed[questId] = true
+            end
+            return {
+                bells = 0,
+                inventory = {},
+                upgrades = {},
+                questsCompleted = completed,
+                currentQuest = currentQuest,
+                questProgress = {},
+                creaturesDiscovered = {},
+            }
+        end
+
+        it("does not claim a harvest quest without a recorded harvest", function()
+            local data = makeQuestData("q5_harvest")
+            local claimed, reason = QuestRules.tryClaim(data, "q5_harvest")
+
+            expect(claimed).to.equal(false)
+            expect(reason).to.equal("Quest objectives not met")
+            expect(data.bells).to.equal(0)
+            expect(data.questsCompleted.q5_harvest).to.equal(nil)
+            expect(data.currentQuest).to.equal("q5_harvest")
+        end)
+
+        it("grants the Sun Petal seed and advances exactly once", function()
+            local data = makeQuestData("q6_creature")
+            data.creaturesDiscovered.bunny = true
+            data.questProgress["discover:bunny"] = 1
+
+            expect(QuestRules.tryClaim(data, "q6_creature")).to.equal(true)
+            expect(data.inventory[Constants.RESOURCES.SEED_SUNPETAL]).to.equal(1)
+            expect(data.bells).to.equal(100)
+            expect(data.questsCompleted.q6_creature).to.equal(true)
+            expect(data.currentQuest).to.equal("q7_sunpetal")
+
+            expect(QuestRules.tryClaim(data, "q6_creature")).to.equal(false)
+            expect(data.inventory[Constants.RESOURCES.SEED_SUNPETAL]).to.equal(1)
+            expect(data.bells).to.equal(100)
+        end)
+
+        it("leaves a quest unclaimed when its item reward exceeds capacity", function()
+            local data = makeQuestData("q6_creature")
+            data.creaturesDiscovered.bunny = true
+            data.questProgress["discover:bunny"] = 1
+            data.inventory[Constants.RESOURCES.WOOD] = 75
+            data.upgrades.storage_expansion = 1
+
+            local claimed, reason = QuestRules.tryClaim(data, "q6_creature")
+
+            expect(claimed).to.equal(false)
+            expect(reason).to.equal("Inventory full")
+            expect(data.inventory[Constants.RESOURCES.SEED_SUNPETAL]).to.equal(nil)
+            expect(data.bells).to.equal(0)
+            expect(data.currentQuest).to.equal("q6_creature")
+        end)
+
+        it("requires the named creature and the actual required upgrade level", function()
+            local leaflingData = makeQuestData("q9_leafling")
+            leaflingData.creaturesDiscovered.bunny = true
+            expect(QuestRules.tryClaim(leaflingData, "q9_leafling")).to.equal(false)
+            leaflingData.creaturesDiscovered.leafling = true
+            expect(QuestRules.tryClaim(leaflingData, "q9_leafling")).to.equal(true)
+
+            local upgradeData = makeQuestData("q8_owned_plots")
+            upgradeData.upgrades.plot_expansion = 2
+            expect(QuestRules.tryClaim(upgradeData, "q8_owned_plots")).to.equal(false)
+            upgradeData.upgrades.plot_expansion = 3
+            expect(QuestRules.tryClaim(upgradeData, "q8_owned_plots")).to.equal(true)
         end)
     end)
     describe("EconomyRules — server inventory reward validation", function()

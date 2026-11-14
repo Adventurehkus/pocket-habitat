@@ -43,20 +43,18 @@ Use mocks for external Roblox service boundaries, not for the production busines
 
 ## Current recovery verification — 2026-11-14
 
-The cooldown rollback repair is present in gameplay source at `c09a0f4`; the current checkout is `e11acbf` (Run #39 cycle 8), with no gameplay-source changes since cycle 5. Its TestEZ cases call the production `ResourceRules.tryGrantReward` helper used by `ResourceManager` and assert that rejected rewards restore the prior cooldown. The cycle-5 independent review reported no code findings, but no trustworthy QA decision was returned; the cycle-8 review attempt also returned no decision for the accumulated documentation-only checkpoint. Recovery remains open for missing QA evidence; TestEZ and runtime checks are still unexecuted.
+The Run #40 cycle-1 recovery entry reports independent review, QA, and deterministic validation passed for the listed historical source repairs; `docs/AUTONOMOUS_RECOVERY.md` now marks those items RESOLVED. This continuation adds a separate quest-progression source slice with focused TestEZ specs; those changes still await pipeline review/QA and have not been executed in TestEZ.
 
-Checks actually run against the current worktree:
+Checks actually run against the current worktree after the quest changes:
 
-- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 66,824-byte artifact.
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 71,149-byte artifact.
 - `stylua --check src`: PASS.
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
 - `git diff --check`: PASS.
 - TestEZ: NOT RUN; no `run-in-roblox`, `luau`, `lune`, `lua`, or `luajit` runner is available.
 - Roblox Studio/engine, multiplayer, DataStore, and shutdown tests: NOT RUN.
 
-These deterministic checks do not substitute for TestEZ or runtime verification.
-
-The deterministic commands were rerun in this continuation against unchanged gameplay source: Rojo generated a nonempty 66,824-byte artifact; StyLua, Selene (0 errors, 0 warnings, 0 parse errors), and `git diff --check` passed. TestEZ and Roblox runtime checks remain unexecuted.
+These deterministic checks do not substitute for TestEZ or runtime verification. Quest specs cover cumulative action progress, target-specific discoveries, actual upgrade levels, invalid progress, all ten quest definitions, harvest rejection, and single-use/capacity-safe Sun Petal seed rewards; their presence does not mean they executed.
 
 ## Studio testing procedure for habitat/multiplayer
 
@@ -203,7 +201,7 @@ Checks actually run after the code change:
 
 Cooldown changes become durable on the next periodic or final session write, so an abrupt crash before that write can lose the latest cooldown. Runtime persistence and concurrent gather behavior remain unverified.
 
-## 2026-11-14 — production-backed cooldown rollback recovery
+## Historical cooldown recovery record — before Run #40 resolution (2026-11-14)
 
 The latest QA report found that the cooldown rollback spec only manipulated local test variables. `ResourceRules.tryGrantReward` now owns the production cooldown reservation/reward/rollback transaction, and `ResourceManager` calls that helper. The spec invokes the same production function to check rollback after a rejected reward and to ensure a cooling-down node does not call the reward callback.
 
@@ -216,9 +214,9 @@ Checks actually run after the repair:
 - Independent pipeline review/QA of this repair: NOT RUN.
 - Roblox Studio/server, multiplayer, DataStore save/rejoin, and shutdown tests: NOT RUN.
 
-The source-level tautological-test finding is repaired, but `docs/AUTONOMOUS_RECOVERY.md` remains OPEN pending independent review/QA of this repair. TestEZ could not run because no compatible runner is available; Roblox runtime and persistence gaps remain unverified.
+At this checkpoint the source-level tautological-test finding was repaired, but the recovery marker remained OPEN pending independent review/QA. The Run #40 cycle-1 recovery entry later reports review/QA passed for those listed fixes; the marker is now RESOLVED. TestEZ could not run because no compatible runner is available; Roblox runtime and persistence gaps remain unverified.
 
-## Latest verified gameplay pipeline run
+## Historical verified gameplay pipeline run
 
 ### Run #32 — 2026-11-11
 

@@ -2,6 +2,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Constants"))
+local QuestRules = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("QuestRules"))
 local RemoteEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RemoteEvents"))
 local DataStoreManager = require(script.Parent:WaitForChild("DataStoreManager"))
 local EconomyManager = require(script.Parent:WaitForChild("EconomyManager"))
@@ -298,6 +299,12 @@ function CreatureManager.checkDiscoveries(player: Player)
         if not data.creaturesDiscovered[creatureId] then
             if floraCount >= def.requiredFlora and waterTotal >= def.requiredWater then
                 data.creaturesDiscovered[creatureId] = true
+                if not QuestRules.recordProgress(data.questProgress, "discover", creatureId, 1) then
+                    warn(
+                        "Failed to record creature quest progress for user "
+                            .. tostring(player.UserId)
+                    )
+                end
                 EconomyManager.addBells(player, def.bellReward)
 
                 -- Spawn creature in the player's habitat

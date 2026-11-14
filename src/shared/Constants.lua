@@ -192,10 +192,11 @@ Constants.QUESTS = {
     q6_creature = {
         id = "q6_creature",
         title = "Attract a Creature",
-        description = "Grow your habitat to attract your first creature!",
+        description = "Grow your habitat to attract your first creature and earn a Sun Petal seed!",
         targetType = "discover",
         targetCount = 1,
         rewardBells = 100,
+        rewardItems = { [Constants.RESOURCES.SEED_SUNPETAL] = 1 },
     },
     q7_sunpetal = {
         id = "q7_sunpetal",
@@ -220,6 +221,7 @@ Constants.QUESTS = {
         title = "Meet a Leafling",
         description = "Grow enough flora to attract a friendly Leafling.",
         targetType = "discover",
+        targetItemId = "leafling",
         targetCount = 1,
         rewardBells = 80,
     },
@@ -231,6 +233,19 @@ Constants.QUESTS = {
         targetCount = 5,
         rewardBells = 150,
     },
+}
+
+Constants.QUEST_ORDER = {
+    "q1_wood",
+    "q2_stone",
+    "q3_plant",
+    "q4_water",
+    "q5_harvest",
+    "q6_creature",
+    "q7_sunpetal",
+    "q8_owned_plots",
+    "q9_leafling",
+    "q10_discovery",
 }
 
 return Constants

@@ -29,6 +29,7 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 - src/shared/CharacterSpawnData.lua — DataStore-safe spawn vector encoding and validation.
 - src/shared/PlantRules.lua — production plant/plot interaction validation.
 - src/shared/EconomyRules.lua — production inventory and capacity validation.
+- src/shared/QuestRules.lua — validated player quest-action counters, objective progress, and quest ordering.
 - src/shared/PocketHabitat.spec.lua — TestEZ specifications for shared production rules.
 - src/shared/Tests/CharacterSpawn.spec.lua — TestEZ specifications for spawn defaults and coordinate serialization.
 
@@ -46,7 +47,7 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 
 ## Current runtime architecture and known limitations
 
-The Run #39 cycle-2 recovery record reports independent review/QA and deterministic validation of the character-lifecycle, persistence, and shutdown source repairs. The cycle-5 independent reviewer reported no findings for the production-backed resource-cooldown rollback repair, but no trustworthy QA decision was returned; cycle 8 changed no gameplay source and its review attempt returned no decision for the accumulated documentation-only checkpoint. Static checks do not prove Roblox server, network, or DataStore behavior; Roblox runtime verification remains outstanding.
+The Run #40 cycle-1 recovery entry reports independent review, QA, and deterministic validation passed for the historical character-lifecycle, persistence, shutdown, and cooldown source repairs. This continuation adds a separate quest-progression slice that still awaits pipeline review/QA. Static checks do not prove Roblox server, network, or DataStore behavior; Roblox runtime verification remains outstanding.
 
 Current source facts:
 
@@ -60,9 +61,10 @@ Current source facts:
 - The initial session sync includes `playerData`; the client also accepts direct gameplay data syncs from economy and interaction modules.
 - `HabitatManager` tracks per-server player habitat slots, offsets each habitat, and exposes the server-owned habitat lookup used by interactions.
 - `ResourceManager` and `PlantManager` register remote handlers in `init()` and validate player session, habitat membership, and server-measured distance. Resource gathering also requires a living Humanoid and uses saved per-player cooldowns. `QuestManager.init()` owns the claim callback.
+- `QuestRules` persists validated action counters in the player session. Gathering, planting, watering, harvesting, discovery, and upgrades record progress only after server-authoritative actions; quest claims validate those counters or the authoritative discovered-creature/upgrade state. `Constants.QUEST_ORDER` includes all ten quests, and session normalization advances legacy players with a nil/completed current quest to their next incomplete quest. The first-creature quest grants the seed required by the later Sun Petal quest. Item capacity is validated before the non-yielding Bells/inventory/claim-state mutation, preventing a repeated claim after a partial grant.
 - `WorldBuilder` builds per-habitat geometry and restores saved plot plant visuals and basic growth/water state from the loaded session. Full upgrade effects and runtime Roblox restoration remain unverified.
 - `CreatureManager` scopes runtime instances and movement to each player's habitat and restores discovered creature types from the session; engine lifecycle and multiplayer isolation remain unverified.
-- No TestEZ runner, Roblox Studio/engine, multiplayer, or DataStore integration test has been executed for the current changes. The cycle-5 independent code review of the cooldown rollback repair reported no findings, but QA did not return a trustworthy decision. Current static checks pass. The generated `.rbxl` is only a Rojo build artifact.
+- The current quest changes have not received independent pipeline review/QA. No TestEZ runner, Roblox Studio/engine, multiplayer, or DataStore integration test has been executed. Current static checks pass; the generated `.rbxl` is only a Rojo build artifact.
 
 Earlier run notes below are historical. The source currently uses `PlayerDataStoreV1`; prior documentation referring to `PocketHabitat_v2_PlayerData` did not match the implementation and must not be used to infer a second store or migration.
 

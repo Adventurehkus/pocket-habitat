@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared:WaitForChild("Constants"))
 local EconomyRules = require(Shared:WaitForChild("EconomyRules"))
+local QuestRules = require(Shared:WaitForChild("QuestRules"))
 local RemoteEvents = require(Shared:WaitForChild("RemoteEvents"))
 local DataStoreManager = require(script.Parent:WaitForChild("DataStoreManager"))
 
@@ -103,6 +104,9 @@ function EconomyManager.purchaseUpgrade(player: Player, upgradeId: any): (boolea
     end
 
     data.upgrades[upgradeId] = currentLevel + 1
+    if not QuestRules.setProgress(data.questProgress, "upgrade", upgradeId, currentLevel + 1) then
+        warn("Failed to record upgrade quest progress for user " .. tostring(player.UserId))
+    end
 
     -- If plot expansion, add a new plot
     if upgradeId == "plot_expansion" then

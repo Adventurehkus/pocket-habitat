@@ -44,14 +44,14 @@ Acceptance criteria:
 
 ## Milestone 2 — Personal habitats and multiplayer/data reliability
 
-**Status: SOURCE RECOVERY REVIEWED AND STATICALLY VERIFIED; QA DECISION AND RUNTIME VERIFICATION PENDING.**
+**Status: HISTORICAL SOURCE RECOVERY RESOLVED; GAMEPLAY RUNTIME VERIFICATION PENDING.**
 
-Habitat allocation and source-level ownership validation exist. Run #39 cycle 2 records independent review/QA and deterministic validation for the session/shutdown recovery fixes. The resource cooldown transaction helper is shared by production gathering and its rollback spec; the cycle-5 independent reviewer reported no findings, but its QA stage did not produce a trustworthy decision, and the cycle-8 review attempt returned no decision for the accumulated checkpoint. The gameplay source has not changed since the repair. Current Rojo, StyLua, Selene, and diff checks pass; Roblox runtime verification is pending, and TestEZ has not run.
+Habitat allocation and source-level ownership validation exist. The Run #40 cycle-1 recovery entry reports review, QA, and deterministic validation passed for the listed historical session/shutdown/cooldown repairs. Current source and static checks have been reverified. TestEZ, Roblox runtime, multiplayer, and DataStore integration testing remain outstanding. New quest progression changes are a separate unreviewed source slice and are not covered by the recovery resolution.
 
 This milestone establishes the defining Pocket Habitat experience: every player has an independent, persistent world.
 
 ### DataStore Manager and Session Lifecycle
-**Status: RECOVERY SOURCE REPAIRED IN CURRENT WORKTREE; INDEPENDENT REVIEW/QA AND RUNTIME VERIFICATION PENDING**
+**Status: HISTORICAL RECOVERY SOURCE REPAIRED AND REVIEW/QA REPORTED PASSED; RUNTIME VERIFICATION PENDING**
 
 The DataStoreManager module now implements:
 - [x] RemoteEvents import and usage is present in source.
@@ -64,10 +64,10 @@ The DataStoreManager module now implements:
 - [x] Gameplay defaults include the current four-plot/quest/economy/discovery schema; legacy `currency` and spawn-vector shapes are normalized.
 - [x] Character spawn data is periodically refreshed in memory, stored as numeric tables, and restores Euler orientation consistently.
 - [x] The client handles both session-load payloads and direct gameplay data updates.
-- [x] Run #39 cycle-2 review/QA confirms the recovery source repairs. (Does not cover later local resource-cooldown changes.)
+- [x] Run #40 cycle-1 recovery entry reports review/QA for the historical session/shutdown/cooldown source repairs.
 - [ ] Roblox DataStore/runtime tests verify contention, renewal, save/rejoin, failure handling, and shutdown.
 
-The preceding source-level recovery items have independent review/QA evidence in the Run #39 cycle-2 record. Runtime-specific acceptance remains:
+The preceding source-level recovery items have review/QA evidence recorded by the Run #40 cycle-1 recovery entry. Runtime-specific acceptance remains:
 - [ ] Real-time session contention and stale token rejection in production (Race-positive assertion test pending)
 - [ ] Persistent modified in-memory data across load/save cycles in production (Save/reload test pending)
 - [ ] Failed Get/Update/Set operations retain in-memory state in production (Persistence-failure simulation test pending)
@@ -113,12 +113,13 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 
 ## Milestone 3 — Progression integrity and content completion
 
-**Status: PARTIALLY IMPLEMENTED; BLOCKED BY CORE RELIABILITY WORK.**
+**Status: PARTIALLY IMPLEMENTED; quest progression source slice added, independent review and runtime testing pending.**
 
-- [ ] Make all quest definitions reachable and progression durable.
-- [ ] Replace inferred inventory-based progress with server-recorded action counters where appropriate.
-- [ ] Correct harvest, upgrade, plant, gathering, and creature objectives.
-- [ ] Make quest rewards idempotent.
+- [x] Define a single order that reaches all ten quests; old sessions with no current quest advance to the next incomplete quest. (Source implemented; TestEZ/Studio verification pending)
+- [x] Replace inventory/current-plot inference for gather, plant, water, and harvest objectives with persisted, server-recorded action counters. (Source implemented; TestEZ/Studio verification pending)
+- [x] Validate actual harvest progress, upgrade levels, and the specific Leafling discovery. (Source implemented; runtime pending)
+- [x] Award the Sun Petal seed needed for the Sun Petal quest; validate capacity and commit item, Bells, and claim state together. (Source implemented; runtime pending)
+- [x] Keep quest reward claims single-use; an incomplete inventory/award transaction does not mark the quest complete. (Source implemented; runtime/test verification pending)
 - [ ] Audit every plant definition through obtain → plant → grow → water → harvest → reward → quest → persistence.
 - [ ] Implement distinct, habitat-scoped behavior for every released creature.
 - [ ] Ensure every purchasable upgrade has a real effect and restored world state.
@@ -168,12 +169,13 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Obtain a trustworthy independent QA decision for the cooldown transaction repair, then execute TestEZ with a compatible runner. Afterward verify the resource-cooldown slice with two clients, and test spawn/respawn, DataStore save/rejoin/contention, and shutdown in Roblox Studio. The Run #39 cycle-2 session/shutdown fixes received review/QA; the cycle-5 code review of the cooldown repair reported no findings, but no trustworthy QA decision was returned. Cycle 8 changed no gameplay source; the repair remains unchanged. TestEZ and all Roblox runtime checks remain outstanding.
+**Immediate priority:** Obtain independent pipeline review/QA for the current quest-progression slice and execute focused TestEZ specs in a compatible runner. Then verify quest progression, independent gathering, habitat isolation, save/rejoin, lease contention, and shutdown in Roblox Studio. Historical Run #38/39 recovery source fixes are resolved; current gameplay runtime and TestEZ execution remain outstanding.
 
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
 - Scope CreatureManager to each player's habitat (per-habitat Creatures folder, distinct creature models, bounded movement, restoration from discovery data, cleanup on leave)
 - Persist each player's resource cooldowns in their validated save data and throttle gather requests
 - Reserve and roll back gather cooldowns through production logic shared with focused TestEZ cases (execution pending)
+- Record all quest actions in backward-compatible player data; restore the full ten-quest sequence and validate real harvest, upgrade, and discovery objectives
 
 Do not mark persistence or Milestone 2 complete while runtime verification is outstanding. Static CI gates are green, but runtime release readiness requires Roblox Studio/multiplayer/DataStore testing. Consult docs/PROJECT_STATE.md for current facts and docs/AUTONOMOUS_RECOVERY.md for the explicit runtime gaps checklist.

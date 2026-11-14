@@ -5,6 +5,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 
 local Constants = require(Shared:WaitForChild("Constants"))
 local PlantRules = require(Shared:WaitForChild("PlantRules"))
+local QuestRules = require(Shared:WaitForChild("QuestRules"))
 local RemoteEvents = require(Shared:WaitForChild("RemoteEvents"))
 
 local DataStoreManager = require(script.Parent:WaitForChild("DataStoreManager"))
@@ -48,6 +49,9 @@ local function plantSeed(player: Player, data: any, plan: any): (boolean, string
     plot.waterCount = 0
     plot.stage = 1
 
+    if not QuestRules.recordProgress(data.questProgress, "plant", seedId, 1) then
+        warn("Failed to record planting quest progress for user " .. tostring(player.UserId))
+    end
     CreatureManager.checkDiscoveries(player)
 
     -- Use actual plot Instance position for effects
@@ -82,6 +86,9 @@ local function waterPlant(player: Player, data: any, plan: any): (boolean, strin
         plot.stage = 2
     end
 
+    if not QuestRules.recordProgress(data.questProgress, "water", nil, 1) then
+        warn("Failed to record watering quest progress for user " .. tostring(player.UserId))
+    end
     CreatureManager.checkDiscoveries(player)
 
     -- Use actual plot Instance position for effects
@@ -119,6 +126,9 @@ local function harvestPlant(player: Player, data: any, plan: any): (boolean, str
     plot.waterCount = 0
     plot.stage = 0
 
+    if not QuestRules.recordProgress(data.questProgress, "harvest", reward.itemId, rewardQty) then
+        warn("Failed to record harvest quest progress for user " .. tostring(player.UserId))
+    end
     -- Use actual plot Instance position for effects
     local plotPosition = plan.plotInstance and plan.plotInstance.Position
         or getPlotPosition(plan.plotIndex)

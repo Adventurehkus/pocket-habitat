@@ -13,6 +13,7 @@ export type PlayerData = {
     inventory: { [ItemId]: number },
     questsCompleted: { [string]: boolean },
     currentQuest: string?,
+    questProgress: { [string]: number },
     creaturesDiscovered: { [string]: boolean },
     upgrades: { [string]: number },
     plots: {

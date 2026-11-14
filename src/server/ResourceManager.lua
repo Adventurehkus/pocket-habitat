@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Constants"))
 local ResourceRules =
     require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ResourceRules"))
+local QuestRules = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("QuestRules"))
 local RemoteEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RemoteEvents"))
 local EconomyManager = require(script.Parent:WaitForChild("EconomyManager"))
 local CreatureManager = require(script.Parent:WaitForChild("CreatureManager"))
@@ -151,6 +152,17 @@ function ResourceManager.init()
             return false, grantError or "Gather failed"
         end
 
+        if
+            not QuestRules.recordProgress(
+                sessionData.questProgress,
+                "gather",
+                rewardItem,
+                rewardAmount
+            )
+        then
+            warn("Failed to record gather quest progress for user " .. tostring(player.UserId))
+        end
+        RemoteEvents.SyncData:FireClient(player, sessionData)
         CreatureManager.checkDiscoveries(player)
 
         RemoteEvents.GatherEffect:FireClient(player, nodePosition, rewardItem, rewardAmount)
