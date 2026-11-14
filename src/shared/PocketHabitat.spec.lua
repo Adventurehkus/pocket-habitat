@@ -196,6 +196,81 @@ return function()
             expect(malformedPlan).to.equal(nil)
         end)
 
+        it("uses one dewdrop per watering before the watering-can upgrade", function()
+            local data = makeData()
+            local plot = data.plots[1]
+            plot.seedId = BERRY_SEED
+            plot.plantedTime = NOW - 5
+            plot.waterCount = 0
+            data.inventory[DEWDROP] = 1
+
+            local firstWater = validateInteraction(data, 1, "water", nil, NOW)
+            expect(firstWater.dewdropCost).to.equal(1)
+
+            plot.waterCount = 1
+            data.inventory[DEWDROP] = 0
+            local secondWater, reason = validateInteraction(data, 1, "water", nil, NOW)
+            expect(secondWater).to.equal(nil)
+            expect(reason).to.equal("No dewdrops available")
+        end)
+
+        it("charges every second watering at can level two", function()
+            local data = makeData()
+            local plot = data.plots[1]
+            plot.seedId = BERRY_SEED
+            plot.plantedTime = NOW - 5
+            data.upgrades = { watering_can = 2 }
+            data.inventory[DEWDROP] = 1
+
+            local firstWater = validateInteraction(data, 1, "water", nil, NOW)
+            expect(firstWater.dewdropCost).to.equal(1)
+
+            plot.waterCount = 1
+            data.inventory[DEWDROP] = 0
+            local secondWater = validateInteraction(data, 1, "water", nil, NOW)
+            expect(secondWater.dewdropCost).to.equal(0)
+        end)
+
+        it("charges every third watering at can level three", function()
+            local data = makeData()
+            local plot = data.plots[1]
+            plot.seedId = BERRY_SEED
+            plot.plantedTime = NOW - 5
+            data.upgrades = { watering_can = 3 }
+            data.inventory[DEWDROP] = 1
+
+            expect(validateInteraction(data, 1, "water", nil, NOW).dewdropCost).to.equal(1)
+            plot.waterCount = 1
+            data.inventory[DEWDROP] = 0
+            expect(validateInteraction(data, 1, "water", nil, NOW).dewdropCost).to.equal(0)
+            plot.waterCount = 2
+            expect(validateInteraction(data, 1, "water", nil, NOW).dewdropCost).to.equal(0)
+        end)
+
+        it("rejects an invalid watering-can level", function()
+            local data = makeData()
+            local plot = data.plots[1]
+            plot.seedId = BERRY_SEED
+            plot.plantedTime = NOW - 5
+            data.upgrades = { watering_can = Constants.UPGRADES.watering_can.maxLevel + 1 }
+
+            local plan, reason = validateInteraction(data, 1, "water", nil, NOW)
+            expect(plan).to.equal(nil)
+            expect(reason).to.equal("Invalid watering can upgrade")
+        end)
+
+        it(
+            "rejects malformed upgrade data instead of treating it as the base watering can",
+            function()
+                local data = makeData()
+                data.upgrades = false
+
+                local plan, reason = validateInteraction(data, 1, "water", nil, NOW)
+                expect(plan).to.equal(nil)
+                expect(reason).to.equal("Invalid player data")
+            end
+        )
+
         it(
             "requires both elapsed growth time and the complete water requirement to harvest",
             function()

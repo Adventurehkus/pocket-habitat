@@ -71,6 +71,18 @@ The current checkout is `c6fe7a9bf0a8b5974549949f876043f860f6cbed`; it contains 
 
 A fresh direct inspection of `EconomyManager`, `DataStoreManager`, `HabitatRules`, and `WorldBuilder` confirmed expansion state is validated before plot construction, Bells/upgrades/progress commit only after successful plot creation, and supported locked plot data is preserved/restored rather than discarded. This source inspection does not replace independent pipeline review/QA or runtime testing.
 
+## Watering-can upgrade vertical slice — 2026-11-14
+
+The server now permits the watering-can purchase, and the production `PlantRules` interaction plan computes dewdrop cost from the player's saved upgrade level and the plot's current water count. `PlantManager` consumes only the validated cost and confirms free water actions to the player. Focused TestEZ specifications cover base cost, level-2/3 cadence, and invalid upgrade data.
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 75,838 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS on the final source and documentation diff.
+- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed.
+- Roblox Studio/server, multiplayer, purchase, and save/rejoin tests: NOT RUN.
+- Independent pipeline review/QA: NOT confirmed for this follow-up.
+
 ## Current recovery verification — 2026-11-14
 
 The Run #40 cycle-1 recovery entry reports independent review, QA, and deterministic validation passed for the historical source repairs. This continuation resolved the Run #40 cycle-2 source findings: upgrade progress is bounded against upgrade definitions, and the resource reward flow emits its client data sync only after quest progress is recorded. The malformed-progress report item was reviewed and is non-actionable: nil is initialized for legacy saves, while malformed data fails closed. `docs/AUTONOMOUS_RECOVERY.md` marks the listed source findings RESOLVED. The latest source edits have not received separate pipeline review/QA.

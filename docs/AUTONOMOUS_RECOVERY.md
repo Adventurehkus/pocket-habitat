@@ -2,7 +2,7 @@
 
 RECOVERY_STATUS: OPEN
 
-This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 cycle-2 quest-progress findings. All automation-resolvable source findings are fixed or adjudicated as non-actionable. The latest recovery pass bounds upgrade progress to defined upgrade levels and delays the resource-data sync until quest progress has been recorded. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing. Recovery remains OPEN because the cycle-6 gameplay-source follow-up has no confirmed independent pipeline review/QA decision.
+This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 quest-progress and plot-state findings. All recorded automation-resolvable source findings are fixed or adjudicated as non-actionable. The latest gameplay follow-up also implements the watering-can effect with focused production-rule specs. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing. Recovery remains OPEN because the accumulated follow-up has no confirmed independent pipeline review/QA decision.
 
 ## 2026-11-14 follow-up — verify current recovery source
 
@@ -22,6 +22,20 @@ Checks actually rerun:
 - Independent pipeline review/QA: NOT confirmed; authenticated GitHub Actions access is unavailable in this environment.
 
 No source-level finding from the recorded cycle-2, cycle-5, or cycle-6 reports remains unfixed in the inspected code. Keep recovery OPEN until the required independent review/QA evidence is available. Runtime and TestEZ gaps remain explicitly unverified.
+
+## 2026-11-14 follow-up — watering-can upgrade effect
+
+The highest-priority remaining source task after the recorded plot/quest repairs was an effect for the configured watering-can upgrade. The server now allows its purchase, `PlantRules` computes cost from the validated upgrade level and persisted plot water count, and `PlantManager` consumes only that planned amount. Level 1 charges every watering, level 2 every second watering, and level 3 every third watering. A client action exposes the purchase alongside the existing upgrade action. Production-rule specs cover each cost cadence and malformed upgrade data.
+
+Verification after this source change:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 75,838 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS on the final source and documentation diff.
+- TestEZ, Roblox Studio/server, multiplayer, purchase, and save/rejoin tests: NOT RUN.
+- Independent pipeline review/QA: NOT available in this workspace; do not treat source inspection or static checks as approval.
+
+The watering-can source change does not clear the outstanding independent review/QA requirement. Keep `RECOVERY_STATUS: OPEN`; runtime and TestEZ gaps remain explicitly unverified.
 
 ## 2026-11-14 follow-up — plot save recovery and purchase ordering
 
@@ -2376,3 +2390,140 @@ index 6a4884f..8f7332c 100644
  ## Current recovery verification — 2026-11-14
  
  The Run #40 cycle-1 recovery entry reports independent review, QA, and deterministic validation passed for the historical source repairs. This continuation resolved the Run #40 cycle-2 source findings: upgrade progress is bounded against upgrade definitions, and the resource reward flow emits its client data sync only after quest progress is recorded. The malformed-progress report item was reviewed and is non-actionable: nil is initialized for legacy saves, while malformed data fails closed. `docs/AUTONOMOUS_RECOVERY.md` marks the listed source findings RESOLVED. The latest source edits have not received separate pipeline review/QA.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 40
+- Cycle: 9
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 9 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-implementation.diff
+
+         return nil, "Invalid player data"
+     end
+ 
+@@ -150,7 +156,21 @@ local function validateWater(data: any, plot: any, plotIndex: number): (Interact
+         return nil, "Already fully watered"
+     end
+ 
+-    if not isIntegerAtLeast(data.inventory[Constants.RESOURCES.DEWDROP], 1) then
++    local upgrades = data.upgrades or {}
++    local wateringCanLevel = upgrades.watering_can or 1
++    if
++        not isIntegerAtLeast(wateringCanLevel, 1)
++        or wateringCanLevel > Constants.UPGRADES.watering_can.maxLevel
++    then
++        return nil, "Invalid watering can upgrade"
++    end
++
++    local dewdropCost = math.ceil((plot.waterCount + 1) / wateringCanLevel)
++        - math.ceil(plot.waterCount / wateringCanLevel)
++    if
++        dewdropCost > 0
++        and not isIntegerAtLeast(data.inventory[Constants.RESOURCES.DEWDROP], dewdropCost)
++    then
+         return nil, "No dewdrops available"
+     end
+ 
+@@ -159,6 +179,7 @@ local function validateWater(data: any, plot: any, plotIndex: number): (Interact
+         plot = plot,
+         plotIndex = plotIndex,
+         plantDef = plantDef,
++        dewdropCost = dewdropCost,
+     },
+         nil
+ end
+diff --git a/src/shared/PocketHabitat.spec.lua b/src/shared/PocketHabitat.spec.lua
+index c859a2e..271b7e9 100644
+--- a/src/shared/PocketHabitat.spec.lua
++++ b/src/shared/PocketHabitat.spec.lua
+@@ -196,6 +196,81 @@ return function()
+             expect(malformedPlan).to.equal(nil)
+         end)
+ 
++        it("uses one dewdrop per watering before the watering-can upgrade", function()
++            local data = makeData()
++            local plot = data.plots[1]
++            plot.seedId = BERRY_SEED
++            plot.plantedTime = NOW - 5
++            plot.waterCount = 0
++            data.inventory[DEWDROP] = 1
++
++            local firstWater = validateInteraction(data, 1, "water", nil, NOW)
++            expect(firstWater.dewdropCost).to.equal(1)
++
++            plot.waterCount = 1
++            data.inventory[DEWDROP] = 0
++            local secondWater, reason = validateInteraction(data, 1, "water", nil, NOW)
++            expect(secondWater).to.equal(nil)
++            expect(reason).to.equal("No dewdrops available")
++        end)
++
++        it("charges every second watering at can level two", function()
++            local data = makeData()
++            local plot = data.plots[1]
++            plot.seedId = BERRY_SEED
++            plot.plantedTime = NOW - 5
++            data.upgrades = { watering_can = 2 }
++            data.inventory[DEWDROP] = 1
++
++            local firstWater = validateInteraction(data, 1, "water", nil, NOW)
++            expect(firstWater.dewdropCost).to.equal(1)
++
++            plot.waterCount = 1
++            data.inventory[DEWDROP] = 0
++            local secondWater = validateInteraction(data, 1, "water", nil, NOW)
++            expect(secondWater.dewdropCost).to.equal(0)
++        end)
++
++        it("charges every third watering at can level three", function()
++            local data = makeData()
++            local plot = data.plots[1]
++            plot.seedId = BERRY_SEED
++            plot.plantedTime = NOW - 5
++            data.upgrades = { watering_can = 3 }
++            data.inventory[DEWDROP] = 1
++
++            expect(validateInteraction(data, 1, "water", nil, NOW).dewdropCost).to.equal(1)
++            plot.waterCount = 1
++            data.inventory[DEWDROP] = 0
++            expect(validateInteraction(data, 1, "water", nil, NOW).dewdropCost).to.equal(0)
++            plot.waterCount = 2
++            expect(validateInteraction(data, 1, "water", nil, NOW).dewdropCost).to.equal(0)
++        end)
++
++        it("rejects an invalid watering-can level", function()
++            local data = makeData()
++            local plot = data.plots[1]
++            plot.seedId = BERRY_SEED
++            plot.plantedTime = NOW - 5
++            data.upgrades = { watering_can = Constants.UPGRADES.watering_can.maxLevel + 1 }
++
++            local plan, reason = validateInteraction(data, 1, "water", nil, NOW)
++            expect(plan).to.equal(nil)
++            expect(reason).to.equal("Invalid watering can upgrade")
++        end)
++
++        it(
++            "rejects malformed upgrade data instead of treating it as the base watering can",
++            function()
++                local data = makeData()
++                data.upgrades = false
++
++                local plan, reason = validateInteraction(data, 1, "water", nil, NOW)
++                expect(plan).to.equal(nil)
++                expect(reason).to.equal("Invalid player data")
++            end
++        )
++
+         it(
+             "requires both elapsed growth time and the complete water requirement to harvest",
+             function()

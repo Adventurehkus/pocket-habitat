@@ -98,7 +98,11 @@ function EconomyManager.purchaseUpgrade(player: Player, upgradeId: any): (boolea
     if not def then
         return false, "Invalid upgrade"
     end
-    if upgradeId ~= "plot_expansion" and upgradeId ~= "storage_expansion" then
+    if
+        upgradeId ~= "plot_expansion"
+        and upgradeId ~= "storage_expansion"
+        and upgradeId ~= "watering_can"
+    then
         return false, "Upgrade is not available yet"
     end
 

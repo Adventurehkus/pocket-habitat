@@ -74,7 +74,15 @@ local function waterPlant(player: Player, data: any, plan: any): (boolean, strin
         return false, "Invalid plant"
     end
 
-    if not EconomyManager.removeItem(player, Constants.RESOURCES.DEWDROP, 1) then
+    local dewdropCost = plan.dewdropCost
+    if type(dewdropCost) ~= "number" or dewdropCost < 0 or dewdropCost % 1 ~= 0 then
+        return false, "Invalid watering cost"
+    end
+
+    if
+        dewdropCost > 0
+        and not EconomyManager.removeItem(player, Constants.RESOURCES.DEWDROP, dewdropCost)
+    then
         return false, "Failed to use dewdrop"
     end
 
@@ -96,7 +104,10 @@ local function waterPlant(player: Player, data: any, plan: any): (boolean, strin
         or getPlotPosition(plan.plotIndex)
     RemoteEvents.WaterEffect:FireClient(player, plotPosition, plot.waterCount, plantDef.waterNeeded)
 
-    syncAndNotify(player, data, "Watered plant!")
+    local message = if dewdropCost == 0
+        then "Watered plant without using a dewdrop!"
+        else "Watered plant!"
+    syncAndNotify(player, data, message)
     return true, "Success"
 end
 

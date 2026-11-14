@@ -125,10 +125,11 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 - [x] Publish resource inventory and quest progress after both mutations are applied, without an intermediate inventory-only sync. (Source implemented; Roblox client behavior unverified)
 - [x] Wire the purchase remote to the server manager; plot expansion creates a usable owned plot and restores it from the validated session, while storage expansion changes inventory capacity. (Source implemented; runtime-unverified)
 - [x] Keep plot purchases from charging or advancing progression when plot creation fails; prevalidate quest progress and commit after successful plot creation. (Source implemented; runtime-unverified)
-- [x] Reject purchases of watering-can and decorative-tile upgrades until their effects are implemented.
+- [x] Implement the watering-can dewdrop-efficiency effect and enable its server-validated purchase; TestEZ and gameplay runtime verification remain pending.
+- [x] Keep decorative-tile purchases disabled until the visual effect exists.
 - [ ] Audit every plant definition through obtain → plant → grow → water → harvest → reward → quest → persistence.
 - [ ] Implement distinct, habitat-scoped behavior for every released creature.
-- [ ] Implement and restore the watering-can and decorative-tile upgrade effects before making them purchasable.
+- [ ] Implement and restore the decorative-tile effect before making it purchasable.
 - [ ] Add rare/special resources only after normal resource isolation is reliable.
 - [ ] Preserve save compatibility for every added progression field.
 
@@ -175,7 +176,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Obtain independent review/QA of the latest recovery follow-up, then execute the production-backed TestEZ specs and verify quest progression, plot-expansion/restoration, independent gathering, habitat isolation, save/rejoin, lease contention, and shutdown in Roblox Studio. This environment has no compatible TestEZ runner or Roblox runtime. After those checks, implement real watering-can and decorative-tile effects before enabling their purchases.
+**Immediate priority:** Obtain independent review/QA of the accumulated recovery and watering-can source changes, then execute production-backed TestEZ specs and verify quest progression, plot-expansion/restoration, watering efficiency, independent gathering, habitat isolation, save/rejoin, lease contention, and shutdown in Roblox Studio. This environment has no compatible TestEZ runner or Roblox runtime. The watering-can effect is implemented in source; the decorative-tile effect remains the next upgrade integration task.
 
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
@@ -183,5 +184,6 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 - Persist each player's resource cooldowns in their validated save data and throttle gather requests
 - Reserve and roll back gather cooldowns through production logic shared with focused TestEZ cases (execution pending)
 - Record all quest actions in backward-compatible player data; restore the full ten-quest sequence and validate real harvest, upgrade, and discovery objectives
+- Apply the purchased watering-can level to server-validated dewdrop consumption; source specs added, execution pending
 
 Do not mark persistence or Milestone 2 complete while runtime verification is outstanding. Static CI gates are green, but runtime release readiness requires Roblox Studio/multiplayer/DataStore testing. Consult docs/PROJECT_STATE.md for current facts and docs/AUTONOMOUS_RECOVERY.md for the explicit runtime gaps checklist.

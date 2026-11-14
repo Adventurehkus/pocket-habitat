@@ -285,6 +285,11 @@ createActionButton("⬆️ Buy Plot Expansion", function()
     print("Upgrade result:", success, res)
 end)
 
+createActionButton("💧 Buy Watering Can Upgrade", function()
+    local success, res = RemoteEvents.PurchaseUpgrade:InvokeServer("watering_can")
+    print("Upgrade result:", success, res)
+end)
+
 createActionButton("⭐ Claim Current Quest", function()
     local success, res = RemoteEvents.ClaimQuest:InvokeServer("q1_wood", clientSessionToken)
     if not success then

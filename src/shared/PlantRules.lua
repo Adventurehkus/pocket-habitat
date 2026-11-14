@@ -20,6 +20,7 @@ type InteractionPlan = {
     seedId: string?,
     plantDef: any?,
     automatic: boolean?,
+    dewdropCost: number?,
 }
 
 local function isFiniteNumber(value: any): boolean
@@ -31,7 +32,12 @@ local function isIntegerAtLeast(value: any, minimum: number): boolean
 end
 
 local function getPlot(data: any, plotIndex: any): (any?, string?)
-    if type(data) ~= "table" or type(data.plots) ~= "table" or type(data.inventory) ~= "table" then
+    if
+        type(data) ~= "table"
+        or type(data.plots) ~= "table"
+        or type(data.inventory) ~= "table"
+        or (data.upgrades ~= nil and type(data.upgrades) ~= "table")
+    then
         return nil, "Invalid player data"
     end
 
@@ -150,7 +156,21 @@ local function validateWater(data: any, plot: any, plotIndex: number): (Interact
         return nil, "Already fully watered"
     end
 
-    if not isIntegerAtLeast(data.inventory[Constants.RESOURCES.DEWDROP], 1) then
+    local upgrades = data.upgrades or {}
+    local wateringCanLevel = upgrades.watering_can or 1
+    if
+        not isIntegerAtLeast(wateringCanLevel, 1)
+        or wateringCanLevel > Constants.UPGRADES.watering_can.maxLevel
+    then
+        return nil, "Invalid watering can upgrade"
+    end
+
+    local dewdropCost = math.ceil((plot.waterCount + 1) / wateringCanLevel)
+        - math.ceil(plot.waterCount / wateringCanLevel)
+    if
+        dewdropCost > 0
+        and not isIntegerAtLeast(data.inventory[Constants.RESOURCES.DEWDROP], dewdropCost)
+    then
         return nil, "No dewdrops available"
     end
 
@@ -159,6 +179,7 @@ local function validateWater(data: any, plot: any, plotIndex: number): (Interact
         plot = plot,
         plotIndex = plotIndex,
         plantDef = plantDef,
+        dewdropCost = dewdropCost,
     },
         nil
 end
