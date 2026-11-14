@@ -2012,6 +2012,15 @@ jobs:
               AUTO_CONTINUE_REASON="models ran but failed to produce source changes; automatic retry would risk a no-progress loop"
             fi
           fi
+
+          # A retryable run-local limit is a completed handoff, not a terminal
+          # pipeline failure. The follow-up dispatch step below must still
+          # succeed; a failed or skipped persistence/dispatch remains a failure.
+          if [[ "$AUTO_CONTINUE" == "true" && "$PIPELINE_EXIT" -ne 0 ]]; then
+            PIPELINE_EXIT=0
+            echo "::notice::This run is handing off to a fresh continuation. The full development task is not complete yet."
+          fi
+
           echo "Autonomous cycles completed: $AUTONOMOUS_ROUNDS_COMPLETED"
           echo "Total model calls: $TOTAL_MODEL_CALLS/$MAX_TOTAL_MODEL_CALLS"
           echo "Autonomous stop reason: $AUTONOMOUS_STOP_REASON"
@@ -2132,6 +2141,7 @@ jobs:
           retention-days: 14
 
       - name: Dispatch fresh continuation run
+        id: dispatch
         if: always() && !cancelled() && github.run_attempt == 1 && steps.pipeline.outputs.auto_continue == 'true' && steps.persist.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -2151,3 +2161,10 @@ jobs:
             --raw-field "chain_started_at=$CHAIN_STARTED_AT" \
             --raw-field "exhausted_quota_pools=$EXHAUSTED_QUOTA_POOLS"
           echo "::notice::Continuation run $NEXT_CONTINUATION_COUNT was dispatched. It will start after the current run releases the workflow concurrency lock."
+
+      - name: Verify continuation handoff
+        if: always() && github.run_attempt == 1 && steps.pipeline.outputs.auto_continue == 'true' && steps.dispatch.outcome != 'success'
+        shell: bash
+        run: |
+          echo "::error::A continuation was required, but persistence or dispatch did not complete successfully."
+          exit 1
