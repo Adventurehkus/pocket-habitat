@@ -56,6 +56,22 @@ Checks actually run against the current worktree after the quest changes:
 
 These deterministic checks do not substitute for TestEZ or runtime verification. Quest specs cover cumulative action progress, target-specific discoveries, upgrade maximum bounds, actual upgrade levels, invalid progress, all ten quest definitions, harvest rejection, and single-use/capacity-safe Sun Petal seed rewards; their presence does not mean they executed.
 
+## Current implementation follow-up — 2026-11-14
+
+Source inspection found that `DataStoreManager` referenced `Constants` without requiring it, and that the purchase remote had no server handler. Plot expansion also changed saved data without constructing a plot. The import and handler are now wired; plot expansion creates a prompt-enabled plot in the owner's habitat, its saved state is restored on join, and `HabitatRules` validates plot access from the saved upgrade level. Saved upgrade IDs/levels and plot bounds are checked during normalization. Purchases for the still-effectless watering-can and decorative-tile upgrades now fail closed; storage expansion remains functional through the inventory-capacity rule.
+
+Checks actually run after these changes:
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 73,522 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed (`run-in-roblox`, `luau`, `lune`, `lua`, and `luajit` are unavailable).
+- Roblox Studio/server, multiplayer, DataStore, save/rejoin, and manual tests: NOT RUN.
+- Independent review/QA of this cycle's source changes: NOT RUN.
+
+New production-rule specs cover unlocked plot counts, invalid expansion levels, and rejection of an unowned/locked plot index. Their presence does not mean they executed.
+
 ## Studio testing procedure for habitat/multiplayer
 
 Since automated execution of the Roblox engine or Studio is not available in this environment, perform the following tests in Roblox Studio to verify Milestone 2 functionality:

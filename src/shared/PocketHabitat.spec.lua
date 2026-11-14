@@ -8,6 +8,7 @@ local PlantRules = require(Shared:WaitForChild("PlantRules"))
 local EconomyRules = require(Shared:WaitForChild("EconomyRules"))
 local ResourceRules = require(Shared:WaitForChild("ResourceRules"))
 local QuestRules = require(Shared:WaitForChild("QuestRules"))
+local HabitatRules = require(Shared:WaitForChild("HabitatRules"))
 local CharacterSpawnData = require(Shared:WaitForChild("CharacterSpawnData"))
 
 local NOW = 10_000
@@ -64,6 +65,16 @@ return function()
 
         it("rejects plot indices that do not belong to the player's session", function()
             local plan, reason = validateInteraction(makeData(), 99, "plant", BERRY_SEED, NOW)
+
+            expect(plan).to.equal(nil)
+            expect(reason).to.equal("Invalid plot")
+        end)
+
+        it("rejects a saved plot index that is not unlocked by the player's upgrades", function()
+            local data = makeData()
+            data.plots[5] = { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 }
+
+            local plan, reason = validateInteraction(data, 5, "plant", BERRY_SEED, NOW)
 
             expect(plan).to.equal(nil)
             expect(reason).to.equal("Invalid plot")
@@ -255,6 +266,22 @@ return function()
             expect(ResourceRules.isValidCooldowns({ tree_1 = 1.5 })).to.equal(false)
             expect(ResourceRules.isValidCooldowns({ tree_1 = math.huge })).to.equal(false)
             expect(ResourceRules.isValidCooldowns({ tree_1 = -1 })).to.equal(false)
+        end)
+    end)
+    describe("HabitatRules — plot expansion", function()
+        it("unlocks one additional plot per purchased expansion level", function()
+            expect(HabitatRules.getPlotCount({})).to.equal(4)
+            expect(HabitatRules.getPlotCount({ plot_expansion = 2 })).to.equal(5)
+            expect(HabitatRules.getPlotCount({ plot_expansion = 4 })).to.equal(7)
+        end)
+
+        it("rejects malformed or out-of-range expansion levels and plot indices", function()
+            expect(HabitatRules.getPlotCount({ plot_expansion = 5 })).to.equal(nil)
+            expect(HabitatRules.getPlotCount({ plot_expansion = 1.5 })).to.equal(nil)
+            expect(HabitatRules.getPlotCount({ plot_expansion = false })).to.equal(nil)
+            expect(HabitatRules.isPlotIndexUnlocked({}, 4)).to.equal(true)
+            expect(HabitatRules.isPlotIndexUnlocked({}, 5)).to.equal(false)
+            expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 2 }, 5)).to.equal(true)
         end)
     end)
     describe("QuestRules — server-recorded action progress", function()

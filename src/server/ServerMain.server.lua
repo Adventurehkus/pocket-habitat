@@ -11,6 +11,7 @@ local ResourceManager = require(script.Parent.ResourceManager)
 local PlantManager = require(script.Parent.PlantManager)
 local QuestManager = require(script.Parent.QuestManager)
 local CreatureManager = require(script.Parent.CreatureManager)
+local EconomyManager = require(script.Parent.EconomyManager)
 
 WorldBuilder.init()
 HabitatManager.init()
@@ -18,6 +19,7 @@ DataStoreManager.init()
 ResourceManager.init()
 PlantManager.init()
 QuestManager.init()
+EconomyManager.init()
 CreatureManager.checkDiscoveries = CreatureManager.checkDiscoveries -- Ensure function is accessible
 
 local initializingPlayers: { [Player]: boolean } = {}

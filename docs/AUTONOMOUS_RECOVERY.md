@@ -1,6 +1,6 @@
 # Pocket Habitat — Autonomous Recovery Record
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
 
 This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 cycle-2 quest-progress findings. All automation-resolvable source findings are fixed or adjudicated as non-actionable. The latest recovery pass bounds upgrade progress to defined upgrade levels and delays the resource-data sync until quest progress has been recorded. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing.
 
@@ -2013,3 +2013,46 @@ The new quest progression system introduces robust server-authoritative tracking
 - TestEZ, Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown tests were not run. No separate pipeline review/QA decision is recorded for these latest edits.
 
 The source-level items in this recovery report are resolved. Keep all engine/runtime and TestEZ gaps explicitly unverified.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 40
+- Cycle: 5
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+The independent reviewer found actionable defects, but no repair model completed a fix in this cycle. Resolve the attached findings before unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-review-62.log
+
+[0m
+> reviewer · gemini-3.1-flash-lite
+REVIEW_FINDINGS: YES
+
+### Actionable Findings
+
+#### 1. CRITICAL: EconomyManager plot data desync risk
+*   **File:** `src/server/EconomyManager.lua`
+*   **Evidence:** In `purchaseUpgrade`, the `data.bells` and `data.upgrades` mutations occur *before* the check for `WorldBuilder.addGardenPlot` success (although `addGardenPlot` is called first, the state updates are not atomic/transactional). More importantly, if `WorldBuilder.addGardenPlot` fails for any reason after Bells have been deducted, the server-side state of `data.bells` is permanently decremented, but the persistent plot data and the UI/client state will never be updated.
+*   **Impact:** If plot addition fails (e.g., unexpected object destruction), the player loses currency without gaining the expansion, leading to a broken save state and loss of premium/progression currency.
+*   **Correction:** Move the `data.bells` deduction and `data.upgrades` update *after* the successful `WorldBuilder.addGardenPlot` and necessary state synchronization, or implement a full rollback if the plot construction fails.
+
+#### 2. MEDIUM: Potential DataStoreManager plot-index leak
+*   **File:** `src/server/DataStoreManager.lua`
+*   **Evidence:** In `normalizeSessionData` (Lines 293–299), if `index > unlockedPlotCount`, the function returns `nil, "Plot exceeds purchased expansion"`. This prevents loading if a player's plot data index somehow exceeds the calculated `unlockedPlotCount`.
+*   **Impact:** A player could be locked out of their account if their `plots` table contains index entries higher than their current upgrade level (e.g., due to a previous bug or race condition).
+*   **Correction:** Instead of failing closed, prune the excess plot data entries (`data.plots[index] = nil`) to restore the session to a valid, reachable state.
+
+#### 3. LOW: Missing Constants import in DataStoreManager
+*   **File:** `src/server/DataStoreManager.lua`
+*   **Evidence:** While the diff adds `Constants`, it is used inside `normalizeSessionData` but not explicitly validated for initialization order.
+*   **Impact:** If `DataStoreManager.init` is called before `Constants` is fully loaded in the `ReplicatedStorage` hierarchy (though unlikely given the current architecture), it could cause a runtime crash on join.
+*   **Correction:** Ensure `Constants` is fully loaded before access or use a more robust `WaitForChild` pattern.
+
+### Summary
+The cycle successfully implemented the requested infrastructure for plot expansions and corrected the missing `Constants` reference. However, the `EconomyManager` purchase logic is not currently transactional; a failure during habitat modification will result in currency loss. The `DataStoreManager` should be updated to prune corrupted or excess plot data rather than rejecting the entire player session. TestEZ specs were added, but as noted in the project documentation, they remain unexecuted in this environment.

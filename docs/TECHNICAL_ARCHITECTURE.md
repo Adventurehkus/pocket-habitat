@@ -30,6 +30,7 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 - src/shared/PlantRules.lua — production plant/plot interaction validation.
 - src/shared/EconomyRules.lua — production inventory and capacity validation.
 - src/shared/QuestRules.lua — validated player quest-action counters, objective progress, and quest ordering.
+- src/shared/HabitatRules.lua — expansion-level validation and unlocked plot counts shared by persistence, habitat construction, and plant interaction rules.
 - src/shared/PocketHabitat.spec.lua — TestEZ specifications for shared production rules.
 - src/shared/Tests/CharacterSpawn.spec.lua — TestEZ specifications for spawn defaults and coordinate serialization.
 
@@ -64,8 +65,10 @@ Current source facts:
 - `QuestRules` persists validated action counters in the player session. Gathering, planting, watering, harvesting, discovery, and upgrades record progress only after server-authoritative actions; quest claims validate those counters or the authoritative discovered-creature/upgrade state. `Constants.QUEST_ORDER` includes all ten quests, and session normalization advances legacy players with a nil/completed current quest to their next incomplete quest. The first-creature quest grants the seed required by the later Sun Petal quest. Item capacity is validated before the non-yielding Bells/inventory/claim-state mutation, preventing a repeated claim after a partial grant.
 - Upgrade quest-progress values are restricted to defined upgrade IDs and their configured maximum levels, both when loading stored progress and when mutating it. Resource gathering suppresses the inventory helper's intermediate sync and sends the client snapshot only after quest progress is recorded, keeping the visible inventory/progression update coherent.
 - `WorldBuilder` builds per-habitat geometry and restores saved plot plant visuals and basic growth/water state from the loaded session. Full upgrade effects and runtime Roblox restoration remain unverified.
+- `EconomyManager.init()` owns the `PurchaseUpgrade` RemoteFunction handler. Plot expansion adds a prompt-enabled plot to the player's registered habitat and saves its empty plot state; habitat construction restores the full plot count derived from the validated expansion level. `PlantRules` rejects indices beyond that level. Storage expansion changes inventory capacity. Watering-can and decorative-tile purchases fail closed as unavailable until their effects exist.
+- `DataStoreManager` now imports the shared constants used by default-data and quest normalization. It validates saved upgrade IDs/levels against definitions and fills missing plot records for legitimately purchased expansions; unknown upgrades or extra locked plot entries fail closed instead of being silently dropped.
 - `CreatureManager` scopes runtime instances and movement to each player's habitat and restores discovered creature types from the session; engine lifecycle and multiplayer isolation remain unverified.
-- The latest quest recovery edits have not received a separate pipeline review/QA decision. No TestEZ runner, Roblox Studio/engine, multiplayer, or DataStore integration test has been executed. Current static checks pass; the generated `.rbxl` is only a Rojo build artifact.
+- The latest quest and plot-expansion edits have not received a separate pipeline review/QA decision. No TestEZ runner, Roblox Studio/engine, multiplayer, or DataStore integration test has been executed. Current static checks pass; the generated `.rbxl` is only a Rojo build artifact.
 
 Earlier run notes below are historical. The source currently uses `PlayerDataStoreV1`; prior documentation referring to `PocketHabitat_v2_PlayerData` did not match the implementation and must not be used to infer a second store or migration.
 

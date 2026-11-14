@@ -4,9 +4,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared:WaitForChild("Constants"))
 local EconomyRules = require(Shared:WaitForChild("EconomyRules"))
+local HabitatRules = require(Shared:WaitForChild("HabitatRules"))
 local QuestRules = require(Shared:WaitForChild("QuestRules"))
 local RemoteEvents = require(Shared:WaitForChild("RemoteEvents"))
 local DataStoreManager = require(script.Parent:WaitForChild("DataStoreManager"))
+local HabitatManager = require(script.Parent:WaitForChild("HabitatManager"))
+local WorldBuilder = require(script.Parent:WaitForChild("WorldBuilder"))
 
 local EconomyManager = {}
 
@@ -95,6 +98,9 @@ function EconomyManager.purchaseUpgrade(player: Player, upgradeId: any): (boolea
     if not def then
         return false, "Invalid upgrade"
     end
+    if upgradeId ~= "plot_expansion" and upgradeId ~= "storage_expansion" then
+        return false, "Upgrade is not available yet"
+    end
 
     local currentLevel = data.upgrades[upgradeId] or 1
     if currentLevel >= def.maxLevel then
@@ -106,18 +112,30 @@ function EconomyManager.purchaseUpgrade(player: Player, upgradeId: any): (boolea
         return false, "Not enough Bells"
     end
 
-    if not EconomyManager.spendBells(player, cost) then
-        return false, "Transaction failed"
+    local newPlotIndex: number? = nil
+    if upgradeId == "plot_expansion" then
+        local currentPlotCount = HabitatRules.getPlotCount(data.upgrades)
+        if not currentPlotCount or #data.plots ~= currentPlotCount then
+            return false, "Habitat plot data is unavailable"
+        end
+
+        local habitat = HabitatManager.getHabitat(player)
+        if not habitat then
+            return false, "Player habitat not found"
+        end
+        newPlotIndex = currentPlotCount + 1
+        if not WorldBuilder.addGardenPlot(habitat, newPlotIndex) then
+            return false, "Unable to expand habitat"
+        end
     end
 
+    data.bells -= cost
     data.upgrades[upgradeId] = currentLevel + 1
     if not QuestRules.setProgress(data.questProgress, "upgrade", upgradeId, currentLevel + 1) then
         warn("Failed to record upgrade quest progress for user " .. tostring(player.UserId))
     end
 
-    -- If plot expansion, add a new plot
-    if upgradeId == "plot_expansion" then
-        local newPlotIndex = #data.plots + 1
+    if newPlotIndex then
         data.plots[newPlotIndex] = { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 }
     end
 
@@ -130,6 +148,10 @@ function EconomyManager.purchaseUpgrade(player: Player, upgradeId: any): (boolea
         "Upgraded " .. def.name .. " to Level " .. tostring(currentLevel + 1) .. "!"
     )
     return true, "Success"
+end
+
+function EconomyManager.init()
+    RemoteEvents.PurchaseUpgrade.OnServerInvoke = EconomyManager.purchaseUpgrade
 end
 
 return EconomyManager

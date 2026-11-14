@@ -2,8 +2,35 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Constants"))
+local HabitatRules = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("HabitatRules"))
 
 local WorldBuilder = {}
+
+local plotPositions = {
+    Vector3.new(4, 0.2, 4),
+    Vector3.new(-4, 0.2, 4),
+    Vector3.new(4, 0.2, -4),
+    Vector3.new(-4, 0.2, -4),
+    Vector3.new(-12, 0.2, -4),
+    Vector3.new(12, 0.2, -4),
+    Vector3.new(-12, 0.2, 4),
+}
+
+local function getPlotPosition(index: number): Vector3?
+    return plotPositions[index]
+end
+
+local function createPathSegment(folder: Folder, position: Vector3, baseOffset: Vector3)
+    local pathPart = Instance.new("Part")
+    pathPart.Name = "PathSegment"
+    pathPart.Size = Vector3.new(1, 0.2, position.Magnitude)
+    pathPart.Position = (position + Vector3.new(0, 0.15, 0)) / 2 + baseOffset
+    pathPart.Anchored = true
+    pathPart.BrickColor = BrickColor.new("Sand red")
+    pathPart.Material = Enum.Material.Cobblestone
+    pathPart.CFrame = CFrame.lookAt(pathPart.Position, Vector3.new(0, 0.15, 0) + baseOffset)
+    pathPart.Parent = folder
+end
 
 local function addProximityPrompt(
     parent: BasePart,
@@ -130,6 +157,25 @@ local function createGardenPlot(folder: Folder, index: number, position: Vector3
     return plotPart
 end
 
+function WorldBuilder.addGardenPlot(habitat: Folder, index: number): BasePart?
+    local position = getPlotPosition(index)
+    local plotsFolder = habitat:FindFirstChild("GardenPlots")
+    if not position or not plotsFolder or not plotsFolder:IsA("Folder") then
+        return nil
+    end
+    if plotsFolder:FindFirstChild("Plot_" .. tostring(index)) then
+        return nil
+    end
+
+    local baseOffset = habitat:GetAttribute("BaseOffset") or Vector3.zero
+    local plotPart = createGardenPlot(plotsFolder, index, position + baseOffset)
+    local pathsFolder = habitat:FindFirstChild("Paths")
+    if pathsFolder and pathsFolder:IsA("Folder") then
+        createPathSegment(pathsFolder, position, baseOffset)
+    end
+    return plotPart
+end
+
 local function restorePlotState(folder: Folder, plotData: any, plotIndex: number)
     local plotName = "Plot_" .. tostring(plotIndex)
     local plotsFolder = folder:FindFirstChild("GardenPlots") or folder
@@ -246,20 +292,25 @@ function WorldBuilder.buildHabitat(folder: Folder, owner: Player, sessionData: a
     plotsFolder.Name = "GardenPlots"
     plotsFolder.Parent = folder
 
-    local plotPositions = {
-        Vector3.new(4, 0.2, 4),
-        Vector3.new(-4, 0.2, 4),
-        Vector3.new(4, 0.2, -4),
-        Vector3.new(-4, 0.2, -4),
-    }
+    local plotCount = HabitatRules.INITIAL_PLOT_COUNT
+    if sessionData then
+        local savedPlotCount = HabitatRules.getPlotCount(sessionData.upgrades)
+        if not savedPlotCount then
+            error("Invalid saved plot expansion state")
+        end
+        plotCount = savedPlotCount
+    end
 
-    for i, pos in ipairs(plotPositions) do
-        createGardenPlot(plotsFolder, i, pos + baseOffset)
+    for i = 1, plotCount do
+        local pos = getPlotPosition(i)
+        if pos then
+            createGardenPlot(plotsFolder, i, pos + baseOffset)
+        end
     end
 
     -- Restore saved plot state if session data provided
     if sessionData and sessionData.plots then
-        for i = 1, #plotPositions do
+        for i = 1, plotCount do
             restorePlotState(folder, sessionData.plots[i], i)
         end
     end
@@ -270,16 +321,11 @@ function WorldBuilder.buildHabitat(folder: Folder, owner: Player, sessionData: a
     pathFolder.Name = "Paths"
     pathFolder.Parent = folder
 
-    for _, pos in ipairs(plotPositions) do
-        local pathPart = Instance.new("Part")
-        pathPart.Name = "PathSegment"
-        pathPart.Size = Vector3.new(1, 0.2, pos.Magnitude)
-        pathPart.Position = (pos + Vector3.new(0, 0.15, 0)) / 2 + baseOffset
-        pathPart.Anchored = true
-        pathPart.BrickColor = BrickColor.new("Sand red")
-        pathPart.Material = Enum.Material.Cobblestone
-        pathPart.CFrame = CFrame.lookAt(pathPart.Position, Vector3.new(0, 0.15, 0) + baseOffset)
-        pathPart.Parent = pathFolder
+    for index = 1, plotCount do
+        local pos = getPlotPosition(index)
+        if pos then
+            createPathSegment(pathFolder, pos, baseOffset)
+        end
     end
 
     -- Add a small pond/water feature

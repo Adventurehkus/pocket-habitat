@@ -1,6 +1,7 @@
 --!strict
 
 local Constants = require(script.Parent:WaitForChild("Constants"))
+local HabitatRules = require(script.Parent:WaitForChild("HabitatRules"))
 
 local PlantRules = {}
 
@@ -35,6 +36,9 @@ local function getPlot(data: any, plotIndex: any): (any?, string?)
     end
 
     if not isIntegerAtLeast(plotIndex, 1) then
+        return nil, "Invalid plot"
+    end
+    if not HabitatRules.isPlotIndexUnlocked(data.upgrades or {}, plotIndex) then
         return nil, "Invalid plot"
     end
 

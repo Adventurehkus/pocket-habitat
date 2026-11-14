@@ -4,8 +4,10 @@ local DataStoreManager = {}
 local DataStoreService = game:GetService("DataStoreService")
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Constants"))
 local CharacterSpawnData =
     require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("CharacterSpawnData"))
+local HabitatRules = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("HabitatRules"))
 local ResourceRules =
     require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ResourceRules"))
 local QuestRules = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("QuestRules"))
@@ -227,11 +229,14 @@ local function normalizeSessionData(
         return nil, "Malformed upgrade data"
     end
     for upgradeId, level in pairs(data.upgrades) do
+        local upgradeDef = Constants.UPGRADES[upgradeId]
         if
             type(upgradeId) ~= "string"
+            or not upgradeDef
             or not isFiniteNumber(level)
             or level < 1
             or level % 1 ~= 0
+            or level > upgradeDef.maxLevel
         then
             return nil, "Malformed upgrade level"
         end
@@ -279,9 +284,23 @@ local function normalizeSessionData(
         plot.waterCount = plot.waterCount or 0
         plot.stage = plot.stage or 0
     end
-    for index = 1, 4 do
+    for index = 1, HabitatRules.INITIAL_PLOT_COUNT do
         if data.plots[index] == nil then
             data.plots[index] = makeDefaultPlot()
+        end
+    end
+    local unlockedPlotCount = HabitatRules.getPlotCount(data.upgrades)
+    if not unlockedPlotCount then
+        return nil, "Malformed plot expansion level"
+    end
+    for index = HabitatRules.INITIAL_PLOT_COUNT + 1, unlockedPlotCount do
+        if data.plots[index] == nil then
+            data.plots[index] = makeDefaultPlot()
+        end
+    end
+    for index in pairs(data.plots) do
+        if index > unlockedPlotCount then
+            return nil, "Plot exceeds purchased expansion"
         end
     end
 
