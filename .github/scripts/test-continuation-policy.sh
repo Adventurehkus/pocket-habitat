@@ -35,6 +35,13 @@ GOOGLE_EXPECTED="$(date -u -d '2026-11-15 08:05:00' +%s)"
 UTC_DAILY_EXPECTED="$(date -u -d '2026-11-15 00:05:00' +%s)"
 MONTHLY_EXPECTED="$(date -u -d '2026-12-01 00:05:00' +%s)"
 [[ "$(quota_pool_reset_epoch "model:google/gemini-3.5-flash-lite" "" "$NOW")" == "$GOOGLE_EXPECTED" ]]
+# Confirm the Pacific reset follows daylight-saving transitions (UTC offset changes).
+SPRING_NOW="$(date -u -d '2026-03-07 16:00:00' +%s)"
+SPRING_EXPECTED="$(date -u -d '2026-03-08 08:05:00' +%s)"
+SUMMER_NOW="$(date -u -d '2026-07-15 16:00:00' +%s)"
+SUMMER_EXPECTED="$(date -u -d '2026-07-16 07:05:00' +%s)"
+[[ "$(quota_pool_reset_epoch "model:google/gemini-3.5-flash-lite" "" "$SPRING_NOW")" == "$SPRING_EXPECTED" ]]
+[[ "$(quota_pool_reset_epoch "model:google/gemini-3.5-flash-lite" "" "$SUMMER_NOW")" == "$SUMMER_EXPECTED" ]]
 [[ "$(quota_pool_reset_epoch "provider:openrouter" "" "$NOW")" == "$UTC_DAILY_EXPECTED" ]]
 [[ "$(quota_pool_reset_epoch "provider:cloudflare-workers-ai" "" "$NOW")" == "$UTC_DAILY_EXPECTED" ]]
 [[ "$(quota_pool_reset_epoch "provider:github-copilot" "" "$NOW")" == "$MONTHLY_EXPECTED" ]]
@@ -48,6 +55,8 @@ JANUARY_EXPECTED="$(date -u -d '2027-01-01 00:05:00' +%s)"
 GROQ_LOG="$(mktemp)"
 printf '%s\n' 'x-ratelimit-reset-requests: 2m59.56s' > "$GROQ_LOG"
 GROQ_HEADER_EXPECTED=$((NOW + 180 + 300))
+[[ "$(quota_pool_reset_epoch "model:groq/qwen/qwen3.8-27b" "$GROQ_LOG" "$NOW")" == "$GROQ_HEADER_EXPECTED" ]]
+printf '%s\n' '{"headers":{"x-ratelimit-reset-requests":"2m59.56s"}}' > "$GROQ_LOG"
 [[ "$(quota_pool_reset_epoch "model:groq/qwen/qwen3.8-27b" "$GROQ_LOG" "$NOW")" == "$GROQ_HEADER_EXPECTED" ]]
 GROQ_FALLBACK_EXPECTED=$((NOW + 86400 + 300))
 [[ "$(quota_pool_reset_epoch "model:groq/qwen/qwen3.8-27b" "" "$NOW")" == "$GROQ_FALLBACK_EXPECTED" ]]
