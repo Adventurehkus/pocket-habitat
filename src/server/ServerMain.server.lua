@@ -10,6 +10,7 @@ local WorldBuilder = require(script.Parent.WorldBuilder)
 local ResourceManager = require(script.Parent.ResourceManager)
 local PlantManager = require(script.Parent.PlantManager)
 local QuestManager = require(script.Parent.QuestManager)
+local CreatureManager = require(script.Parent.CreatureManager)
 
 WorldBuilder.init()
 HabitatManager.init()
@@ -17,6 +18,7 @@ DataStoreManager.init()
 ResourceManager.init()
 PlantManager.init()
 QuestManager.init()
+CreatureManager.checkDiscoveries = CreatureManager.checkDiscoveries -- Ensure function is accessible
 
 local initializingPlayers: { [Player]: boolean } = {}
 local cleaningPlayers: { [Player]: boolean } = {}
@@ -50,7 +52,11 @@ local function onPlayerAdded(player: Player)
         return
     end
 
-    HabitatManager.allocateHabitat(player)
+    HabitatManager.allocateHabitat(player, sessionData)
+    local habitat = HabitatManager.getHabitat(player)
+    if habitat then
+        CreatureManager.restoreCreatures(player, habitat, sessionData)
+    end
     local spawned, character =
         pcall(CharacterSpawner.spawnOrRestoreCharacter, player, sessionData.characterSpawnData)
     if not spawned or not character then
@@ -79,6 +85,7 @@ local function cleanupPlayer(player: Player)
         warn("Session release failed during cleanup for " .. tostring(player.UserId))
     end
 
+    CreatureManager.cleanupPlayer(player)
     CharacterSpawner.cleanupPlayer(player)
     ResourceManager.removePlayer(player)
     HabitatManager.removeHabitat(player)

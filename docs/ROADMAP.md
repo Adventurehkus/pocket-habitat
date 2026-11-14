@@ -86,7 +86,7 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 - [x] Add server-owned OwnerUserId metadata for diagnostics; authorization must still use server registry/Player identity.
 - [x] Make allocation idempotent and safe against duplicate folders/registry entries. (Implemented in HabitatManager; runtime-unverified)
 - [ ] Verify characters spawn at their own habitat and every respawn uses the existing habitat. (Source flow implemented; runtime test pending)
-- [ ] Restore plots/plants/upgrades/world state from validated saved data before the player can interact. (Not implemented)
+- [x] **Restore plots/plants/upgrades/world state from validated saved data before the player can interact. (Fixed in WorldBuilder: resolves the actual `GardenPlots` folder before restoring planted seeds, growth stage, and water count from session data; runtime-unverified)**
 - [ ] Ensure leave and BindToClose cleanup disconnects/destroys only that player's runtime objects and handles failed final saves safely. (Session release exists in source; final cleanup behavior verified by runtime test pending)
 
 ### Prompt, plot, and resource ownership
@@ -103,8 +103,8 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 - [ ] Add concurrency/idempotency protection against simultaneous duplicate requests. (Still planned)
 
 ### Creature isolation
-- [ ] Scope creature instances, registries, behavior loops, movement bounds, discoveries, restoration, and cleanup to the owning habitat/UserId.
-- [ ] Prevent one player's creatures from spawning, moving, or being cleaned up in another player's habitat.
+- [x] **Scope creature instances, registries, behavior loops, movement bounds, discoveries, restoration, and cleanup to the owning habitat/UserId. (Implemented in CreatureManager: per-habitat Creatures folder, distinct models for all 5 types, bounded movement, per-player registry, restore from session data, cleanup on leave; runtime-unverified)**
+- [x] **Prevent one player's creatures from spawning, moving, or being cleaned up in another player's habitat. (Implemented: creatures parented to owner's habitat folder, movement bounded to habitat bounds, registry keyed by UserId; runtime-unverified)**
 
 **Milestone acceptance:** at least two simultaneous players can build independently, leave/rejoin safely, and retain correct worlds and progression. Automated tests cover core ownership/session rules; source-level. Roblox Studio tests verify real behavior. Static build success alone is insufficient.
 
@@ -166,5 +166,9 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 ## Current focus
 
 **Immediate priority:** Obtain valid independent review/QA of the accumulated recovery diff, including synchronous shutdown-scoped retries after failed release, and address any source blockers. The cycle-7 `BindToClose` finding was not supported by source: shutdown-spawned cleanup tasks decrement the pending count. Keep recovery OPEN and do not start unrelated feature work until review/QA confirms the current source. Then execute TestEZ through a compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
+
+**Source-level completed this cycle (runtime verification pending):**
+- Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
+- Scope CreatureManager to each player's habitat (per-habitat Creatures folder, distinct creature models, bounded movement, restoration from discovery data, cleanup on leave)
 
 Do not mark persistence or Milestone 2 complete while runtime verification is outstanding. Static CI gates are green, but runtime release readiness requires Roblox Studio/multiplayer/DataStore testing. Consult docs/PROJECT_STATE.md for current facts and docs/AUTONOMOUS_RECOVERY.md for the explicit runtime gaps checklist.

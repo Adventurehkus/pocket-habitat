@@ -30,7 +30,7 @@ function HabitatManager.init()
     print("[HabitatManager] Initialized")
 end
 
-function HabitatManager.allocateHabitat(player: Player): Folder
+function HabitatManager.allocateHabitat(player: Player, sessionData: any?): Folder
     local userId = player.UserId
 
     local existingHabitat = playerHabitats[userId]
@@ -60,7 +60,7 @@ function HabitatManager.allocateHabitat(player: Player): Folder
     habitat:SetAttribute("OwnerUserId", userId)
     habitat.Parent = habitatsFolder
 
-    WorldBuilder.buildHabitat(habitat, player)
+    WorldBuilder.buildHabitat(habitat, player, sessionData)
 
     playerHabitats[userId] = habitat
     habitatSlots[userId] = slot

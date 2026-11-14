@@ -130,7 +130,60 @@ local function createGardenPlot(folder: Folder, index: number, position: Vector3
     return plotPart
 end
 
-function WorldBuilder.buildHabitat(folder: Folder, owner: Player)
+local function restorePlotState(folder: Folder, plotData: any, plotIndex: number)
+    local plotName = "Plot_" .. tostring(plotIndex)
+    local plotsFolder = folder:FindFirstChild("GardenPlots") or folder
+    local plotPart = plotsFolder:FindFirstChild(plotName)
+    if not plotPart then
+        return
+    end
+
+    for _, child in ipairs(plotPart:GetChildren()) do
+        if child.Name == "Plant" or child.Name == "WaterDrops" then
+            child:Destroy()
+        end
+    end
+
+    if
+        type(plotData) ~= "table"
+        or type(plotData.seedId) ~= "string"
+        or plotData.plantedTime == nil
+    then
+        return
+    end
+
+    local plantDef = Constants.PLANTS[plotData.seedId:gsub("seed_", "")]
+    if plantDef and plotData.plantedTime > 0 then
+        local elapsed = os.time() - plotData.plantedTime
+        local isMature = elapsed >= plantDef.growthTime
+            and (plotData.waterCount or 0) >= plantDef.waterNeeded
+        local stage = isMature and 2 or 1
+
+        local plant = Instance.new("Part")
+        plant.Name = "Plant"
+        plant.Size = Vector3.new(2, stage * 1.5, 2)
+        plant.Position = plotPart.Position + Vector3.new(0, (stage * 1.5) / 2 + 0.2, 0)
+        plant.Anchored = true
+        plant.BrickColor = BrickColor.new(plantDef.color)
+        plant.Material = Enum.Material.SmoothPlastic
+        plant.Parent = plotPart
+
+        if (plotData.waterCount or 0) > 0 then
+            local waterIndicator = Instance.new("Part")
+            waterIndicator.Name = "WaterDrops"
+            waterIndicator.Size = Vector3.new(1, 0.5, 1)
+            waterIndicator.Position = plant.Position + Vector3.new(0, plant.Size.Y / 2 + 0.5, 0)
+            waterIndicator.Anchored = true
+            waterIndicator.BrickColor = BrickColor.new("Cyan")
+            waterIndicator.Material = Enum.Material.Neon
+            waterIndicator.Shape = Enum.PartType.Cylinder
+            waterIndicator.Transparency = 0.5
+            waterIndicator.Parent = plotPart
+        end
+    end
+end
+
+function WorldBuilder.buildHabitat(folder: Folder, owner: Player, sessionData: any?)
     -- Get the habitat's BaseOffset once for consistent application
     local baseOffset = folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)
 
@@ -202,6 +255,13 @@ function WorldBuilder.buildHabitat(folder: Folder, owner: Player)
 
     for i, pos in ipairs(plotPositions) do
         createGardenPlot(plotsFolder, i, pos + baseOffset)
+    end
+
+    -- Restore saved plot state if session data provided
+    if sessionData and sessionData.plots then
+        for i = 1, #plotPositions do
+            restorePlotState(folder, sessionData.plots[i], i)
+        end
     end
 
     -- Add some decorative elements

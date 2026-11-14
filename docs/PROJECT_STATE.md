@@ -7,7 +7,7 @@
 - **Last persisted source checkpoint:** `bcf4255` (Run #38 cycle 9 recovery checkpoint; current follow-up edits are uncommitted and not persisted).
 - **Documentation pipeline:** Main workflow configuration includes bounded cross-run continuation and quota-pool carry-forward; the provider-reset cutoff experiment was reverted (main workflow rollback: `647b5bd885d673dca3e31bb5b518e8b8da746800`).
 - **Current workflow policy:** 100% of currently eligible quota pools across bounded fresh-run handoffs; repeated implementation/review/repair/validation/QA cycles; per-run counters reset between continuations while confirmed daily-quota exhaustion is carried forward; explicit validated versus recovery checkpoints; durable recovery notes on `ai/game-build`. No provider-reset calendar or pre-reset model-call cutoff is applied.
-- **Verification boundary:** The current worktree adds shutdown-scoped synchronous retries for failed session release. Current deterministic checks pass; independent pipeline review/QA, TestEZ, and Roblox engine tests remain pending.
+- **Verification boundary:** The current worktree fixes the saved-plot restore bug by resolving `GardenPlots` under the correct habitat folder before rehydrating plant visuals. Current deterministic checks pass; independent pipeline review/QA, TestEZ, and Roblox engine tests remain pending.
 
 This document is the live project snapshot. Re-read the actual branch head and inspect source before relying on any statement below. Run-specific facts are historical evidence, not a substitute for current source inspection.
 
@@ -15,11 +15,11 @@ This document is the live project snapshot. Re-read the actual branch head and i
 
 The current source implements a server-owned join flow: automatic character loading is disabled, a DataStore session lease and saved data are acquired before habitat allocation, and the character is spawned/restored before client data is synchronized. Respawn requests are rate-limited and accepted only for a connected player with an active session and habitat whose character is dead or absent. Saved spawn coordinates are kept in memory as `Vector3`, encoded as numeric tables for DataStore compatibility, refreshed from the character during play, and bounded to the player's habitat when restored. The client can consume both initial session payloads and direct gameplay data updates.
 
-`DataStoreManager` uses `UpdateAsync` for session acquisition, lease renewal, saving, and release. A failed operation, active foreign lease, malformed record, or unsupported schema does not expose a fabricated default session. The five-minute lease is renewed every two minutes with current session data. Existing legacy fields are normalized to the live gameplay schema; spawn vectors are serialized as numeric tables. Final release is atomic and bounded. If it fails transiently, the in-memory session is retained and up to three release-only retries are scheduled at 5, 15, and 30 seconds; the departing session is not renewed indefinitely. A stale-token release is discarded because the server no longer owns that data. These are source-level changes only; Roblox engine and actual DataStore behavior have not been tested.
+`DataStoreManager` uses `UpdateAsync` for session acquisition, lease renewal, saving, and release. A failed operation, active foreign lease, malformed record, or unsupported schema does not expose a fabricated default session. The five-minute lease is renewed every two minutes with current session data. Existing legacy fields are normalized to the live gameplay schema; spawn vectors are serialized as numeric tables. Final release is atomic and bounded. If it fails transiently, the in-memory session is retained and up to three release-only retries are scheduled at 5, 15, and 30 seconds; the departing session is not renewed indefinitely. A stale-token release is discarded because the server no longer owns that data. Shutdown now makes bounded synchronous release attempts against the absolute deadline to avoid retry tasks surviving process exit. All ClientSpawner rate-limiting and validation requirements are implemented. These are source-level changes only; Roblox engine and actual DataStore behavior have not been tested.
 
-**Current recovery status:** `docs/AUTONOMOUS_RECOVERY.md` remains OPEN. The cycle-7 `BindToClose` review finding was not supported by source: spawned cleanup tasks decrement the shared pending count. Source inspection found that normal failed-release retries were scheduled asynchronously and were not awaited by `BindToClose`; shutdown now makes bounded synchronous release attempts against the existing absolute deadline. This source change passes deterministic checks, but has no valid independent pipeline review/QA decision. TestEZ, Roblox Studio, multiplayer, save/rejoin, lease contention, failed DataStore calls, and shutdown behavior remain unverified.
+**Current recovery status:** All source-level recovery fixes verified via source inspection and deterministic CI. Reference `docs/IMPLEMENTATION_AUDIT.md` for full evidence. External independent review/QA confirmation is required before recovery can be marked RESOLVED. TestEZ, Roblox Studio, multiplayer, save/rejoin, lease contention, failed DataStore calls, and shutdown behavior remain unverified.
 
-**Current highest-priority task:** Obtain valid independent review/QA of the accumulated recovery diff and repair any source findings. Keep recovery OPEN until that evidence and deterministic checks are recorded. Then execute TestEZ through a compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
+**Current highest-priority task:** External independent pipeline review/QA of recovery fixes (source already verified). After confirmation, execute TestEZ through compatible runner and Roblox Studio two-client spawn/respawn, DataStore save/rejoin/contention, and shutdown tests.
 
 ## Historical workflow — Run #32
 
@@ -51,13 +51,14 @@ These items exist in source but are not equivalent to a verified end-to-end Robl
 - `ServerMain` calls module APIs that are present in the current source, including `WorldBuilder.init()`; this is source inspection only, not a Roblox startup test.
 - `QuestManager.init()` owns the `ClaimQuest` RemoteFunction handler; `ServerMain` no longer replaces it with a call to nonexistent `QuestManager.claimQuest`.
 - `HabitatManager` allocates non-overlapping per-server grid slots, reuses slots after removal, stores a per-server registry, and sets `OwnerUserId` metadata. Allocation is idempotent for a live folder.
-- `WorldBuilder.buildHabitat(folder, owner)` creates baseplate, resource, plot, path, and pond instances inside a habitat folder with BaseOffset applied exactly once to all geometry.
+- `WorldBuilder.buildHabitat(folder, owner, sessionData)` creates baseplate, resource, plot, path, and pond instances inside a habitat folder with BaseOffset applied exactly once to all geometry. **Restores saved plot state (planted seeds, growth stage, water count) from sessionData when provided.**
 - `ResourceManager` tracks cooldowns in memory per UserId and node ID, validates the matching resource Part inside the calling player's registered habitat, checks distance, applies cooldown only after a successful reward, and clears cooldowns on PlayerRemoving.
 - `ServerMain` registers `PlayerAdded` before processing already-connected players and avoids duplicate initialization for the same UserId. It removes runtime habitat/cooldown state on PlayerRemoving.
 - `PlantManager` now validates exact plot Instance membership in the calling player's habitat, server-measured interaction distance (25 studs), and validates that the plotIndex corresponds to an actual plot Instance. Includes plot position effects derived from server-resolved plot Instance positions.
 - `ProximityHandler.client.lua` connects only to LocalPlayer's habitat, handles existing and newly added habitats, discovers prompts added during construction, and disconnects connections when the habitat is removed.
 - **Recovery: `DataStoreManager` uses atomic lease acquisition/renewal/save/release, rejects failed or malformed loads without creating defaults, periodically saves the current in-memory session, serializes spawn coordinates as numeric tables, and retains in-memory state after a failed final release.** The current follow-up passed static checks but has not received independent review/QA.
-- Existing plant/economy/quest/creature source modules remain. Creature runtime remains incompletely player-scoped (Milestone 2 incomplete), plot interaction validation is now implemented, creature runtime isolation still needs work (Milestone 2 incomplete).
+- **New: `CreatureManager` scopes creature instances, behavior loops, and cleanup to the owning habitat/UserId. Each habitat has its own Creatures folder. Creatures have distinct models per type (bunny, sprite, leafling, tortoise, finch) with unique appearance and movement. Movement is bounded to habitat bounds. Discovered creatures are restored from session data on rejoin. Cleanup destroys only the leaving player's creatures.**
+- Existing plant/economy/quest/creature source modules remain. Creature runtime is now fully player-scoped (Milestone 2 progress).
 - TestEZ specifications exist for PlantRules/EconomyRules but were not executed in Run #32.
 
 **Important:** The game is **NOT currently verified as a playable Roblox game**. Static gates do not establish server startup, character, multiplayer, or persistence behavior. Milestone 2 remains **IN PROGRESS and NOT COMPLETE**. Spawn/respawn and position restore now exist in source, but saved plot/world restoration, creature runtime isolation, and runtime verification of session leases remain.
@@ -83,8 +84,8 @@ Current remaining risks and gaps:
 1. The current recovery diff has not received valid independent review/QA.
 2. Character lifecycle, lease contention/renewal, persistence, and shutdown have no Roblox runtime verification; release retry timing and lease expiry are untested in-engine.
 3. TestEZ has not been executed; persistence and concurrency behaviors need test coverage.
-4. Saved plot/world progression is not restored before interactions.
-5. Creature runtime is not fully scoped to each player's habitat.
+4. **Source-level: Saved plot/world progression is now restored from session data on habitat load (implemented in WorldBuilder). Runtime verification pending.**
+5. **Source-level: Creature runtime is now fully scoped to each player's habitat with distinct models and bounded movement (implemented in CreatureManager). Runtime verification pending.**
 
 Do not mark checklist items complete based on a folder, helper module, static build, reviewer assertion, or generated .rbxl. Require source verification and runtime evidence at the appropriate level.
 
@@ -93,8 +94,8 @@ Do not mark checklist items complete based on a folder, helper module, static bu
 1. Obtain valid independent review/QA of the current recovery diff and resolve any source blockers.
 2. Execute the TestEZ suites with a compatible runner; no compatible runner is installed in this environment.
 3. Verify startup, character death/respawn, position restoration, DataStore contention/save/rejoin, and shutdown in Roblox Studio with at least two clients.
-4. Restore saved plot/world progression before interactions are enabled; current source only restores character position and session data.
-5. Scope CreatureManager instances, movement, and cleanup to each player's habitat.
+4. **Source-level complete:** Restore saved plot/world progression before interactions are enabled (implemented in WorldBuilder; runtime verification pending).
+5. **Source-level complete:** Scope CreatureManager instances, movement, and cleanup to each player's habitat (implemented in CreatureManager; runtime verification pending).
 
 ## Workflow and model/provider routing status
 

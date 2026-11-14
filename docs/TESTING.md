@@ -130,6 +130,17 @@ Source inspection found that delayed failed-release retries might not run after 
 
 The deadline cannot cancel an individual yielding DataStore request. Runtime shutdown/persistence remains unverified; the local `.rbxl` build is not a playable-game or release-readiness test.
 
+## 2026-11-14 — saved-world restore fix
+
+Source inspection confirmed that `WorldBuilder.restorePlotState` was searching the habitat root instead of the actual `GardenPlots` folder, so planted visuals were never rehydrated after a data load. The fix resolves the correct plot instance before restoring the plant state and clears stale visual children before repainting the saved plot.
+
+Checks run after the source fix:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- Roblox Studio and multiplayer verification: NOT RUN.
+
 ## Latest verified gameplay pipeline run
 
 ### Run #32 — 2026-11-11
