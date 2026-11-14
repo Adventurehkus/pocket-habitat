@@ -76,10 +76,9 @@ elif provider == "groq":
     except OSError:
         log_text = ""
     headers = re.findall(
-        r'''(?i)x-ratelimit-reset-requests["']?\\s*[:=]\\s*["']?([^"']+?)["'\\s,}]*''',
+        r'''(?i)x-ratelimit-reset-requests["']?\s*[:=]\s*["']?([^"'\s,}]+)''',
         log_text,
     )
-    delay = None
     if headers:
         raw = headers[-1].strip().strip('"').strip("'")
         if re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", raw):
