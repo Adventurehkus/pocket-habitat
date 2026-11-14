@@ -46,7 +46,7 @@ Acceptance criteria:
 
 **Status: SOURCE RECOVERY REVIEWED AND STATICALLY VERIFIED; QA DECISION AND RUNTIME VERIFICATION PENDING.**
 
-Habitat allocation and source-level ownership validation exist. Run #39 cycle 2 records independent review/QA and deterministic validation for the session/shutdown recovery fixes. The current resource cooldown transaction helper is shared by production gathering and its rollback spec; the cycle-5 independent reviewer reported no findings, but its QA stage did not produce a trustworthy decision, and a later review attempt returned no decision for the accumulated checkpoint. The gameplay source has not changed since that code review. Rojo, StyLua, Selene, and diff checks pass; Roblox runtime verification is pending, and TestEZ has not run.
+Habitat allocation and source-level ownership validation exist. Run #39 cycle 2 records independent review/QA and deterministic validation for the session/shutdown recovery fixes. The resource cooldown transaction helper is shared by production gathering and its rollback spec; the cycle-5 independent reviewer reported no findings, but its QA stage did not produce a trustworthy decision, and the cycle-8 review attempt returned no decision for the accumulated checkpoint. The gameplay source has not changed since the repair. Current Rojo, StyLua, Selene, and diff checks pass; Roblox runtime verification is pending, and TestEZ has not run.
 
 This milestone establishes the defining Pocket Habitat experience: every player has an independent, persistent world.
 
@@ -168,7 +168,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Obtain a trustworthy independent QA decision for the current cooldown transaction repair, then execute TestEZ with a compatible runner. Afterward verify the resource-cooldown slice with two clients, and test spawn/respawn, DataStore save/rejoin/contention, and shutdown in Roblox Studio. The Run #39 cycle-2 session/shutdown fixes received review/QA; the cycle-5 code review of the cooldown repair reported no findings, but no trustworthy QA decision was returned. Cycle 7 changed documentation only; gameplay source remains unchanged from the reviewed repair. TestEZ and all Roblox runtime checks remain outstanding.
+**Immediate priority:** Obtain a trustworthy independent QA decision for the cooldown transaction repair, then execute TestEZ with a compatible runner. Afterward verify the resource-cooldown slice with two clients, and test spawn/respawn, DataStore save/rejoin/contention, and shutdown in Roblox Studio. The Run #39 cycle-2 session/shutdown fixes received review/QA; the cycle-5 code review of the cooldown repair reported no findings, but no trustworthy QA decision was returned. Cycle 8 changed no gameplay source; the repair remains unchanged. TestEZ and all Roblox runtime checks remain outstanding.
 
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)

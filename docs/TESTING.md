@@ -43,7 +43,7 @@ Use mocks for external Roblox service boundaries, not for the production busines
 
 ## Current recovery verification — 2026-11-14
 
-The cooldown rollback repair is present in gameplay source at `c09a0f4`; the current checkout is `62ebdd4` (cycle 7), whose changes since cycle 5 are documentation-only. Its TestEZ cases call the production `ResourceRules.tryGrantReward` helper used by `ResourceManager`. The cycle-5 independent review reported no code findings, but no trustworthy QA decision was returned. Cycle 7 introduced no gameplay-source changes, so recovery remains open for missing QA evidence; TestEZ and runtime checks are still unexecuted.
+The cooldown rollback repair is present in gameplay source at `c09a0f4`; the current checkout is `e11acbf` (Run #39 cycle 8), with no gameplay-source changes since cycle 5. Its TestEZ cases call the production `ResourceRules.tryGrantReward` helper used by `ResourceManager` and assert that rejected rewards restore the prior cooldown. The cycle-5 independent review reported no code findings, but no trustworthy QA decision was returned; the cycle-8 review attempt also returned no decision for the accumulated documentation-only checkpoint. Recovery remains open for missing QA evidence; TestEZ and runtime checks are still unexecuted.
 
 Checks actually run against the current worktree:
 
@@ -56,7 +56,7 @@ Checks actually run against the current worktree:
 
 These deterministic checks do not substitute for TestEZ or runtime verification.
 
-The deterministic commands were rerun in the current continuation against unchanged gameplay source: Rojo generated a nonempty 66,824-byte artifact; StyLua, Selene (0 errors, 0 warnings, 0 parse errors), and `git diff --check` passed. TestEZ and Roblox runtime checks remain unexecuted.
+The deterministic commands were rerun in this continuation against unchanged gameplay source: Rojo generated a nonempty 66,824-byte artifact; StyLua, Selene (0 errors, 0 warnings, 0 parse errors), and `git diff --check` passed. TestEZ and Roblox runtime checks remain unexecuted.
 
 ## Studio testing procedure for habitat/multiplayer
 

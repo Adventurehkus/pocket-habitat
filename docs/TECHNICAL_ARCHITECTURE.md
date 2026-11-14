@@ -46,7 +46,7 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 
 ## Current runtime architecture and known limitations
 
-The Run #39 cycle-2 recovery record reports independent review/QA and deterministic validation of the character-lifecycle, persistence, and shutdown source repairs. Static checks do not prove Roblox server, network, or DataStore behavior; Roblox runtime verification remains outstanding. The resource-cooldown follow-up in this cycle has not received independent pipeline review.
+The Run #39 cycle-2 recovery record reports independent review/QA and deterministic validation of the character-lifecycle, persistence, and shutdown source repairs. The cycle-5 independent reviewer reported no findings for the production-backed resource-cooldown rollback repair, but no trustworthy QA decision was returned; cycle 8 changed no gameplay source and its review attempt returned no decision for the accumulated documentation-only checkpoint. Static checks do not prove Roblox server, network, or DataStore behavior; Roblox runtime verification remains outstanding.
 
 Current source facts:
 

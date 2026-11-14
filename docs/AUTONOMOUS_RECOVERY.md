@@ -2,7 +2,21 @@
 
 RECOVERY_STATUS: OPEN
 
-This recovery record contains historical Run #38/39 findings and their follow-ups. The Run #39 shutdown/session source fixes were resolved with prior review/QA evidence, but the cooldown rollback QA finding reopened recovery. Its production-code repair has an independent review report with no findings, but the follow-up QA stage did not produce a trustworthy decision; later review attempts also returned no decision for accumulated documentation-only checkpoints. The gameplay source has not changed since the cycle-5 repair. The status remains OPEN. TestEZ and Roblox runtime tests are unavailable in this environment and remain unexecuted.
+This recovery record contains historical Run #38/39 findings and their follow-ups. The Run #39 shutdown/session source fixes were resolved with prior review/QA evidence, but the cooldown rollback QA finding reopened recovery. Its production-code repair has an independent review report with no findings, but the follow-up QA stage did not produce a trustworthy decision; later review attempts also returned no decision for accumulated documentation-only checkpoints. The gameplay source has not changed since the cycle-5 repair. The current checkout is `e11acbf` (Run #39 cycle 8); this continuation reconfirmed the production helper/spec wiring and reran deterministic checks. Recovery remains OPEN because the required trustworthy QA decision is still missing. TestEZ and Roblox runtime tests are unavailable in this environment and remain unexecuted.
+
+## Current continuation verification — 2026-11-14
+
+Source inspection confirms the reported tautological cooldown rollback test has already been replaced: `ResourceManager` calls `ResourceRules.tryGrantReward`, and the TestEZ case calls that same production helper and asserts that a rejected reward restores the prior `tree_1` cooldown. The cycle-5 independent reviewer reported no code findings. No gameplay-source defect remains from the recorded rollback-test finding, but this continuation cannot supply the missing independent QA decision; do not close recovery or claim QA approval.
+
+Checks actually run against checkout `e11acbf`:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; nonempty artifact, 66,824 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after the documentation-only updates.
+- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed.
+- Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown tests: NOT RUN.
+
+Recovery remains OPEN pending a trustworthy QA decision. Runtime gaps remain explicitly unverified.
 
 **Core findings:**
 - All Priority 1 fixes (deterministic validation, syntax, formatting) are implemented and verified
@@ -1918,3 +1932,29 @@ index cc098c5..4bdf216 100644
  ## Studio testing procedure for habitat/multiplayer
  
  Since automated execution of the Roblox engine or Studio is not available in this environment, perform the following tests in Roblox Studio to verify Milestone 2 functionality:
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 40
+- Cycle: 1
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-validation.log
+
+Building project 'Pocket Habitat'
+Built project to pocket-habitat.rbxl
+PASS: Rojo build -> build/pocket-habitat.rbxl
+PASS: StyLua check src
+Results:
+0 errors
+0 warnings
+0 parse errors
+PASS: Selene src
