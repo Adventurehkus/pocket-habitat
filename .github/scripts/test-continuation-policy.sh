@@ -39,6 +39,7 @@ MONTHLY_EXPECTED="$(date -u -d '2026-12-01 00:05:00' +%s)"
 [[ "$(quota_pool_reset_epoch "provider:cloudflare-workers-ai" "" "$NOW")" == "$UTC_DAILY_EXPECTED" ]]
 [[ "$(quota_pool_reset_epoch "provider:github-copilot" "" "$NOW")" == "$MONTHLY_EXPECTED" ]]
 [[ "$(quota_pool_reset_epoch "provider:cohere" "" "$NOW")" == "$MONTHLY_EXPECTED" ]]
+[[ "$(quota_pool_reset_epoch "model:google/gemini-3.5-flash-lite" "" "$NOW" "MODEL_MONTHLY_QUOTA")" == "$MONTHLY_EXPECTED" ]]
 YEAR_END_NOW="$(date -u -d '2026-12-31 22:00:00' +%s)"
 JANUARY_EXPECTED="$(date -u -d '2027-01-01 00:05:00' +%s)"
 [[ "$(quota_pool_reset_epoch "provider:github-copilot" "" "$YEAR_END_NOW")" == "$JANUARY_EXPECTED" ]]
