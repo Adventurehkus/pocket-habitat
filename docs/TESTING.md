@@ -8,6 +8,20 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
+## Run #42 cycle 3 recovery source review — 2026-11-14
+
+The QA appendix reported a spawn argument type mismatch, non-atomic session acquisition, and startup acceptance of malformed session data. The QA agent's log also says it could not read the implementation diff. Direct inspection of the current source found the claims non-actionable: both spawn call sites pass `Vector3` values; `DataStoreManager.loadPlayerData` acquires with `UpdateAsync` and validates the returned token, lease, and normalized data before registering a session; and `ServerMain` kicks a player when session loading fails. No gameplay source change was necessary.
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; non-empty artifact, 76,447 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after the documentation updates.
+- TestEZ: NOT RUN; no compatible `run-in-roblox`, `lune`, or `luau` executable is available.
+- Pipeline review/QA: no valid independent QA pass; the recorded QA agent could not read the implementation diff.
+- Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
+
+The recovery marker resolves only these source-level claims. It does not assert a QA pass or game/runtime readiness.
+
 ## Standard deterministic checks
 
 Run the checks supported by the environment:

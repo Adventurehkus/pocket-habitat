@@ -1,6 +1,22 @@
 # Pocket Habitat — Autonomous Recovery Record
 
-RECOVERY_STATUS: OPEN
+RECOVERY_STATUS: RESOLVED
+
+## 2026-11-14 — Run #42 cycle 3 source-claim adjudication
+
+The cycle-3 QA appendix reports that its agent could not read `pocket-habitat-implementation.diff` or `pocket-habitat-validation.log`, then flags three source issues. Direct inspection of the current source independently shows all three claims are non-actionable; no source patch was needed:
+
+1. `CharacterSpawner.monitorCharacter` and `spawnOrRestoreCharacter` both pass `rootPart.Position` (a `Vector3`) and a `Vector3` Euler orientation to `DataStoreManager.updateCharacterSpawnData`. The manager accepts `Vector3` arguments, rejects non-finite vectors, and stores them in the active session. The reported `CFrame` mismatch is not present.
+2. `DataStoreManager.loadPlayerData` acquires the `player_<UserId>` record through `UpdateAsync`. Its callback validates/migrates the record and atomically writes the owner token and lease; the returned token and lease are checked before a session is installed. There is no `GetAsync`/`SetAsync` acquisition path.
+3. `ServerMain.onPlayerAdded` stops and kicks the player when `loadPlayerData` returns no session. `loadPlayerData` normalizes and validates saved data before adding it to `activeSessions`; malformed records, invalid ownership/schema, failed requests, and active foreign leases return failure rather than a usable session.
+
+Deterministic checks rerun against the unchanged gameplay source at checkpoint `f71667153c72434782e8c094a23f674f95533f32`:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; artifact is 76,447 bytes.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS after the documentation updates.
+
+This resolves the three recorded source-level claims, not the failed QA evidence-collection step: the cycle-3 QA agent did not inspect the implementation diff, and no separate pipeline review/QA result is available here. Do not describe that QA attempt as a pass. TestEZ and Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown behavior remain unverified.
 
 ## 2026-11-14 — reported QA blocker pending evidence access
 
