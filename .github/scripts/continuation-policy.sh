@@ -1,27 +1,16 @@
 #!/usr/bin/env bash
-# Shared policy for bounded cross-run continuation of the autonomous pipeline.
-# Return success only when a fresh run can safely reset run-local limits while
-# there are still eligible daily quota pools to try.
+# Shared policy for safe cross-run continuation of the autonomous pipeline.
+# Each workflow execution has bounded local budgets; a fresh run may resume
+# eligible work without a fixed continuation count or chain-age cutoff.
 should_auto_continue_after_run() {
   local stop_reason="${1:-}"
   local quota_target_reached="${2:-}"
   local eligible_pool_count="${3:-}"
   local retryable_implementation_barrier="${4:-}"
-  local continuation_count="${5:-}"
-  local chain_started_at="${6:-}"
-  local now="${7:-}"
-  local max_continuations="${8:-8}"
-  local max_chain_seconds="${9:-86400}"
-  local elapsed
 
   [[ "$quota_target_reached" == "false" ]] || return 1
   [[ "$eligible_pool_count" =~ ^[0-9]+$ ]] || return 1
   (( eligible_pool_count > 0 )) || return 1
-  [[ "$continuation_count" =~ ^[0-9]+$ ]] || return 1
-  [[ "$chain_started_at" =~ ^[0-9]+$ ]] || return 1
-  [[ "$now" =~ ^[0-9]+$ ]] || return 1
-  [[ "$max_continuations" =~ ^[0-9]+$ ]] || return 1
-  [[ "$max_chain_seconds" =~ ^[0-9]+$ ]] || return 1
   case "$stop_reason" in
     no_implementation_progress)
       # A successful implementation call that repeatedly made no changes is
@@ -36,22 +25,27 @@ should_auto_continue_after_run() {
       ;;
   esac
 
-  (( continuation_count < max_continuations )) || return 1
-  (( max_chain_seconds > 0 )) || return 1
-
-  if (( now < chain_started_at )); then
-    elapsed=0
-  else
-    elapsed=$((now - chain_started_at))
-  fi
-  (( elapsed < max_chain_seconds )) || return 1
-
   return 0
 }
 
+# Daily quota exhaustion is carried between runs only while the UTC date is
+# unchanged. An empty prior date is treated as legacy state and preserved for
+# the current day, avoiding immediate re-probes from an older in-flight run.
+reset_exhausted_quota_pool_keys_for_utc_day() {
+  local encoded="${1:-}"
+  local previous_day="${2:-}"
+  local current_day="${3:-}"
+
+  if [[ -n "$previous_day" && "$previous_day" != "$current_day" ]]; then
+    printf ''
+  else
+    printf '%s' "$encoded"
+  fi
+}
+
 # Load only quota-pool IDs that still exist in the configured model registry.
-# The comma-separated state is carried between linked runs to avoid probing
-# pools already confirmed exhausted during the same continuation chain.
+# The comma-separated state is carried between child runs to avoid probing
+# pools already confirmed exhausted during the same UTC quota day.
 load_exhausted_quota_pool_keys() {
   local encoded="${1:-}"
   local known_name="$2"
@@ -85,6 +79,6 @@ serialize_exhausted_quota_pool_keys() {
   if (( ${#keys[@]} == 0 )); then
     printf ''
   else
-    printf '%s\n' "${keys[@]}" | sort | paste -sd, -
+    printf '%s\\n' "${keys[@]}" | sort | paste -sd, -
   fi
 }
