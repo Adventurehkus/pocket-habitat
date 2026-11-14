@@ -617,6 +617,8 @@ jobs:
           assert_failure_class "cohere" 'You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits.' "SHARED_MONTHLY_QUOTA"
           assert_failure_class "github-copilot" 'You have exhausted your monthly premium requests allowance.' "SHARED_MONTHLY_QUOTA"
           assert_failure_class "openrouter" '{"error":{"metadata":{"limit_source":"openrouter_free_tier_daily"}}}' "SHARED_DAILY_QUOTA"
+          assert_failure_class "cloudflare-workers-ai" 'You have used up the daily free allocation of 10000 Neurons.' "SHARED_DAILY_QUOTA"
+          assert_failure_class "groq" 'Requests per day (RPD) quota exhausted.' "MODEL_DAILY_QUOTA"
           assert_failure_class "openrouter" 'HTTP 429 rate limit exceeded.' "PROVIDER_RATE_LIMIT"
           assert_failure_class "google" 'This model is currently experiencing high demand. Try again later.' "TEMP_CAPACITY"
           assert_failure_class "google" 'Invalid API key: authentication failed.' "AUTH_FAILURE"
@@ -820,7 +822,7 @@ jobs:
             local model provider status retry_count delay log_file
             local attempt_key cooldown_until provider_cooldown earliest_cooldown now wait_seconds
             local remaining_stage remaining_total failure_class stage_deadline
-            local stage_calls stage_temp_events temp_failure_count pool_key role_name
+            local stage_calls stage_temp_events temp_failure_count pool_key role_name reset_at reset_label
             local stage_run_cap_skips stage_cooldown_skips
             local -a command_args=()
 
@@ -988,7 +990,7 @@ jobs:
                 case "$failure_class" in
                   SHARED_DAILY_QUOTA|SHARED_MONTHLY_QUOTA|MODEL_DAILY_QUOTA|MODEL_MONTHLY_QUOTA)
                     pool_key="$(quota_pool_for_model "$model")"
-                    reset_at="$(quota_pool_reset_epoch "$pool_key" "$log_file" "$now")"
+                    reset_at="$(quota_pool_reset_epoch "$pool_key" "$log_file" "$now" "$failure_class")"
                     QUOTA_POOL_RESET_AT["$pool_key"]="$reset_at"
                     QUOTA_EXHAUSTION_EVENTS=$((QUOTA_EXHAUSTION_EVENTS + 1))
                     reset_label="$(date -u -d "@$reset_at" +%Y-%m-%dT%H:%M:%SZ)"
