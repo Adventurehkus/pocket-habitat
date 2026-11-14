@@ -113,13 +113,15 @@ These runtime gaps are explicitly documented as outstanding and do not constitut
 
 ## Milestone 3 — Progression integrity and content completion
 
-**Status: PARTIALLY IMPLEMENTED; quest progression source slice added, independent review and runtime testing pending.**
+**Status: PARTIALLY IMPLEMENTED; quest progression and source-level recovery fixes implemented, TestEZ and runtime testing pending.**
 
 - [x] Define a single order that reaches all ten quests; old sessions with no current quest advance to the next incomplete quest. (Source implemented; TestEZ/Studio verification pending)
 - [x] Replace inventory/current-plot inference for gather, plant, water, and harvest objectives with persisted, server-recorded action counters. (Source implemented; TestEZ/Studio verification pending)
 - [x] Validate actual harvest progress, upgrade levels, and the specific Leafling discovery. (Source implemented; runtime pending)
 - [x] Award the Sun Petal seed needed for the Sun Petal quest; validate capacity and commit item, Bells, and claim state together. (Source implemented; runtime pending)
 - [x] Keep quest reward claims single-use; an incomplete inventory/award transaction does not mark the quest complete. (Source implemented; runtime/test verification pending)
+- [x] Bound persisted/set upgrade quest progress to each upgrade definition's maximum level. (Source implemented; focused TestEZ case added but not executed)
+- [x] Publish resource inventory and quest progress after both mutations are applied, without an intermediate inventory-only sync. (Source implemented; Roblox client behavior unverified)
 - [ ] Audit every plant definition through obtain → plant → grow → water → harvest → reward → quest → persistence.
 - [ ] Implement distinct, habitat-scoped behavior for every released creature.
 - [ ] Ensure every purchasable upgrade has a real effect and restored world state.
@@ -169,7 +171,7 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Obtain independent pipeline review/QA for the current quest-progression slice and execute focused TestEZ specs in a compatible runner. Then verify quest progression, independent gathering, habitat isolation, save/rejoin, lease contention, and shutdown in Roblox Studio. Historical Run #38/39 recovery source fixes are resolved; current gameplay runtime and TestEZ execution remain outstanding.
+**Immediate priority:** Execute the production-backed quest/resource TestEZ specs in a compatible runner. Then verify quest progression, independent gathering, habitat isolation, save/rejoin, lease contention, and shutdown in Roblox Studio. Run #38/39 and Run #40 cycle-2 automation-resolvable recovery findings are resolved; current gameplay runtime and TestEZ execution remain outstanding. The latest source edits have not received a separate pipeline review/QA decision.
 
 **Source-level completed (runtime verification pending):**
 - Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)

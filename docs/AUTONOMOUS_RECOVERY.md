@@ -1,24 +1,24 @@
 # Pocket Habitat — Autonomous Recovery Record
 
-RECOVERY_STATUS: OPEN
+RECOVERY_STATUS: RESOLVED
 
-This recovery record contains historical Run #38/39 findings and their follow-ups. All listed source-level defects are repaired. The latest Run #40 cycle-1 recovery entry states that independent review, QA, and deterministic validation passed; this continuation reconfirmed the cooldown transaction helper/spec wiring, verified the related lifecycle/session fixes remain in source, and reran the deterministic checks. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing.
+This recovery record contains historical Run #38/39 findings and their follow-ups plus the Run #40 cycle-2 quest-progress findings. All automation-resolvable source findings are fixed or adjudicated as non-actionable. The latest recovery pass bounds upgrade progress to defined upgrade levels and delays the resource-data sync until quest progress has been recorded. Roblox Studio, multiplayer, DataStore, and TestEZ execution remain unverified/unavailable and are not represented as passing.
 
 ## Resolution evidence — 2026-11-14
 
-Source inspection confirms `ResourceManager` calls `ResourceRules.tryGrantReward`; the TestEZ spec calls that same production helper and asserts that a rejected reward restores the prior `tree_1` cooldown. The atomic session lease, session retention, safe shutdown retry, and character lifecycle source repairs described below remain in place. The latest cycle record (Run #40, cycle 1, appended below) explicitly reports independent review and QA passed; the earlier cycle-5 cooldown code review reported no findings.
+Source inspection confirms `ResourceManager` calls `ResourceRules.tryGrantReward`; the TestEZ spec calls that same production helper and asserts that a rejected reward restores the prior `tree_1` cooldown. The atomic session lease, session retention, safe shutdown retry, and character lifecycle source repairs described below remain in place. The Run #40 cycle-2 finding about upgrade progress is fixed by validating stored, set, and incremented upgrade progress against `Constants.UPGRADES[id].maxLevel`; a focused production-rule spec covers maximum, overflow, and unknown-upgrade cases. Its data-sync finding is fixed by allowing the resource reward path to suppress `EconomyManager.addItem`'s intermediate sync, so `ResourceManager` sends the updated inventory and recorded quest progress together. The normalization finding required no source change: nil progress is initialized for legacy saves and malformed progress is rejected without replacing the save.
 
-Checks actually run against checkout `acd177375d088476619be80099b1de5d346d05ba`:
-- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; nonempty artifact, 66,824 bytes.
+Checks actually run after the recovery fixes:
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; nonempty artifact, 71,594 bytes.
 - `stylua --check src`: PASS.
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
-- `git diff --check`: PASS before these recovery-status/documentation edits.
+- `git diff --check`: PASS.
 - TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed.
 - Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown tests: NOT RUN.
 
-The source-level recovery items are resolved. Runtime gaps remain explicitly unverified and must be addressed in Roblox Studio; they do not reopen this source-repair record absent a new source defect.
+These source changes were reviewed against the reported findings and verified with the production-rule spec additions and deterministic checks; the specs themselves remain unexecuted. The Run #40 cycle-2 findings are resolved at source level. Runtime gaps remain explicitly unverified and must be addressed in Roblox Studio; they do not reopen this source-repair record absent a new source defect.
 
-This resolved marker closes only the enumerated Run #38/39 recovery findings. Quest progression changes later in this working tree are a separate implementation slice and have not yet received pipeline review/QA.
+This resolved marker closes the enumerated Run #38/39 and Run #40 cycle-2 source findings. The latest source edits have not received a separate pipeline review/QA decision; runtime gaps remain unverified.
 
 **Core findings:**
 - All Priority 1 fixes (deterministic validation, syntax, formatting) are implemented and verified
@@ -2003,3 +2003,13 @@ REVIEW_FINDINGS: YES
 
 ### Summary
 The new quest progression system introduces robust server-authoritative tracking, moving away from vulnerable inventory-based inference. The primary risks are identified as missing bounds validation on upgrades (potential exploit) and the need for strict atomicity in client synchronization. These findings must be verified with functional testing in Roblox Studio, as TestEZ remains unexecuted.
+
+## 2026-11-14 — Run #40 cycle-2 source findings resolved
+
+- The quest-progress normalization finding is non-actionable: absent progress is initialized for legacy data; malformed progress fails closed, preserving the stored save rather than substituting defaults.
+- `QuestRules` now rejects unknown upgrade IDs and any stored, set, or incremented upgrade progress above that upgrade's configured `maxLevel`. A focused TestEZ case covers the maximum, overflow, unknown ID, and acceptance boundary.
+- `EconomyManager.addItem` accepts an optional sync flag, defaulting to the previous behavior. Resource gathering suppresses the intermediate inventory-only sync and publishes the session after quest progress is recorded.
+- Verification: Rojo build passed and generated a nonempty 71,594-byte artifact; `stylua --check src`, `selene src` (0 errors/warnings/parse errors), and `git diff --check` passed.
+- TestEZ, Roblox Studio/server, multiplayer, DataStore, save/rejoin, and shutdown tests were not run. No separate pipeline review/QA decision is recorded for these latest edits.
+
+The source-level items in this recovery report are resolved. Keep all engine/runtime and TestEZ gaps explicitly unverified.

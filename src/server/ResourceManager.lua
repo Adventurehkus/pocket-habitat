@@ -141,7 +141,7 @@ function ResourceManager.init()
             currentTimestamp,
             currentTimestamp + cooldownSeconds,
             function()
-                return EconomyManager.addItem(player, rewardItem, rewardAmount)
+                return EconomyManager.addItem(player, rewardItem, rewardAmount, false)
             end
         )
 

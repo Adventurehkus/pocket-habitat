@@ -43,18 +43,18 @@ Use mocks for external Roblox service boundaries, not for the production busines
 
 ## Current recovery verification — 2026-11-14
 
-The Run #40 cycle-1 recovery entry reports independent review, QA, and deterministic validation passed for the listed historical source repairs; `docs/AUTONOMOUS_RECOVERY.md` now marks those items RESOLVED. This continuation adds a separate quest-progression source slice with focused TestEZ specs; those changes still await pipeline review/QA and have not been executed in TestEZ.
+The Run #40 cycle-1 recovery entry reports independent review, QA, and deterministic validation passed for the historical source repairs. This continuation resolved the Run #40 cycle-2 source findings: upgrade progress is bounded against upgrade definitions, and the resource reward flow emits its client data sync only after quest progress is recorded. The malformed-progress report item was reviewed and is non-actionable: nil is initialized for legacy saves, while malformed data fails closed. `docs/AUTONOMOUS_RECOVERY.md` marks the listed source findings RESOLVED. The latest source edits have not received separate pipeline review/QA.
 
 Checks actually run against the current worktree after the quest changes:
 
-- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 71,149-byte artifact.
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty 71,594-byte artifact.
 - `stylua --check src`: PASS.
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
 - `git diff --check`: PASS.
 - TestEZ: NOT RUN; no `run-in-roblox`, `luau`, `lune`, `lua`, or `luajit` runner is available.
 - Roblox Studio/engine, multiplayer, DataStore, and shutdown tests: NOT RUN.
 
-These deterministic checks do not substitute for TestEZ or runtime verification. Quest specs cover cumulative action progress, target-specific discoveries, actual upgrade levels, invalid progress, all ten quest definitions, harvest rejection, and single-use/capacity-safe Sun Petal seed rewards; their presence does not mean they executed.
+These deterministic checks do not substitute for TestEZ or runtime verification. Quest specs cover cumulative action progress, target-specific discoveries, upgrade maximum bounds, actual upgrade levels, invalid progress, all ten quest definitions, harvest rejection, and single-use/capacity-safe Sun Petal seed rewards; their presence does not mean they executed.
 
 ## Studio testing procedure for habitat/multiplayer
 

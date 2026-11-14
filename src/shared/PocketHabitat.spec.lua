@@ -311,10 +311,21 @@ return function()
 
         it("stores upgrade levels as levels rather than cumulative purchase counts", function()
             local progress = {}
-            QuestRules.setProgress(progress, "upgrade", "plot_expansion", 2)
-            QuestRules.setProgress(progress, "upgrade", "plot_expansion", 3)
+            expect(QuestRules.setProgress(progress, "upgrade", "plot_expansion", 2)).to.equal(true)
+            expect(QuestRules.setProgress(progress, "upgrade", "plot_expansion", 3)).to.equal(true)
 
             expect(QuestRules.getProgress(progress, "upgrade", "plot_expansion")).to.equal(3)
+        end)
+
+        it("bounds upgrade progress to the defined upgrade level", function()
+            local progress = {}
+
+            expect(QuestRules.setProgress(progress, "upgrade", "plot_expansion", 4)).to.equal(false)
+            expect(QuestRules.setProgress(progress, "upgrade", "unknown_upgrade", 1)).to.equal(
+                false
+            )
+            expect(QuestRules.isValidProgress({ ["upgrade:plot_expansion"] = 4 })).to.equal(false)
+            expect(QuestRules.setProgress(progress, "upgrade", "plot_expansion", 3)).to.equal(true)
         end)
 
         it("rejects malformed or forged progress values", function()

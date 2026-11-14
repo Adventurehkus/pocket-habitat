@@ -33,7 +33,12 @@ function EconomyManager.spendBells(player: Player, amount: number): boolean
     return true
 end
 
-function EconomyManager.addItem(player: Player, itemId: string, amount: number): boolean
+function EconomyManager.addItem(
+    player: Player,
+    itemId: string,
+    amount: number,
+    shouldSync: boolean?
+): boolean
     local data = DataStoreManager.getSession(player)
     if not data or amount <= 0 then
         return false
@@ -50,7 +55,9 @@ function EconomyManager.addItem(player: Player, itemId: string, amount: number):
 
     local currentQty = data.inventory[itemId] or 0
     data.inventory[itemId] = currentQty + amount
-    RemoteEvents.SyncData:FireClient(player, data)
+    if shouldSync ~= false then
+        RemoteEvents.SyncData:FireClient(player, data)
+    end
     return true
 end
 

@@ -42,6 +42,15 @@ local function progressKey(targetType: any, targetId: any?): string?
     return targetType .. ":" .. (targetId or "")
 end
 
+local function isValidProgressValue(targetType: string, targetId: string?, value: number): boolean
+    if targetType ~= "upgrade" then
+        return true
+    end
+
+    local upgradeDef = if targetId then Constants.UPGRADES[targetId] else nil
+    return upgradeDef ~= nil and value <= upgradeDef.maxLevel
+end
+
 function QuestRules.isValidProgress(progress: any): boolean
     if type(progress) ~= "table" then
         return false
@@ -57,7 +66,11 @@ function QuestRules.isValidProgress(progress: any): boolean
         end
         local targetType = string.sub(key, 1, separator - 1)
         local targetId = string.sub(key, separator + 1)
-        if progressKey(targetType, if targetId == "" then nil else targetId) ~= key then
+        local normalizedTargetId = if targetId == "" then nil else targetId
+        if
+            progressKey(targetType, normalizedTargetId) ~= key
+            or not isValidProgressValue(targetType, normalizedTargetId, value)
+        then
             return false
         end
     end
@@ -77,7 +90,7 @@ function QuestRules.recordProgress(
     end
 
     local total = (progress[key] or 0) + amount
-    if not isInteger(total, true) then
+    if not isInteger(total, true) or not isValidProgressValue(targetType, targetId, total) then
         return false
     end
 
@@ -92,7 +105,12 @@ function QuestRules.setProgress(
     amount: any
 ): boolean
     local key = progressKey(targetType, targetId)
-    if not key or not QuestRules.isValidProgress(progress) or not isInteger(amount, true) then
+    if
+        not key
+        or not QuestRules.isValidProgress(progress)
+        or not isInteger(amount, true)
+        or not isValidProgressValue(targetType, targetId, amount)
+    then
         return false
     end
 
