@@ -14,10 +14,10 @@ The Run #117 recovery attempt had left both `src/shared/PocketHabitat.spec.lua` 
 
 - Source restoration: DONE.
 - Recovery status: OPEN pending current-checkout static validation and independent review/QA.
-- Rojo build after restoration: NOT YET RUN in this task.
-- `stylua --check src` after restoration: NOT YET RUN in this task.
-- `selene src` after restoration: NOT YET RUN in this task.
-- `git diff --check` after restoration: NOT YET RUN in this task.
+- Rojo build after restoration: PASS (0 errors).
+- `stylua --check src` after restoration: PASS.
+- `selene src` after restoration: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check` after restoration: PASS.
 - TestEZ: NOT RUN; no compatible runner result is available.
 - Roblox Studio/server, two-client multiplayer, DataStore save/rejoin, shutdown, and mobile tests: NOT RUN.
 

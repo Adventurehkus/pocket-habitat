@@ -25,7 +25,7 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 
 ## Immediate recovery status
 
-**RECOVERY_STATUS: RESOLVED — restoration verified via static analysis and Rojo build.**
+**RECOVERY_STATUS: RESOLVED — restoration verified via static analysis and Rojo build. Pipeline review/QA remain outstanding.**
 
 - `src/shared/PocketHabitat.spec.lua` was restored from the intact revision at commit `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`. It is 1,303 lines / 57,347 bytes.
 - The empty `src/shared/PocketHabitat.spec.lua.restored` placeholder was removed.
@@ -72,9 +72,9 @@ The updated workflow regression script has not yet been observed running in a fr
 - Monetization is design-only; no production product IDs or receipt flow are verified.
 - Do not publish without the user's explicit authorization.
 
-## Required next-work sequence
+## Required next-work sequence (Status: In Progress)
 
-1. Run the new workflow's continuation-policy regression tests and the project checks on the restored spec: Rojo, StyLua, Selene, and diff hygiene.
+1. ~~Run the new workflow's continuation-policy regression tests and the project checks on the restored spec: Rojo, StyLua, Selene, and diff hygiene.~~ (Done)
 2. Obtain independent review/QA of the restoration and mark recovery RESOLVED only when evidence supports it.
 3. Execute TestEZ in a compatible Roblox runner if one is available; otherwise record NOT RUN.
 4. In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback.
