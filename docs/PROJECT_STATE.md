@@ -2,7 +2,7 @@
 
 **Snapshot date:** 2026-11-15  
 **Gameplay branch:** `ai/game-build`  
-**Snapshot commit:** `2f651313d4b855b3333d9670ac9585d7add0f026`  
+**Gameplay/source checkpoint reviewed:** `2f651313d4b855b3333d9670ac9585d7add0f026` (the later commits in this documentation pass changed documentation only)  
 **Overall completion estimate:** approximately **25%** (directional project-readiness estimate, not a measured metric)
 
 This is the authoritative current-state snapshot. Historical run reports below or in other documents must not override the latest branch state described here. Always inspect the actual source and latest recovery record before starting work.
