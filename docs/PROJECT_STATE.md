@@ -2,79 +2,90 @@
 
 **Snapshot date:** 2026-11-15  
 **Gameplay branch:** `ai/game-build`  
-**Gameplay/source checkpoint reviewed:** `2f651313d4b855b3333d9670ac9585d7add0f026` (the later commits in this documentation pass changed documentation only)  
-**Overall completion estimate:** approximately **25%** (directional project-readiness estimate, not a measured metric)
+**Reviewed gameplay checkpoint:** `785bede2dae41b6fc43cf6fec1175c3d05c2b967`  
+**Workflow/configuration checkpoint:** `8e467d97ee790c81af798e47a4d8c7715b841793` on `main`  
+**Overall completion estimate:** approximately **25%** (directional readiness estimate, not a measured metric)
 
-This is the authoritative current-state snapshot. Historical run reports below or in other documents must not override the latest branch state described here. Always inspect the actual source and latest recovery record before starting work.
+This is the current project snapshot. Inspect the actual branch head and source before relying on historical reports.
 
 ## Current completion estimate
 
 | Workstream | Estimate | Current reality |
 |---|---:|---|
-| Development foundation | 100% | Repository, Rojo project, pinned toolchain, documentation, and automated workflow exist |
-| Core gameplay systems | 60% | Gathering, inventory/economy, planting, watering, harvesting, and client interaction paths exist in source; end-to-end play is unverified |
-| Personal habitats and persistence | 65% | Per-player habitat allocation, ownership checks, saved world data, and DataStore session/lease logic exist in source; Roblox runtime and multiplayer tests are outstanding |
-| Quests and progression | 60% | Ten-quest sequence, server-recorded progress, reward validation, and several upgrades exist in source; claims and persistence are unverified in Roblox |
+| Development foundation | 100% | Repository, Rojo project, pinned toolchain, documentation, and autonomous workflow exist |
+| Core gameplay systems | 60% | Gathering, inventory/economy, planting, watering, harvesting, quests, and client interaction paths exist in source; end-to-end play is unverified |
+| Personal habitats and persistence | 65% | Per-player habitats, ownership checks, saved world data, and DataStore session/lease logic exist in source; Roblox runtime and multiplayer tests are outstanding |
+| Quests and progression | 60% | Ten-quest sequence, server-recorded progress, reward validation, and upgrades exist in source; claims and persistence remain unverified in Roblox |
 | Creatures and discovery | 55% | Five creature profiles, per-player ownership/restoration, and movement logic exist in source; actual behavior and isolation are unverified |
-| UI and presentation | 15% | Basic client/HUD paths exist; cohesive responsive inventory, quest, discovery, feedback, and polished presentation remain |
-| Testing and reliability | 5% | Static tooling has passed on earlier checkpoints, but TestEZ has not been run and the current test file has a critical regression; no Roblox runtime evidence |
-| Release preparation | 0% | No release-ready art/content pass, device QA, publishing checklist, or release evidence |
+| UI and presentation | 15% | Basic client/HUD paths exist; responsive inventory, discovery, feedback, environment, audio, and polish remain |
+| Testing and reliability | 10% | The 1,303-line TestEZ spec has been restored, but its static checks, TestEZ execution, and Roblox runtime verification are still pending |
+| Release preparation | 0% | Release-ready content, device QA, publishing checklist, and release evidence are not complete |
 
-The overall estimate is intentionally lower than the source-feature estimates because a functioning Roblox experience still requires integrated runtime proof, reliable persistence/multiplayer, a usable player experience, content/art, and release QA. Do not calculate overall completion by averaging the rows.
+The overall estimate weighs product readiness and unverified critical paths. It is not the arithmetic mean of the workstream estimates.
 
-## Important current blocker — test suite regression
+## Immediate recovery status
 
-At the snapshot commit, `src/shared/PocketHabitat.spec.lua` has been replaced with whitespace-stripped content. The Run #88 cycle-2 independent reviewer classified this as **CRITICAL** and found examples such as `localReplicatedStorage` and `localfunctionmakeData`, which do not preserve the intended Luau token boundaries. The reviewer states the spec file is syntactically invalid and cannot serve as a TestEZ suite.
+**RECOVERY_STATUS: OPEN — restored source awaiting validation/review.**
 
-- Recovery marker: **OPEN** in `docs/AUTONOMOUS_RECOVERY.md`.
-- Required repair: restore the test file from its last known-good pre-corruption revision (inspect parent commit `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`), then review the diff and run formatter/linter/build checks.
-- Do not claim the current TestEZ suite is usable or that its tests pass.
-- No new gameplay feature work should bypass this recovery item.
-
-Older static-check PASS records refer to earlier source snapshots. They are not evidence that the current branch head passes validation after this corruption.
+- `src/shared/PocketHabitat.spec.lua` was restored from the intact revision at commit `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`. It is 1,303 lines / 57,347 bytes.
+- The empty `src/shared/PocketHabitat.spec.lua.restored` placeholder was removed.
+- The former 310 KB recovery record was preserved at `docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md`. It must not be attached to model prompts.
+- The active `docs/AUTONOMOUS_RECOVERY.md` is now a compact summary. Keep it short; full logs and diffs belong in workflow artifacts or archives.
+- Restoration is a source change, not proof of validation. Run Rojo, StyLua, Selene, and `git diff --check`; obtain independent review/QA. TestEZ is NOT RUN unless a compatible runner actually executes it.
 
 ## Implemented source capabilities — not yet proven in Roblox
 
-The current source contains the following systems:
-
 - Server-owned player join/session flow, character spawn/restore, and respawn validation.
 - Per-player habitat allocation, unique server slots, ownership validation, world geometry, and cleanup.
-- Resource nodes resolved from the player's own habitat, server-side distance/character checks, per-player cooldowns, and reward rollback paths.
-- Inventory, Bells, storage capacity, plot expansion, watering-can efficiency, and server-validated purchase logic.
-- Plant seed sourcing, planting, watering, growth, harvesting, and saved plant/plot state.
-- Ten sequential quests with server-recorded action counters, target-specific discovery/harvest validation, and guarded single-use rewards.
+- Owner-scoped resource nodes, gathering cooldowns, server-side distance/character checks, and reward rollback.
+- Inventory and Bells, storage upgrades, plot expansion, watering-can efficiency, and server-validated purchases.
+- Seed sourcing, planting, watering, growth, harvesting, and saved plot state.
+- Ten sequential quests with server-recorded action counters and guarded single-use rewards.
 - Five creature types with distinct movement profiles, player-specific discovery/restoration, and habitat-scoped behavior/cleanup.
 - Client prompt discovery and basic quest/HUD synchronization.
 
-These are source-presence statements, not claims of a playable or release-ready game. Roblox startup, live interactions, two-client multiplayer, real DataStore behavior, save/rejoin, shutdown, creature physics, and mobile input remain unverified.
+These are source-presence statements, not claims of a playable or release-ready game. Roblox startup, live interactions, two-client multiplayer, DataStore behavior, save/rejoin, shutdown, creature physics, and mobile input remain unverified.
+
+## Autonomous workflow reliability changes
+
+The workflow configuration on `main` and the shared continuation policy on `ai/game-build` now include:
+
+- Short recovery context with automatic archival when an active note exceeds 12 KB. Recovery writers replace the active summary rather than appending full logs/diffs.
+- Provider-specific preflight attachment budgets so small-context/low-TPM routes skip oversized payloads before sending a request.
+- Groq-style input-tokens-per-minute throttles are classified as temporary provider rate limits, not permanent request-size failures; real context/request-size failures remain quarantined for the run.
+- A two-consecutive-run circuit breaker when no fully validated development cycle completes. It resets only after an implementation + independent review + validation + QA cycle succeeds.
+- Run reports explicitly distinguish **validated development progress** from **handoff only / zero validated cycles**. A successful handoff is not gameplay progress.
+
+Relevant commits:
+- Gameplay restore/archive: `00cb18c0160ab47ca4336621c7351825c9c927db`
+- Shared policy/helper: `1f6aaa434f10def3c6c8c14ff96a3159f3ba028f`
+- Shared policy regression tests: `785bede2dae41b6fc43cf6fec1175c3d05c2b967`
+- Main workflow: `8e467d97ee790c81af798e47a4d8c7715b841793`
+
+The updated workflow regression script has not yet been observed running in a fresh workflow after these commits. Do not claim its tests passed until the next run executes them. Run #126 began before these changes and used an older checkout; treat it as a pre-fix run.
 
 ## Presentation, assets, and release
 
 - The asset pipeline is documented, but the current `assets/` tree contains only the runtime placeholder; no custom production art assets have been verified.
-- The player-facing experience still needs a cohesive low-poly environment, lighting/atmosphere, animations, audio, feedback, and responsive UI.
+- The player-facing experience still needs a cohesive low-poly environment, lighting/atmosphere, animations, audio, feedback, responsive UI, and mobile performance work.
 - Decorative-tile purchasing remains disabled until it has a real in-game effect.
 - Monetization is design-only; no production product IDs or receipt flow are verified.
-- Publishing is not authorized by this snapshot and must not occur without the user's explicit approval.
-
-## Autonomous workflow status
-
-- Run #115 (ID `43719238566`) completed with a successful workflow result because it dispatched a continuation. Its own log reports **0 autonomous development cycles**, **0 validated checkpoints**, and **no repository changes saved**; the stop reason was `no_implementation_progress`. The workflow's green result must not be interpreted as gameplay progress.
-- Run #116 (ID `43730225075`) was **in progress at the time of this snapshot**. Its outcome is unknown until checked again.
-- Quota/continuation workflow improvements are development infrastructure. They do not count as game-feature completion unless they produce reviewed and validated gameplay changes.
+- Do not publish without the user's explicit authorization.
 
 ## Required next-work sequence
 
-1. **Repair recovery first:** restore and inspect `src/shared/PocketHabitat.spec.lua` from the last good revision; preserve the full test intent and normal Luau formatting.
-2. Run `rojo build default.project.json -o build/pocket-habitat.rbxl`, `stylua --check src`, `selene src`, and `git diff --check`; record the actual results against the repaired commit.
-3. Execute TestEZ in a compatible Roblox runner. Installing TestEZ or having spec files present does not count as execution.
+1. Run the new workflow's continuation-policy regression tests and the project checks on the restored spec: Rojo, StyLua, Selene, and diff hygiene.
+2. Obtain independent review/QA of the restoration and mark recovery RESOLVED only when evidence supports it.
+3. Execute TestEZ in a compatible Roblox runner if one is available; otherwise record NOT RUN.
 4. In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback.
-5. Verify two-client habitat/creature/resource isolation, then DataStore load/save/rejoin, lease contention/renewal, failure handling, and shutdown.
-6. Build the actual player experience: responsive UI, clear interaction feedback, environment/art, creature polish, sound, lighting, and mobile performance.
-7. Complete balancing, content, and release QA. Do not publish without explicit user authorization.
+5. Verify two-client habitat/creature/resource isolation, then DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown.
+6. Continue with responsive UI, player feedback, environment/art, creature polish, sound, lighting, and mobile performance.
+7. Complete balancing, content, and release QA. Do not publish without explicit authorization.
 
 ## Source-of-truth documents
 
-- `docs/ROADMAP.md`: milestone definitions, feature acceptance criteria, and priorities.
+- `docs/ROADMAP.md`: milestone definitions, acceptance criteria, and priorities.
 - `docs/TESTING.md`: what has and has not actually been tested.
-- `docs/AUTONOMOUS_RECOVERY.md`: open recovery debt and its evidence.
+- `docs/AUTONOMOUS_RECOVERY.md`: compact active recovery debt.
+- `docs/recovery-archive/`: historical recovery log archive; do not attach to model prompts.
 - `docs/ASSET_PIPELINE.md`: visual direction, asset rules, and asset status.
