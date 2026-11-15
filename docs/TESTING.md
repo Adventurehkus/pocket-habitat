@@ -10,7 +10,7 @@
 
 ## Current branch blocker — 2026-11-15 (Run #88 cycle 2)
 
-The current `ai/game-build` HEAD is `2f651313d4b855b3333d9670ac9585d7add0f026`. Its `src/shared/PocketHabitat.spec.lua` was replaced with whitespace-stripped content. The Run #88 cycle-2 independent reviewer classified this as **CRITICAL**, citing merged tokens including `localReplicatedStorage` and `localfunctionmakeData`, and concluded the file is invalid Luau.
+The reviewed gameplay-source checkpoint is `2f651313d4b855b3333d9670ac9585d7add0f026` (subsequent commits in this documentation pass changed documentation only). At that source checkpoint, `src/shared/PocketHabitat.spec.lua` had been replaced with whitespace-stripped content. The Run #88 cycle-2 independent reviewer classified this as **CRITICAL**, citing merged tokens including `localReplicatedStorage` and `localfunctionmakeData`, and concluded the file is invalid Luau.
 
 - Recovery status: **OPEN**. See `docs/AUTONOMOUS_RECOVERY.md`.
 - Restore the file from the pre-corruption parent revision `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8` after reviewing it.
