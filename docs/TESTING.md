@@ -8,7 +8,20 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
-## Creature behavior-loop recovery — 2026-11-14
+## Current branch blocker — 2026-11-15 (Run #88 cycle 2)
+
+The current `ai/game-build` HEAD is `2f651313d4b855b3333d9670ac9585d7add0f026`. Its `src/shared/PocketHabitat.spec.lua` was replaced with whitespace-stripped content. The Run #88 cycle-2 independent reviewer classified this as **CRITICAL**, citing merged tokens including `localReplicatedStorage` and `localfunctionmakeData`, and concluded the file is invalid Luau.
+
+- Recovery status: **OPEN**. See `docs/AUTONOMOUS_RECOVERY.md`.
+- Restore the file from the pre-corruption parent revision `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8` after reviewing it.
+- Re-run Rojo, StyLua, Selene, and `git diff --check` on the repaired commit.
+- TestEZ remains NOT RUN. No test result can be inferred from the presence of test specifications.
+- Prior PASS records below are historical and do not validate the current corrupted HEAD.
+- Roblox Studio, multiplayer, DataStore, save/rejoin, shutdown, and mobile tests remain NOT RUN.
+
+Do not begin unrelated feature work or mark recovery resolved until this regression is fixed and the appropriate checks actually pass.
+
+## Historical Creature behavior-loop recovery — 2026-11-14
  
 Resolved the Run #43 cycle-5 source findings. Direct inspection confirmed target positions were already clamped to habitat X/Y/Z bounds; the missing-root lifecycle issue was fixed by checking model, Humanoid, and root ancestry after the loop's yield and before use. This recovery is now closed; see AUTONOMOUS_RECOVERY.md for the RESOLVED marker.
 
