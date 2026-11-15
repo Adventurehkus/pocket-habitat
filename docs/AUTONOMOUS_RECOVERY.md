@@ -3847,3 +3847,43 @@ index 47e1cda..a2f5112 100644
 +No configured implementation route completed cycle 2. Revisit temporarily limited routes after cooldown, try every still-eligible model, and inspect the route-attempt log. Do not abandon the original task.
 +
 +Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 88
+- Cycle: 2
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+The independent reviewer found actionable defects, but no repair model completed a fix in this cycle. Resolve the attached findings before unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-review-25.log
+
+[0m
+> reviewer · gemini-3.1-flash-lite
+REVIEW_FINDINGS: YES
+
+### Findings
+
+**Severity: CRITICAL**
+**File: `src/shared/PocketHabitat.spec.lua`**
+
+**Evidence:**
+The provided diff shows the entire content of `src/shared/PocketHabitat.spec.lua` being replaced. The new content is stripped of spaces, line breaks, and indentation (e.g., `localReplicatedStorage=game:GetService("ReplicatedStorage")`, `localfunctionmakeData():any`). 
+
+**Why it is wrong:**
+This is not valid Luau code. Removing required whitespace and line breaks in Luau will cause immediate syntax errors. For example, `localReplicatedStorage` is interpreted as a single identifier rather than `local ReplicatedStorage`. The file is now syntactically invalid and will fail to run in any test environment, rendering the entire test suite for `PocketHabitat` non-functional.
+
+**Player Impact:**
+The test suite serves as the primary validation for server-side logic (e.g., plot interactions, economy rules, and quest validation). Because the tests cannot run, any regressions or defects in these rules will remain undetected, potentially leading to critical gameplay exploits or data corruption if deployed.
+
+**Recommended Correction:**
+Revert the file `src/shared/PocketHabitat.spec.lua` to its previous state (the version before this diff was applied). Ensure that future changes to test files preserve standard Luau syntax and formatting.
+
+### Summary
+The `src/shared/PocketHabitat.spec.lua` file was corrupted by a bulk removal of whitespace, resulting in invalid code that will fail to compile. This is a critical failure that prevents validation of core game rules. No other actionable defects were identified in the logic because the file itself is broken.
