@@ -3902,3 +3902,41 @@ Revert the file `src/shared/PocketHabitat.spec.lua` to its previous state (the v
 
 ### Summary
 The `src/shared/PocketHabitat.spec.lua` file was corrupted by a bulk removal of whitespace, resulting in invalid code that will fail to compile. This is a critical failure that prevents validation of core game rules. No other actionable defects were identified in the logic because the file itself is broken.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 117
+- Cycle: 1
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+The independent reviewer found actionable defects, but no repair model completed a fix in this cycle. Resolve the attached findings before unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-review-17.log
+
+[0m
+> reviewer · gemini-3.1-flash-lite
+[0m✱ [0mGlob "src/shared/**/*" [90m12 matches[0m
+> reviewer · gemini-3.1-flash-lite
+[0m→ [0mRead src/shared/PocketHabitat.spec.lua 
+> reviewer · gemini-3.1-flash-lite
+REVIEW_FINDINGS: YES
+
+### Findings
+
+#### 1. Build Integrity: Extraneous Repository File
+- **Severity**: LOW
+- **File**: `src/shared/PocketHabitat.spec.lua.restored`
+- **Evidence**: The provided diff introduces an empty file named `src/shared/PocketHabitat.spec.lua.restored`.
+- **Impact**: Accumulation of junk files in the repository source tree, which can cause confusion for developers, clutter the codebase, and potentially lead to accidental references or build errors if mistaken for a functional component.
+- **Recommended Correction**: Remove `src/shared/PocketHabitat.spec.lua.restored` from the repository.
+
+---
+
+### Summary
+The primary actionable defect is the presence of an extraneous file introduced in the current cycle's diff. The functional test suite in `src/shared/PocketHabitat.spec.lua` appears intact, and no critical gameplay or data-safety defects were found in the provided implementation.
