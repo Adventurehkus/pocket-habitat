@@ -3712,3 +3712,33 @@ Results:
 0 warnings
 0 parse errors
 PASS: Selene src
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 85
+- Cycle: 3
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 3 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-implementation.diff
+
+diff --git a/src/shared/PocketHabitat.spec.lua b/src/shared/PocketHabitat.spec.lua
+index 8d4e595..1d49729 100644
+--- a/src/shared/PocketHabitat.spec.lua
++++ b/src/shared/PocketHabitat.spec.lua
+@@ -1054,7 +1054,7 @@ return function()
+             -- Level 2: 5 plots
+             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 2 }, 5)).to.equal(true)
+             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 2 }, 6)).to.equal(false)
+-            
++
+             -- Level 3: 6 plots
+             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 3 }, 6)).to.equal(true)
+             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 3 }, 7)).to.equal(false)

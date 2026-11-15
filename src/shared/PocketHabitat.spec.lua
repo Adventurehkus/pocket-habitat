@@ -1054,7 +1054,7 @@ return function()
             -- Level 2: 5 plots
             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 2 }, 5)).to.equal(true)
             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 2 }, 6)).to.equal(false)
-            
+
             -- Level 3: 6 plots
             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 3 }, 6)).to.equal(true)
             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 3 }, 7)).to.equal(false)
