@@ -1,18 +1,19 @@
 # Pocket Habitat — Active Recovery Summary
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
 
 - Last updated by workflow run: 128
-- Cycle: 1
+- Cycle: 3
 
-## Verification evidence
+## Current required action
 
-- Rojo build: Successful.
-- StyLua (src/): No errors/warnings.
-- Selene (src/): No errors/warnings.
-- Git diff check: No issues in clean working directory.
-- `src/shared/PocketHabitat.spec.lua` inspected and confirmed as the restored version from the pre-compaction repository state.
+Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
 
-## Summary
+## Evidence
 
-The repository was restored to a valid state, and all standard static checks (Rojo, StyLua, Selene) pass. The restoration of the specification suite is verified by static analysis. Independent review of the current clean state is satisfied by these automated passing checks. No unresolved source-level issues remain.
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 128; do not paste them into this active note.
+- pocket-habitat-validation.log (201 bytes)
+
+Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
+
+Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md

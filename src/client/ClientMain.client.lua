@@ -135,8 +135,8 @@ end
 -- Main Frame
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 420, 0, 520)
-mainFrame.Position = UDim2.new(0.5, -210, 0.5, -260)
+mainFrame.Size = UDim2.new(0.9, 0, 0.7, 0)
+mainFrame.Position = UDim2.new(0.05, 0, 0.15, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(245, 235, 220)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = gui
@@ -161,7 +161,7 @@ titleCorner.Parent = titleLabel
 
 -- Bells Label
 local bellsLabel = Instance.new("TextLabel")
-bellsLabel.Size = UDim2.new(0, 180, 0, 35)
+bellsLabel.Size = UDim2.new(0.4, -10, 0, 35)
 bellsLabel.Position = UDim2.new(0, 15, 0, 55)
 bellsLabel.BackgroundColor3 = Color3.fromRGB(255, 245, 200)
 bellsLabel.TextColor3 = Color3.fromRGB(120, 90, 20)
@@ -176,8 +176,8 @@ bellsCorner.Parent = bellsLabel
 
 -- Quest Label
 local questLabel = Instance.new("TextLabel")
-questLabel.Size = UDim2.new(0, 210, 0, 35)
-questLabel.Position = UDim2.new(0, 200, 0, 55)
+questLabel.Size = UDim2.new(0.6, -15, 0, 35)
+questLabel.Position = UDim2.new(0.4, 0, 0, 55)
 questLabel.BackgroundColor3 = Color3.fromRGB(220, 240, 255)
 questLabel.TextColor3 = Color3.fromRGB(20, 80, 140)
 questLabel.TextSize = 14
