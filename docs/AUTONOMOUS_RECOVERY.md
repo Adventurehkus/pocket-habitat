@@ -1,6 +1,6 @@
 # Pocket Habitat — Autonomous Recovery Record
  
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
  
 ## 2026-11-15 — Run #43 cycle-5 creature-loop findings closed
  
@@ -3597,3 +3597,57 @@ Results:
 0 warnings
 0 parse errors
 PASS: Selene src
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 55
+- Cycle: 3
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No configured implementation route completed cycle 3. Revisit temporarily limited routes after cooldown, try every still-eligible model, and inspect the route-attempt log. Do not abandon the original task.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 55
+- Cycle: 3
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+The independent reviewer found actionable defects, but no repair model completed a fix in this cycle. Resolve the attached findings before unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-review-31.log
+
+[0m
+> reviewer · gemini-3.1-flash-lite
+REVIEW_FINDINGS: YES
+
+### Confirmed Defects
+
+**1. CRITICAL: Insecure/Invalid Loop Logic in `HabitatRules.isPlotIndexUnlocked`**
+*   **File:** `src/shared/PocketHabitat.spec.lua` (implied dependency: `src/shared/HabitatRules.lua` via the spec test)
+*   **Evidence:** The test `it("validates plot index bounds correctly", ...)` confirms the current logic:
+    ```lua
+    expect(HabitatRules.isPlotIndexUnlocked({}, 1)).to.equal(true)
+    expect(HabitatRules.isPlotIndexUnlocked({}, 4)).to.equal(true)
+    ```
+    And:
+    ```lua
+    expect(HabitatRules.isPlotIndexUnlocked({}, 5)).to.equal(false)
+    ```
+*   **Why it is wrong:** The implementation hard-codes "unlocked" plots to a fixed range (1-4). This ignores the `upgrades` data passed to the function. A player who has purchased a plot expansion (which presumably increases the level of the `plot_expansion` upgrade) will remain unable to use higher-indexed plots because the `isPlotIndexUnlocked` function (as reflected in the requirements and tests) treats expansion as a constant rather than a data-driven value derived from the player's progression.
+*   **Player Impact:** Permanent lock-out from purchased/earned expansion plots.
+*   **Recommended Correction:** Update `HabitatRules.isPlotIndexUnlocked` to accept the player's `upgrades` table and dynamically compare the requested `index` against `HabitatRules.getPlotCount(upgrades)`.
+
+### Summary
+The provided implementation diff introduces extensive test coverage in `PocketHabitat.spec.lua` that validates the business logic against various edge cases. While this improves testability, the test cases confirm a critical flaw in the progression architecture: `HabitatRules` currently enforces static plot bounds regardless of actual player upgrades, rendering the plot expansion system non-functional for any plots beyond the default four. The `AUTONOMOUS_RECOVERY.md` correctly flags this cycle as failed. No further gameplay features should be added until the progression logic correctly consumes the `upgrades` table.

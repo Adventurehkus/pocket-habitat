@@ -775,4 +775,524 @@ return function()
             expect(modeCount).to.equal(creatureCount)
         end)
     end)
+
+    describe("ResourceRules — cooldown transaction edge cases", function()
+        it("validates readyAt timestamp must be strictly greater than now", function()
+            local cooldowns = { tree_1 = NOW - 10 }
+            local granted = ResourceRules.tryGrantReward(
+                cooldowns,
+                "tree_1",
+                NOW,
+                NOW, -- readyAt == now should fail
+                function()
+                    return true
+                end
+            )
+            expect(granted).to.equal(false)
+        end)
+
+        it("rejects negative cooldown timestamps", function()
+            local cooldowns = {}
+            local granted = ResourceRules.tryGrantReward(cooldowns, "tree_1", NOW, -1, function()
+                return true
+            end)
+            expect(granted).to.equal(false)
+        end)
+
+        it("rejects non-integer cooldown timestamps", function()
+            local cooldowns = {}
+            local granted = ResourceRules.tryGrantReward(
+                cooldowns,
+                "tree_1",
+                NOW,
+                NOW + 1.5,
+                function()
+                    return true
+                end
+            )
+            expect(granted).to.equal(false)
+        end)
+
+        it("rejects infinite cooldown timestamps", function()
+            local cooldowns = {}
+            local granted = ResourceRules.tryGrantReward(
+                cooldowns,
+                "tree_1",
+                NOW,
+                math.huge,
+                function()
+                    return true
+                end
+            )
+            expect(granted).to.equal(false)
+        end)
+
+        it("rejects non-function reward callbacks", function()
+            local cooldowns = {}
+            local granted = ResourceRules.tryGrantReward(
+                cooldowns,
+                "tree_1",
+                NOW,
+                NOW + 60,
+                "not a function" :: any
+            )
+            expect(granted).to.equal(false)
+        end)
+
+        it("rejects nil reward callbacks", function()
+            local cooldowns = {}
+            local granted = ResourceRules.tryGrantReward(cooldowns, "tree_1", NOW, NOW + 60, nil)
+            expect(granted).to.equal(false)
+        end)
+
+        it("handles multiple different node cooldowns independently", function()
+            local cooldowns = { tree_1 = NOW + 10, rock_1 = NOW - 5 }
+            expect(ResourceRules.isReady(cooldowns, "tree_1", NOW)).to.equal(false)
+            expect(ResourceRules.isReady(cooldowns, "rock_1", NOW)).to.equal(true)
+        end)
+
+        it("validates cooldown map with empty string key is invalid", function()
+            expect(ResourceRules.isValidCooldowns({ [""] = NOW })).to.equal(false)
+        end)
+    end)
+
+    describe("EconomyRules — capacity edge cases", function()
+        it("calculates base capacity correctly at level 1", function()
+            local inventory = {}
+            local upgrades = { storage_expansion = 1 }
+            local maxCapacity = 50 + 1 * 25
+            local allowed = EconomyRules.canAddItem(inventory, upgrades, "test", maxCapacity)
+            expect(allowed).to.equal(true)
+
+            local denied = EconomyRules.canAddItem(inventory, upgrades, "test", maxCapacity + 1)
+            expect(denied).to.equal(false)
+        end)
+
+        it("calculates capacity correctly at max storage level 3", function()
+            local inventory = {}
+            local upgrades = { storage_expansion = 3 }
+            local maxCapacity = 50 + 3 * 25
+            local allowed = EconomyRules.canAddItem(inventory, upgrades, "test", maxCapacity)
+            expect(allowed).to.equal(true)
+
+            local denied = EconomyRules.canAddItem(inventory, upgrades, "test", maxCapacity + 1)
+            expect(denied).to.equal(false)
+        end)
+
+        it("accounts for existing items when checking capacity", function()
+            local inventory = { wood = 60 }
+            local upgrades = { storage_expansion = 1 } -- 75 capacity
+            local allowed = EconomyRules.canAddItem(inventory, upgrades, "stone", 10) -- 60 + 10 = 70 <= 75
+            expect(allowed).to.equal(true)
+
+            local denied = EconomyRules.canAddItem(inventory, upgrades, "stone", 20) -- 60 + 20 = 80 > 75
+            expect(denied).to.equal(false)
+        end)
+
+        it("rejects non-integer quantities in inventory", function()
+            local inventory = { wood = 1.5 }
+            local upgrades = { storage_expansion = 1 }
+            local allowed = EconomyRules.canAddItem(inventory, upgrades, "stone", 1)
+            expect(allowed).to.equal(false)
+        end)
+
+        it("rejects negative quantities in inventory", function()
+            local inventory = { wood = -5 }
+            local upgrades = { storage_expansion = 1 }
+            local allowed = EconomyRules.canAddItem(inventory, upgrades, "stone", 1)
+            expect(allowed).to.equal(false)
+        end)
+
+        it("rejects non-integer storage upgrade levels", function()
+            local inventory = {}
+            local upgrades = { storage_expansion = 1.5 }
+            local allowed = EconomyRules.canAddItem(inventory, upgrades, "stone", 1)
+            expect(allowed).to.equal(false)
+        end)
+
+        it("rejects storage upgrade level 0", function()
+            local inventory = {}
+            local upgrades = { storage_expansion = 0 }
+            local allowed = EconomyRules.canAddItem(inventory, upgrades, "stone", 1)
+            expect(allowed).to.equal(false)
+        end)
+
+        it("rejects negative storage upgrade levels", function()
+            local inventory = {}
+            local upgrades = { storage_expansion = -1 }
+            local allowed = EconomyRules.canAddItem(inventory, upgrades, "stone", 1)
+            expect(allowed).to.equal(false)
+        end)
+
+        it("handles very large item amounts without overflow", function()
+            local inventory = {}
+            local upgrades = { storage_expansion = 3 }
+            local allowed = EconomyRules.canAddItem(inventory, upgrades, "test", 1000000)
+            expect(allowed).to.equal(false)
+        end)
+    end)
+
+    describe("QuestRules — progress aggregation and validation", function()
+        it("correctly aggregates harvest progress across different crop types", function()
+            local progress = {}
+            QuestRules.recordProgress(progress, "harvest", "crop_berry", 2)
+            QuestRules.recordProgress(progress, "harvest", "crop_flower", 3)
+            QuestRules.recordProgress(progress, "harvest", "crop_sunpetal", 1)
+
+            expect(QuestRules.getProgress(progress, "harvest")).to.equal(6)
+            expect(QuestRules.getProgress(progress, "harvest", "crop_berry")).to.equal(2)
+            expect(QuestRules.getProgress(progress, "harvest", "crop_flower")).to.equal(3)
+        end)
+
+        it("handles discover progress with specific and aggregate counts", function()
+            local progress = {}
+            QuestRules.recordProgress(progress, "discover", "bunny", 1)
+            QuestRules.recordProgress(progress, "discover", "sprite", 1)
+            QuestRules.recordProgress(progress, "discover", "leafling", 1)
+            QuestRules.recordProgress(progress, "discover", "tortoise", 1)
+            QuestRules.recordProgress(progress, "discover", "finch", 1)
+
+            expect(QuestRules.getProgress(progress, "discover")).to.equal(5)
+            expect(QuestRules.getProgress(progress, "discover", "bunny")).to.equal(1)
+        end)
+
+        it("rejects progress with non-integer amounts", function()
+            local progress = {}
+            expect(QuestRules.recordProgress(progress, "gather", "wood", 1.5)).to.equal(false)
+            expect(QuestRules.recordProgress(progress, "gather", "wood", -1)).to.equal(false)
+        end)
+
+        it("rejects progress with zero amount for positive-only targets", function()
+            local progress = {}
+            expect(QuestRules.recordProgress(progress, "gather", "wood", 0)).to.equal(false)
+        end)
+
+        it("validates upgrade progress against max level for all upgrades", function()
+            local progress = {}
+            for upgradeId, upgradeDef in pairs(Constants.UPGRADES) do
+                expect(QuestRules.setProgress(progress, "upgrade", upgradeId, upgradeDef.maxLevel)).to.equal(
+                    true
+                )
+                expect(
+                    QuestRules.setProgress(progress, "upgrade", upgradeId, upgradeDef.maxLevel + 1)
+                ).to.equal(false)
+            end
+        end)
+
+        it("rejects unknown upgrade IDs", function()
+            local progress = {}
+            expect(QuestRules.setProgress(progress, "upgrade", "nonexistent", 1)).to.equal(false)
+            expect(QuestRules.setProgress(progress, "upgrade", "", 1)).to.equal(false)
+        end)
+
+        it("isComplete returns false for progress on non-existent target", function()
+            local progress = { ["gather:wood"] = 5 }
+            expect(QuestRules.isComplete(progress, {
+                targetType = "gather",
+                targetItemId = "nonexistent",
+                targetCount = 1,
+            })).to.equal(false)
+        end)
+    end)
+
+    describe("QuestRules — quest completion and ordering", function()
+        it("validates all quest definitions have required fields", function()
+            for _, questId in ipairs(Constants.QUEST_ORDER) do
+                local quest = Constants.QUESTS[questId]
+                expect(quest).to.be.ok()
+                expect(type(quest.id)).to.equal("string")
+                expect(type(quest.title)).to.equal("string")
+                expect(type(quest.description)).to.equal("string")
+                expect(type(quest.targetType)).to.equal("string")
+                expect(QuestRules.validTargets[quest.targetType]).to.equal(true)
+                expect(type(quest.targetCount)).to.equal("number")
+                expect(quest.targetCount > 0).to.equal(true)
+                expect(type(quest.rewardBells)).to.equal("number")
+                expect(quest.rewardBells >= 0).to.equal(true)
+            end
+        end)
+
+        it("q6_creature grants sunpetal seed as item reward", function()
+            local quest = Constants.QUESTS.q6_creature
+            expect(quest.rewardItems).to.be.ok()
+            expect(quest.rewardItems[Constants.RESOURCES.SEED_SUNPETAL]).to.equal(1)
+        end)
+
+        it("quest order progresses through all ten quests sequentially", function()
+            local completed = {}
+            local previousQuest = nil
+            for _, questId in ipairs(Constants.QUEST_ORDER) do
+                local currentQuest = QuestRules.nextQuest(completed)
+                expect(currentQuest).to.equal(questId)
+                if previousQuest then
+                    completed[previousQuest] = true
+                end
+                previousQuest = questId
+            end
+            expect(QuestRules.nextQuest(completed)).to.equal(nil)
+        end)
+    end)
+
+    describe("HabitatRules — plot expansion edge cases", function()
+        it("returns nil for malformed upgrades table", function()
+            expect(HabitatRules.getPlotCount(nil)).to.equal(nil)
+            expect(HabitatRules.getPlotCount("not a table")).to.equal(nil)
+            expect(HabitatRules.getPlotCount(123)).to.equal(nil)
+        end)
+
+        it("handles missing plot_expansion key as level 1", function()
+            expect(HabitatRules.getPlotCount({})).to.equal(4)
+            expect(HabitatRules.getPlotCount({ other_upgrade = 1 })).to.equal(4)
+        end)
+
+        it("validates plot index bounds correctly", function()
+            expect(HabitatRules.isPlotIndexUnlocked({}, 0)).to.equal(false)
+            expect(HabitatRules.isPlotIndexUnlocked({}, -1)).to.equal(false)
+            expect(HabitatRules.isPlotIndexUnlocked({}, 1)).to.equal(true)
+            expect(HabitatRules.isPlotIndexUnlocked({}, 4)).to.equal(true)
+            expect(HabitatRules.isPlotIndexUnlocked({}, 5)).to.equal(false)
+            expect(HabitatRules.isPlotIndexUnlocked({}, 7)).to.equal(false)
+            expect(HabitatRules.isPlotIndexUnlocked({}, 8)).to.equal(false)
+        end)
+
+        it("handles fractional plot indices", function()
+            expect(HabitatRules.isPlotIndexUnlocked({}, 1.5)).to.equal(false)
+            expect(HabitatRules.isPlotIndexUnlocked({}, 2.0)).to.equal(true)
+        end)
+
+        it("partitionPlotData rejects indices beyond max supported", function()
+            local active, _, err = HabitatRules.partitionPlotData({ [8] = {} }, {}, 4)
+            expect(active).to.equal(nil)
+            expect(err).to.equal("Malformed plot entry")
+        end)
+
+        it("partitionPlotData rejects duplicate indices across active and archived", function()
+            local active, _, err = HabitatRules.partitionPlotData({ [5] = {} }, { [5] = {} }, 5)
+            expect(active).to.equal(nil)
+            expect(err).to.equal("Duplicate plot entry")
+        end)
+
+        it("partitionPlotData preserves plot data exactly", function()
+            local testPlot = {
+                seedId = "seed_berry",
+                plantedTime = 1000,
+                waterCount = 2,
+                stage = 1,
+            }
+            local active, _ = HabitatRules.partitionPlotData({ [5] = testPlot }, {}, 5)
+            expect(active[5].seedId).to.equal(testPlot.seedId)
+            expect(active[5].plantedTime).to.equal(testPlot.plantedTime)
+            expect(active[5].waterCount).to.equal(testPlot.waterCount)
+            expect(active[5].stage).to.equal(testPlot.stage)
+        end)
+    end)
+
+    describe("PlantRules — seed validation edge cases", function()
+        it("getPlantDef returns nil for non-seed items", function()
+            expect(PlantRules.getPlantDef("wood")).to.equal(nil)
+            expect(PlantRules.getPlantDef("stone")).to.equal(nil)
+            expect(PlantRules.getPlantDef("dewdrop")).to.equal(nil)
+            expect(PlantRules.getPlantDef("invalid_seed")).to.equal(nil)
+        end)
+
+        it("getPlantDef returns correct plant for all seed types", function()
+            for plantId, plantDef in pairs(Constants.PLANTS) do
+                local retrieved = PlantRules.getPlantDef(plantDef.seedId)
+                expect(retrieved).to.equal(plantDef)
+                expect(retrieved.id).to.equal(plantId)
+            end
+        end)
+
+        it("resolveSeed rejects invalid seed types in automatic mode", function()
+            local data = {
+                inventory = { wood = 10 },
+                plots = { [1] = { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 } },
+                upgrades = {},
+            }
+            local plan, reason =
+                PlantRules.validateInteraction(data, 1, "harvest_or_plant", nil, NOW)
+            expect(plan).to.equal(nil)
+            expect(reason).to.equal("No seeds available for planting")
+        end)
+
+        it("validates waterCount bounds for each plant type", function()
+            for _, plantDef in pairs(Constants.PLANTS) do
+                local data = {
+                    inventory = { [plantDef.seedId] = 1, dewdrop = plantDef.waterNeeded },
+                    plots = {
+                        [1] = {
+                            seedId = plantDef.seedId,
+                            plantedTime = NOW - plantDef.growthTime,
+                            waterCount = 0,
+                            stage = 1,
+                        },
+                    },
+                    upgrades = {},
+                }
+
+                -- Water exactly to completion
+                for _ = 1, plantDef.waterNeeded do
+                    local plan = PlantRules.validateInteraction(data, 1, "water", nil, NOW)
+                    expect(plan).to.be.ok()
+                    expect(plan.dewdropCost).to.equal(1)
+                    data.plots[1].waterCount += 1
+                    data.inventory.dewdrop -= 1
+                end
+
+                -- Next water should fail
+                local plan = PlantRules.validateInteraction(data, 1, "water", nil, NOW)
+                expect(plan).to.equal(nil)
+            end
+        end)
+
+        it("validates harvest reward configuration for each plant", function()
+            for plantId, plantDef in pairs(Constants.PLANTS) do
+                expect(type(plantDef.harvestReward)).to.equal("table")
+                expect(type(plantDef.harvestReward.itemId)).to.equal("string")
+                expect(plantDef.harvestReward.itemId).to.equal(
+                    Constants.RESOURCES["CROP_" .. string.upper(plantId)]
+                )
+                expect(type(plantDef.harvestReward.min)).to.equal("number")
+                expect(type(plantDef.harvestReward.max)).to.equal("number")
+                expect(plantDef.harvestReward.min >= 1).to.equal(true)
+                expect(plantDef.harvestReward.max >= plantDef.harvestReward.min).to.equal(true)
+                expect(type(plantDef.bellReward)).to.equal("number")
+                expect(plantDef.bellReward >= 1).to.equal(true)
+            end
+        end)
+    end)
+
+    describe("CharacterSpawnData — serialization edge cases", function()
+        it("decodes Vector3 from array-style table", function()
+            local decoded = CharacterSpawnData.decodeVector3({ 1, 2, 3 }, Vector3.zero)
+            expect(decoded).to.equal(Vector3.new(1, 2, 3))
+        end)
+
+        it("decodes Vector3 from object-style table", function()
+            local decoded = CharacterSpawnData.decodeVector3({ x = 1, y = 2, z = 3 }, Vector3.zero)
+            expect(decoded).to.equal(Vector3.new(1, 2, 3))
+        end)
+
+        it("decodes mixed array/object style table", function()
+            local decoded =
+                CharacterSpawnData.decodeVector3({ [1] = 1, y = 2, z = 3 }, Vector3.zero)
+            expect(decoded).to.equal(Vector3.new(1, 2, 3))
+        end)
+
+        it("returns fallback for invalid coordinate types", function()
+            local fallback = Vector3.new(0, 5, 0)
+            expect(CharacterSpawnData.decodeVector3({ x = "a", y = 2, z = 3 }, fallback)).to.equal(
+                fallback
+            )
+            expect(CharacterSpawnData.decodeVector3({ x = true, y = 2, z = 3 }, fallback)).to.equal(
+                fallback
+            )
+            expect(CharacterSpawnData.decodeVector3({}, fallback)).to.equal(fallback)
+        end)
+
+        it("returns fallback for coordinates exceeding 100000", function()
+            local fallback = Vector3.new(0, 5, 0)
+            expect(CharacterSpawnData.decodeVector3({ x = 100001, y = 0, z = 0 }, fallback)).to.equal(
+                fallback
+            )
+            expect(CharacterSpawnData.decodeVector3({ x = -100001, y = 0, z = 0 }, fallback)).to.equal(
+                fallback
+            )
+        end)
+
+        it("returns fallback for NaN and infinite coordinates", function()
+            local fallback = Vector3.new(0, 5, 0)
+            expect(CharacterSpawnData.decodeVector3({ x = 0 / 0, y = 0, z = 0 }, fallback)).to.equal(
+                fallback
+            )
+            expect(CharacterSpawnData.decodeVector3({ x = math.huge, y = 0, z = 0 }, fallback)).to.equal(
+                fallback
+            )
+        end)
+
+        it("encodes Vector3 to object with x, y, z keys", function()
+            local encoded = CharacterSpawnData.encodeVector3(Vector3.new(1.5, -2.5, 3.7))
+            expect(type(encoded)).to.equal("table")
+            expect(encoded.x).to.equal(1.5)
+            expect(encoded.y).to.equal(-2.5)
+            expect(encoded.z).to.equal(3.7)
+        end)
+
+        it("round-trip preserves precision for typical values", function()
+            local original = Vector3.new(12.5, 6, -8)
+            local encoded = CharacterSpawnData.encodeVector3(original)
+            local decoded = CharacterSpawnData.decodeVector3(encoded, Vector3.zero)
+            expect(decoded).to.equal(original)
+        end)
+    end)
+
+    describe("Constants — resource node and plant consistency", function()
+        it("every resource node has valid structure", function()
+            for _, node in ipairs(Constants.RESOURCE_NODES) do
+                expect(type(node.id)).to.equal("string")
+                expect(node.id).to.equal(string.lower(node.name))
+                expect(type(node.type)).to.equal("string")
+                expect(node.amount > 0 and node.amount % 1 == 0).to.equal(true)
+                expect(node.cooldownMinutes > 0).to.equal(true)
+                expect(typeof(node.position)).to.equal("Vector3")
+            end
+        end)
+
+        it("every plant has a corresponding seed resource node", function()
+            local seedNodeTypes = {}
+            for _, node in ipairs(Constants.RESOURCE_NODES) do
+                if string.sub(node.type, 1, 5) == "seed_" then
+                    seedNodeTypes[node.type] = true
+                end
+            end
+
+            for _, plantDef in pairs(Constants.PLANTS) do
+                expect(seedNodeTypes[plantDef.seedId]).to.equal(true)
+            end
+        end)
+
+        it("every seed resource node has a corresponding plant", function()
+            for _, node in ipairs(Constants.RESOURCE_NODES) do
+                if string.sub(node.type, 1, 5) == "seed_" then
+                    local found = false
+                    for _, plantDef in pairs(Constants.PLANTS) do
+                        if plantDef.seedId == node.type then
+                            found = true
+                            break
+                        end
+                    end
+                    expect(found).to.equal(true)
+                end
+            end
+        end)
+
+        it("all creature definitions have valid behavior profiles", function()
+            for _, creatureDef in pairs(Constants.CREATURES) do
+                expect(type(creatureDef.id)).to.equal("string")
+                expect(type(creatureDef.name)).to.equal("string")
+                expect(type(creatureDef.requiredFlora)).to.equal("number")
+                expect(creatureDef.requiredFlora >= 0).to.equal(true)
+                expect(type(creatureDef.requiredWater)).to.equal("number")
+                expect(creatureDef.requiredWater >= 0).to.equal(true)
+                expect(type(creatureDef.bellReward)).to.equal("number")
+                expect(creatureDef.bellReward >= 0).to.equal(true)
+                expect(type(creatureDef.behavior)).to.equal("table")
+                expect(type(creatureDef.behavior.mode)).to.equal("string")
+                expect(creatureDef.behavior.moveInterval > 0).to.equal(true)
+                expect(creatureDef.behavior.wanderRadius > 0).to.equal(true)
+            end
+        end)
+
+        it("all upgrades have valid cost progression", function()
+            for _, upgradeDef in pairs(Constants.UPGRADES) do
+                expect(type(upgradeDef.id)).to.equal("string")
+                expect(type(upgradeDef.baseCost)).to.equal("number")
+                expect(upgradeDef.baseCost > 0).to.equal(true)
+                expect(type(upgradeDef.costMultiplier)).to.equal("number")
+                expect(upgradeDef.costMultiplier > 0).to.equal(true)
+                expect(type(upgradeDef.maxLevel)).to.equal("number")
+                expect(upgradeDef.maxLevel >= 1).to.equal(true)
+            end
+        end)
+    end)
 end
