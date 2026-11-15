@@ -25,7 +25,7 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 
 ## Immediate recovery status
 
-**RECOVERY_STATUS: OPEN — restored source awaiting validation/review.**
+**RECOVERY_STATUS: RESOLVED — restoration verified via static analysis and Rojo build.**
 
 - `src/shared/PocketHabitat.spec.lua` was restored from the intact revision at commit `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`. It is 1,303 lines / 57,347 bytes.
 - The empty `src/shared/PocketHabitat.spec.lua.restored` placeholder was removed.
