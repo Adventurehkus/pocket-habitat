@@ -1,6 +1,18 @@
 # Pocket Habitat — Autonomous Recovery Record
  
-RECOVERY_STATUS: OPEN
+RECOVERY_STATUS: RESOLVED
+ 
+## 2026-11-15 — Run #85 cycle-4 whitespace resolution
+ 
+**Evidence:** The formatting violation in `src/shared/PocketHabitat.spec.lua` (trailing whitespace on empty lines) identified by `stylua --check` has been resolved.
+ 
+**Verification on current worktree:**
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS.
+- `stylua --check src`: PASS.
+- `selene src`: PASS.
+- `git diff --check`: PASS.
+ 
+All automation-resolvable source-level issues are now fixed and verified.
  
 ## 2026-11-15 — Run #43 cycle-5 creature-loop findings closed
  
