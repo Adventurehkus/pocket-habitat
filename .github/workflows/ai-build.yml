@@ -152,6 +152,25 @@ jobs:
           VALIDATION_LOG="$RUNNER_TEMP/pocket-habitat-validation.log"
           DIFF_FILE="$RUNNER_TEMP/pocket-habitat-implementation.diff"
           RECOVERY_CONTEXT_FILE="$GITHUB_WORKSPACE/docs/AUTONOMOUS_RECOVERY.md"
+          RECOVERY_CONTEXT_MAX_BYTES=12000
+          if [[ -f "$RECOVERY_CONTEXT_FILE" ]]; then
+            RECOVERY_CONTEXT_BYTES="$(wc -c < "$RECOVERY_CONTEXT_FILE")"
+            if (( RECOVERY_CONTEXT_BYTES > RECOVERY_CONTEXT_MAX_BYTES )); then
+              mkdir -p "$GITHUB_WORKSPACE/docs/recovery-archive"
+              RECOVERY_ARCHIVE="$GITHUB_WORKSPACE/docs/recovery-archive/AUTONOMOUS_RECOVERY_OVERFLOW_RUN_${GITHUB_RUN_NUMBER}.md"
+              cp "$RECOVERY_CONTEXT_FILE" "$RECOVERY_ARCHIVE"
+              cat > "$RECOVERY_CONTEXT_FILE" <<EOF
+          # Pocket Habitat — Active Recovery Summary
+
+          RECOVERY_STATUS: OPEN
+
+          The previous recovery note exceeded the 12 KB prompt budget (${RECOVERY_CONTEXT_BYTES} bytes) and was moved to `docs/recovery-archive/$(basename "$RECOVERY_ARCHIVE")`.
+
+          Inspect the active source, PROJECT_STATE.md, ROADMAP.md, and the archived history only when a specific historical detail is required. Do not attach or reproduce the archive in model prompts. Replace this file with a compact current issue summary as recovery proceeds.
+          EOF
+              echo "::warning::Compacted oversized recovery context (${RECOVERY_CONTEXT_BYTES} bytes) into a non-attached archive."
+            fi
+          fi
           echo "safe_to_persist=false" >> "$GITHUB_OUTPUT"
           printf 'round\tstage\tprovider\tmodel\tattempt\tresult\tdetail\n' > "$USAGE_LOG"
 
@@ -647,7 +666,8 @@ jobs:
           assert_failure_class "google" 'Generate content free tier input token count per minute limit exceeded. Please retry in 43.4s.' "MODEL_RATE_LIMIT"
           assert_failure_class "google" 'Generate content free tier requests per minute limit exceeded. Please retry in 43.4s.' "MODEL_RATE_LIMIT"
           assert_failure_class "google" 'Please retry in 43.4s.' "MODEL_RATE_LIMIT"
-          assert_failure_class "groq" 'Request too large for model; input tokens per minute Limit 7000, Requested 12283.' "REQUEST_TOO_LARGE"
+          assert_failure_class "groq" 'Request too large for model; input tokens per minute Limit 7000, Requested 12283.' "PROVIDER_RATE_LIMIT"
+          assert_failure_class "groq" 'Request too large for model: maximum context length exceeded.' "REQUEST_TOO_LARGE"
           assert_failure_class "cohere" 'Trial key is limited to 20 API calls / minute.' "PROVIDER_RATE_LIMIT"
           assert_failure_class "cohere" 'You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits.' "SHARED_MONTHLY_QUOTA"
           assert_failure_class "github-copilot" 'You have exhausted your monthly premium requests allowance.' "SHARED_MONTHLY_QUOTA"
