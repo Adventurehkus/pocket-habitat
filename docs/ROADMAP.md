@@ -13,9 +13,11 @@ Status labels:
 
 ## Current status snapshot — 2026-11-15
 
-**Estimated overall completion: approximately 25%.** This is a directional product-readiness estimate, not a calculated metric. Many gameplay systems exist in source, but Roblox runtime behavior is unverified, presentation is still early, and release work has not started. See `docs/PROJECT_STATE.md` for the workstream estimates and evidence boundary.
+**Estimated overall completion: approximately 25%.** This is a directional product-readiness estimate, not a measured metric. Source gameplay systems exist, but Roblox runtime playability, multiplayer, persistence, presentation, and release readiness remain unverified or incomplete. See `docs/PROJECT_STATE.md` for the breakdown.
 
-**Critical current blocker:** Run #88 cycle 2 corrupted `src/shared/PocketHabitat.spec.lua` by stripping whitespace. The independent reviewer classified the result as invalid Luau. `RECOVERY_STATUS` is **OPEN**. Restore the suite from its pre-corruption revision, review the diff, and rerun the source validation gates before feature work.
+**Recovery status: OPEN — source restored, validation/review pending.** The 1,303-line `src/shared/PocketHabitat.spec.lua` was restored from the last intact revision (`6cfdc9e`); the empty `.restored` placeholder was removed. Run Rojo, StyLua, Selene, and diff checks on the restored branch, then obtain independent review/QA. TestEZ remains NOT RUN unless a compatible runner actually executes it. Full historical recovery material is archived separately and must not be attached to agent prompts.
+
+**Workflow reliability improvements:** the active recovery note is compact (12 KB maximum); full reports remain in artifacts/archive. Provider-specific payload budgets skip oversized routes before requests, TPM throttles receive cooldowns rather than permanent-size classification, and two consecutive workflow runs without a validated development cycle open a no-progress circuit breaker. A green continuation handoff with zero validated cycles is not gameplay progress.
 
 **Current state by milestone:**
 - Milestone 0 — Foundation: complete as repository/tooling infrastructure.
@@ -23,10 +25,8 @@ Status labels:
 - Milestone 2 — Personal habitats: ownership/session/persistence source exists; multiplayer and DataStore runtime verification pending.
 - Milestone 3 — Progression/content: ten quests, plant progression, upgrades, and creature profiles exist in source; runtime and test execution pending.
 - Milestone 4 — Player experience: early/basic only; responsive UI, feedback, environment, animation, sound, and mobile polish remain.
-- Milestone 5 — QA/hardening: blocked by the current malformed TestEZ spec; TestEZ and Roblox runtime tests have not been run.
+- Milestone 5 — QA/hardening: restored TestEZ source awaits current static validation/review; TestEZ and Roblox runtime tests remain outstanding.
 - Milestone 6 — Release: planned; no release-readiness evidence.
-
-**Autonomous workflow note:** Run #115 completed only after dispatching Run #116; #115 itself recorded zero development cycles, zero validated checkpoints, and no saved repository changes. Run #116 was in progress at the time of this snapshot. Do not count a successful handoff as game progress.
 
 ## Milestone 0 — Foundation
 
@@ -196,13 +196,11 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority: repair the current TestEZ source regression before feature work.** Restore `src/shared/PocketHabitat.spec.lua` from the last known-good pre-corruption revision (parent `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8` of the Run #88 corruption commit), inspect the full diff, and rerun Rojo, StyLua, Selene, and `git diff --check`.
+**Immediate priority:** validate the restored TestEZ spec and the new workflow safety policy before new gameplay feature work.
 
-After the recovery gate is clear:
-1. Execute the TestEZ suite in a compatible Roblox runner.
-2. Verify server startup, character join/respawn, gathering through seed → plant → grow → water → harvest, all ten quest claims, and upgrade effects in Roblox Studio.
-3. Verify two-client habitat/resource/creature isolation and DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown.
-4. Prioritize responsive UI, natural player feedback, environment/art, creature polish, sound/lighting, and mobile performance.
-5. Complete balancing and release QA; do not publish without explicit user authorization.
+1. Run `bash .github/scripts/test-continuation-policy.sh` from the workflow's normal checkout and inspect the reported result.
+2. Run `rojo build default.project.json -o build/pocket-habitat.rbxl`, `stylua --check src`, `selene src`, and `git diff --check` on the restored source.
+3. Obtain independent review/QA. Keep recovery OPEN until the current checks and review pass; TestEZ execution is separate and must not be claimed unless a compatible runner executes it.
+4. Continue with Roblox Studio startup/gameplay, two-client habitat isolation, DataStore save/rejoin/lease/shutdown, then prioritize responsive UI, feedback, environment/art, creature polish, and mobile performance.
 
-Do not treat a workflow handoff, successful Rojo build, or historical static check as proof of runtime playability. Keep the recovery marker OPEN until the current test-file regression is fixed and evidenced.
+Do not count a successful workflow handoff as progress. A development cycle counts only after implementation, independent review, deterministic validation, QA, and checkpoint persistence succeed. The workflow automatically stops after two consecutive workflow runs with zero validated cycles.
