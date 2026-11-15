@@ -1,80 +1,39 @@
-# Pocket Habitat — Current Implementation and Readiness Report
+# Pocket Habitat — Current Implementation and Reliability Report
 
 **Date:** 2026-11-15  
 **Gameplay branch:** `ai/game-build`  
-**Gameplay/source checkpoint reviewed:** `2f651313d4b855b3333d9670ac9585d7add0f026` (the later commits in this documentation pass changed documentation only)  
+**Reviewed gameplay checkpoint:** `785bede2dae41b6fc43cf6fec1175c3d05c2b967`  
+**Workflow/configuration checkpoint:** `8e467d97ee790c81af798e47a4d8c7715b841793` on `main`  
 **Estimated overall completion:** approximately **25%**
 
-> This is a project-readiness estimate, not a test result or an automatically calculated metric. Source modules exist for a meaningful portion of the gameplay loop, but the game is not yet proven playable in Roblox and still lacks much of its finished player experience.
+## Current state
 
-## Executive assessment
+Pocket Habitat has source-level systems for personal habitats, resource gathering, inventory/economy, planting/harvesting, ten quests, upgrades, creature discovery, and persistent player sessions. The experience is not yet proven playable in Roblox. Roblox Studio, two-player multiplayer, real DataStore behavior, and TestEZ execution remain unverified.
 
-Pocket Habitat has a substantial source-level foundation: server-managed player habitats, resource gathering, planting and harvesting, economy/inventory, ten quests, upgrades, creature discovery, and persistence/session logic. The implementation is not equivalent to a functioning game release. Roblox Studio/runtime, two-player multiplayer, and real DataStore behavior have not been verified.
+## Four reliability fixes applied
 
-The latest branch also has an immediate quality gate failure: `src/shared/PocketHabitat.spec.lua` was whitespace-stripped in the Run #88 cycle-2 checkpoint. The independent reviewer classified this as a critical Luau syntax regression. The recovery marker is OPEN. Restore the test file before treating the suite or the latest branch as validated.
+1. **Test suite restored.** `src/shared/PocketHabitat.spec.lua` was restored byte-for-byte from the last intact Git revision (`6cfdc9e`); it contains 1,303 lines / 57,347 bytes. The empty `.restored` placeholder was removed. The previous recovery history is preserved in `docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md`.
+2. **Recovery context compacted.** The active recovery note is now a short task summary. The previous 310 KB history is archived and is not attached to prompts. The workflow replaces the active note rather than appending full 120-line logs and diffs, and it automatically archives any future active note over 12 KB.
+3. **Model routing hardened.** The workflow estimates request bytes and skips models before dispatch when the prompt plus attachments exceeds conservative provider-specific budgets. TPM errors such as Groq's “input tokens per minute” response are classified as temporary provider rate limits, not permanent request-size failures, so the provider receives a cooldown and fallback remains available.
+4. **No-progress circuit breaker added.** A continuation carries the consecutive zero-cycle-run count. At most two consecutive workflow runs may finish without a validated development cycle; a validated implementation/review/validation/QA checkpoint resets the counter. The run summary explicitly labels zero-cycle runs as handoff-only, not development progress.
 
-## Completion by workstream
+## What is and is not verified
 
-| Workstream | Estimate | Assessment |
-|---|---:|---|
-| Development foundation | 100% | Repository/toolchain/workflow foundation exists |
-| Core gameplay | 60% | Systems exist in source; playable loop unverified |
-| Personal habitats and persistence | 65% | Ownership/session/save logic exists in source; engine testing pending |
-| Quests and progression | 60% | Ten-quest progression and reward paths exist in source; runtime pending |
-| Creatures and discovery | 55% | Five creature profiles and per-player logic exist in source; behavior pending |
-| UI and presentation | 15% | Basic client/HUD paths only; substantial UX/art polish remains |
-| Testing and reliability | 5% | Current suite is damaged; TestEZ and runtime testing remain outstanding |
-| Release preparation | 0% | Release QA and readiness work not started |
-
-The overall estimate weighs product readiness and unverified critical paths; it is not the arithmetic mean of the workstream estimates.
-
-## Source systems currently present
-
-- Player session acquisition and server-owned character lifecycle/spawn restoration.
-- Independent player habitat allocation, ownership checks, plot geometry, and cleanup.
-- Owner-scoped resource nodes, gathering cooldowns, and reward validation/rollback.
-- Inventory and Bells, storage upgrades, plot expansion, and watering-can efficiency.
-- Plant seed availability, planting, watering, growth, harvesting, and saved plot state.
-- Ten sequential quests using server-recorded action progress and guarded reward claims.
-- Five creature types with distinct source-level movement profiles and player-specific discovery/restoration.
-- Client prompt discovery and basic quest/HUD synchronization.
-
-All of the above must be treated as implemented-in-source until the corresponding Roblox behavior has been tested.
-
-## Current recovery blocker
-
-Run #88 cycle 2 changed the complete `src/shared/PocketHabitat.spec.lua` file into whitespace-stripped text. The reviewer specifically found merged Luau tokens such as `localReplicatedStorage` and `localfunctionmakeData` and concluded the file is syntactically invalid.
-
-**Required action:** restore the file from the pre-corruption parent revision `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8` after inspecting that version, then run formatter, lint, and Rojo build checks. Keep `RECOVERY_STATUS: OPEN` until this is genuinely resolved and evidenced.
-
-## Verification boundary
-
-| Check | Current status |
+| Item | Status |
 |---|---|
-| Rojo build | Historical PASS records exist for earlier checkpoints; latest corrupted head is not validated by those records |
-| StyLua | Historical PASS records exist; current corrupted test file requires a fresh check |
-| Selene | Historical PASS records exist; current corrupted test file requires a fresh check |
-| TestEZ | NOT RUN; no compatible runner result |
+| TestEZ spec restoration | Source restored from known-good Git blob |
+| Empty backup removal | Removed |
+| Full recovery history | Preserved in archive, not attached to model prompts |
+| Workflow payload budgets | Implemented; next fresh workflow must execute policy tests |
+| TPM classification | Implemented with workflow regression fixtures; next fresh workflow must execute them |
+| Cross-run no-progress breaker | Implemented with unit-policy fixtures; next fresh workflow must execute them |
+| Rojo / StyLua / Selene after restoration | NOT YET RUN in this task |
+| TestEZ | NOT RUN |
 | Roblox Studio/server startup | NOT RUN |
-| End-to-end planting/harvesting/quest flow | NOT RUN |
-| Two-client multiplayer isolation | NOT RUN |
-| DataStore save/rejoin/lease contention/shutdown | NOT RUN |
-| Creature movement/physics | NOT RUN |
-| Mobile/touch performance | NOT RUN |
-| Production art/assets | No custom production assets verified |
-
-## Autonomous run interpretation
-
-Run #115 (ID `43719238566`) finished successfully only because it queued Run #116. Run #115 recorded zero development cycles, zero validated checkpoints, and no changes to persist. Run #116 (ID `43730225075`) was still in progress at the time this report was written. Neither fact establishes gameplay progress.
+| Gameplay, two-client multiplayer, DataStore save/rejoin, shutdown, mobile | NOT RUN |
 
 ## Immediate next task
 
-1. Restore the TestEZ spec to the last good version and review the exact diff.
-2. Run Rojo, StyLua, Selene, and diff checks; save their real outputs.
-3. Execute TestEZ in a compatible Roblox runner.
-4. Continue with Roblox Studio integration, two-client multiplayer, and DataStore validation.
-5. Only after reliability gates are clear, prioritize responsive UI, clear feedback, environment/art, creature polish, sound, lighting, and device performance.
+Run the new workflow and source validation tests, inspect the restored spec diff, and obtain independent review/QA. Keep `RECOVERY_STATUS: OPEN` until the current branch passes its actual checks. Then continue with Roblox Studio integration and runtime validation.
 
-## Asset and release status
-
-The asset pipeline is documented, but the repository's runtime asset folder currently contains only its placeholder. Production art, environment polish, finished UI, sound, thumbnails, icon, trailer, and release checklist remain. No publishing is authorized without explicit user approval.
+No gameplay feature was added in this reliability repair. The changes are intended to make the autonomous development system stop destroying test context, use model routes more efficiently, and stop endless zero-progress handoffs.
