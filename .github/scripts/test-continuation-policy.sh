@@ -18,16 +18,29 @@ assert_policy() {
   fi
 }
 
-# Per-run limits may hand off without a fixed cross-run count or age limit.
-assert_policy true no_implementation_progress false 6 true
-assert_policy true total_model_call_budget false 6 false
-assert_policy true autonomous_round_budget false 1 false
-assert_policy false no_implementation_progress false 6 false
-assert_policy false no_implementation_progress true 6 true
-assert_policy false no_implementation_progress false 0 true
-assert_policy false recovery_checkpoint_persistence_failed false 6 true
-assert_policy false unknown_stop_reason false 6 true
-assert_policy false total_model_call_budget true 6 false
+# Run-local limits can hand off, but consecutive runs without a validated
+# development cycle are capped. A validated cycle resets the counter to zero.
+assert_policy true no_implementation_progress false 6 true 0 2
+assert_policy true no_implementation_progress false 6 true 1 2
+assert_policy false no_implementation_progress false 6 true 2 2
+assert_policy true total_model_call_budget false 6 false 0 2
+assert_policy true autonomous_round_budget false 1 false 1 2
+assert_policy false total_model_call_budget false 6 false 2 2
+assert_policy false autonomous_round_budget false 1 false 3 2
+assert_policy false no_implementation_progress false 6 false 0 2
+assert_policy false no_implementation_progress false 6 true 0 0
+assert_policy false no_implementation_progress false 6 true invalid 2
+assert_policy false recovery_checkpoint_persistence_failed false 6 true 0 2
+assert_policy false unknown_stop_reason false 6 true 0 2
+assert_policy false total_model_call_budget true 6 false 0 2
+
+# Model-specific conservative payload budgets keep low-TPM routes from
+# receiving oversized recovery notes or complete diffs.
+[[ "$(model_input_budget_bytes groq/qwen/qwen3.8-27b)" -eq 18432 ]]
+[[ "$(model_input_budget_bytes cloudflare-workers-ai/glm-4.7-flash)" -eq 49152 ]]
+[[ "$(model_input_budget_bytes cohere/north-mini-code)" -eq 98304 ]]
+[[ "$(model_input_budget_bytes google/gemini-3.5-flash-lite)" -eq 196608 ]]
+[[ "$(model_input_budget_bytes unknown/model)" -eq 65536 ]]
 
 # Deterministic provider reset checks (times are UTC epochs).
 NOW="$(date -u -d '2026-11-14 16:00:00' +%s)"
