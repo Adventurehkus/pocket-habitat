@@ -9,6 +9,8 @@ Develop Pocket Habitat: a polished, low-poly Roblox habitat builder about collec
 - Use safe, versioned persistence and isolate multiplayer player data.
 - Prefer original, efficient Roblox geometry and assets; make UI work on mouse, keyboard, touch, and gamepad where practical.
 - Preserve correct existing code. Make integrated, testable changes and never claim unrun tests passed.
+- Keep `docs/AUTONOMOUS_RECOVERY.md` as a compact active-task summary (target under 12 KB). Do not paste full model logs or diffs into it; preserve full history in `docs/recovery-archive/` or workflow artifacts and never attach the archive to model prompts.
+- A green run that only dispatches a continuation is a handoff, not development progress. Count progress only after a validated implementation/review/validation/QA cycle.
 - Treat implementation, review, repair, QA, and deterministic validation failures as recovery work rather than automatic run-ending conditions. Use fallback routes, retry eligible models in later cycles, and preserve unresolved findings in `docs/AUTONOMOUS_RECOVERY.md`. Never weaken checks or call an unvalidated recovery checkpoint complete. Stop only for documented hard safety/budget/persistence limits or when no meaningful safe progress is possible.
 - Do not publish to Roblox or use publishing credentials.
 - Use only tools exposed in the current agent environment. Do not invent tools, credentials, APIs, or test results.
