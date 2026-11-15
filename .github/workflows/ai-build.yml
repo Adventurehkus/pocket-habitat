@@ -23,6 +23,11 @@ on:
         required: false
         type: string
         default: ""
+      consecutive_no_progress_runs:
+        description: "Internal circuit-breaker state for consecutive runs without a validated development cycle."
+        required: false
+        type: string
+        default: "0"
       continuation_count:
         description: "Legacy compatibility input from older runs; ignored."
         required: false
@@ -128,7 +133,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           TASK: ${{ inputs.task }}
-          IS_CONTINUATION_RUN: ${{ inputs.is_continuation == 'true' || inputs.quota_pool_resets != '' || inputs.quota_day != '' || inputs.exhausted_quota_pools != '' || inputs.continuation_count != '0' || inputs.chain_started_at != '' }}
+          IS_CONTINUATION_RUN: ${{ inputs.is_continuation == 'true' || inputs.quota_pool_resets != '' || inputs.consecutive_no_progress_runs != '0' || inputs.quota_day != '' || inputs.exhausted_quota_pools != '' || inputs.continuation_count != '0' || inputs.chain_started_at != '' }}
+          NO_PROGRESS_RUNS_BEFORE: ${{ inputs.consecutive_no_progress_runs }}
           QUOTA_STATE_DAY: ${{ inputs.quota_day }}
           EXHAUSTED_QUOTA_POOLS: ${{ inputs.exhausted_quota_pools }}
           QUOTA_POOL_RESETS: ${{ inputs.quota_pool_resets }}
@@ -161,6 +167,7 @@ jobs:
           declare -A MODEL_STAGE_RETRIES=()
           declare -A MODEL_STAGE_TEMP_FAILURES=()
           declare -A MODEL_STAGE_EXHAUSTED=()
+          declare -A MODEL_STAGE_OVERSIZE=()
           declare -A MODEL_COOLDOWN_UNTIL=()
           declare -A PROVIDER_COOLDOWN_UNTIL=()
           declare -A QUOTA_POOL_RESET_AT=()
@@ -190,6 +197,13 @@ jobs:
           fi
           AUTONOMOUS_STOP_REASON=""
           NO_PROGRESS_ROUNDS=0
+          CONSECUTIVE_NO_PROGRESS_RUNS=0
+          if [[ "${NO_PROGRESS_RUNS_BEFORE:-0}" =~ ^[0-9]+$ ]]; then
+            CONSECUTIVE_NO_PROGRESS_RUNS="$NO_PROGRESS_RUNS_BEFORE"
+          else
+            echo "::warning::Invalid no-progress continuation state; resetting the circuit-breaker counter to zero."
+          fi
+          MAX_CONSECUTIVE_NO_PROGRESS_RUNS=2
           PIPELINE_EXIT=0
           IMPLEMENTATION_RETRYABLE_RUN_LIMIT=false
           # Each workflow execution has bounded local call, round, and wait budgets.
@@ -406,6 +420,22 @@ jobs:
 
             if [[ "$provider" == "github-copilot" ]] && grep -Eiq 'premium requests?.{0,100}(exhausted|limit|allowance)|monthly.{0,80}(AI credits|premium requests?|quota|allowance|limit)' "$log_file"; then
               echo "SHARED_MONTHLY_QUOTA"
+              return 0
+            fi
+
+            # Groq (and some compatible providers) phrase TPM throttles as
+            # "request too large" and include the input-token rate limit plus
+            # requested count. Treat these as temporary provider limits, not a
+            # permanent model/context-size failure.
+            if grep -Eiq 'input tokens per minute|tokens per minute.{0,100}(limit|exceeded)|TPM.{0,80}(limit|exceeded)' "$log_file"; then
+              case "$provider" in
+                groq|cohere|openrouter|cloudflare-workers-ai)
+                  echo "PROVIDER_RATE_LIMIT"
+                  ;;
+                *)
+                  echo "MODEL_RATE_LIMIT"
+                  ;;
+              esac
               return 0
             fi
 
@@ -829,6 +859,7 @@ jobs:
             local remaining_stage remaining_total failure_class stage_deadline
             local stage_calls stage_temp_events temp_failure_count pool_key role_name reset_at reset_label
             local stage_run_cap_skips stage_cooldown_skips
+            local request_bytes input_budget attachment_bytes
             local -a command_args=()
 
             STAGE_STATUS["$stage"]="EXHAUSTED"
@@ -864,6 +895,28 @@ jobs:
               for model in "${candidates[@]}"; do
                 provider="$(provider_for_model "$model")"
                 attempt_key="$stage|$model"
+
+                if [[ -n "${MODEL_STAGE_OVERSIZE[$attempt_key]:-}" ]]; then
+                  continue
+                fi
+
+                # Estimate prompt plus actual attached input before invoking a
+                # route. Copilot receives file paths except validation-repair,
+                # where validation output is embedded into the prompt.
+                request_bytes="$(printf '%s' "$prompt" | wc -c)"
+                for attachment in "${STAGE_FILES[@]}"; do
+                  if [[ -f "$attachment" ]] && { [[ "$provider" != "github-copilot" ]] || [[ "$stage" == "validation-repair" ]]; }; then
+                    attachment_bytes="$(wc -c < "$attachment")"
+                    request_bytes=$((request_bytes + attachment_bytes))
+                  fi
+                done
+                input_budget="$(model_input_budget_bytes "$model")"
+                if [[ "$request_bytes" -gt "$input_budget" ]]; then
+                  MODEL_STAGE_OVERSIZE["$attempt_key"]="${request_bytes} bytes exceeds ${input_budget}-byte preflight budget"
+                  record_attempt "$stage" "$provider" "$model" 0 "PAYLOAD_SKIPPED" "estimated input ${request_bytes} bytes exceeds conservative ${input_budget}-byte route budget; no request sent"
+                  echo "::notice::$model skipped for $stage before dispatch: estimated input ${request_bytes} bytes exceeds its ${input_budget}-byte route budget."
+                  continue
+                fi
 
                 # A model is used at most once per cycle so implementation,
                 # review and QA remain independent. It can be selected again
@@ -1432,57 +1485,42 @@ jobs:
             local reason="$1"
             shift
 
-            # Any new failure re-opens a previously resolved recovery note.
-            if [[ -f "$RECOVERY_CONTEXT_FILE" ]]; then
-              if grep -q '^RECOVERY_STATUS:' "$RECOVERY_CONTEXT_FILE"; then
-                sed -i 's/^RECOVERY_STATUS:.*/RECOVERY_STATUS: OPEN/' "$RECOVERY_CONTEXT_FILE"
-              else
-                {
-                  echo "RECOVERY_STATUS: OPEN"
-                  cat "$RECOVERY_CONTEXT_FILE"
-                } > "$RECOVERY_CONTEXT_FILE.tmp"
-                mv "$RECOVERY_CONTEXT_FILE.tmp" "$RECOVERY_CONTEXT_FILE"
-              fi
-            fi
-
+            # Keep only the current actionable recovery state in the prompt
+            # file. Full transcripts and diffs are preserved as Actions
+            # artifacts; appending them here previously caused exponential
+            # context growth and made fallback models unusable.
             {
-              if [[ ! -f "$RECOVERY_CONTEXT_FILE" ]]; then
-                echo "RECOVERY_STATUS: OPEN"
-                echo
-              fi
-              echo "# Pocket Habitat — unresolved autonomous recovery work"
+              echo "# Pocket Habitat — Active Recovery Summary"
               echo
-              echo "- Run: ${GITHUB_RUN_NUMBER}"
+              echo "RECOVERY_STATUS: OPEN"
+              echo
+              echo "- Last updated by workflow run: ${GITHUB_RUN_NUMBER}"
               echo "- Cycle: ${ACTIVE_ROUND}"
-              echo "- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed."
               echo
-              echo "## Required next action"
+              echo "## Current required action"
               echo
               echo "$reason"
               echo
-              echo "Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts."
+              echo "## Evidence"
+              echo
+              echo "Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run ${GITHUB_RUN_NUMBER}; do not paste them into this active note."
               for report in "$@"; do
                 if [[ -f "$report" ]]; then
-                  echo
-                  echo "## Evidence: $(basename "$report")"
-                  echo
-                  tail -n 120 "$report"
+                  printf '%s (%s bytes)\n' "- $(basename "$report")" "$(wc -c < "$report")"
                 fi
               done
-            } > "$RUNNER_TEMP/pocket-habitat-recovery-entry.md"
-            if [[ -f "$RECOVERY_CONTEXT_FILE" ]]; then
-              {
-                cat "$RECOVERY_CONTEXT_FILE"
-                echo
-                echo "---"
-                echo
-                cat "$RUNNER_TEMP/pocket-habitat-recovery-entry.md"
-              } > "$RECOVERY_CONTEXT_FILE.tmp"
-              mv "$RECOVERY_CONTEXT_FILE.tmp" "$RECOVERY_CONTEXT_FILE"
-            else
-              cp "$RUNNER_TEMP/pocket-habitat-recovery-entry.md" "$RECOVERY_CONTEXT_FILE"
-            fi
+              echo
+              echo "Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed."
+              echo
+              echo "Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md"
+            } > "$RECOVERY_CONTEXT_FILE"
             RECOVERY_CONTEXT_ACTIVE=true
+            local recovery_bytes
+            recovery_bytes="$(wc -c < "$RECOVERY_CONTEXT_FILE")"
+            if (( recovery_bytes > 12000 )); then
+              echo "::error::Active recovery note exceeded the 12 KB prompt budget (${recovery_bytes} bytes)."
+              return 1
+            fi
           }
           refresh_diff() {
             # Intent-to-add makes new project files visible to git diff without
@@ -2004,15 +2042,22 @@ jobs:
           refresh_quota_counts
           AUTO_CONTINUE=false
           AUTO_CONTINUE_REASON="The stop condition is not an eligible run-local limit."
-          # Retry only when a run-local budget or retryable implementation
-          # availability barrier was reached while quota pools remain eligible.
-          # Successful no-progress cycles and hard failures stay terminal.
+          if (( AUTONOMOUS_ROUNDS_COMPLETED == 0 )); then
+            NEXT_NO_PROGRESS_RUNS=$((CONSECUTIVE_NO_PROGRESS_RUNS + 1))
+          else
+            NEXT_NO_PROGRESS_RUNS=0
+          fi
+          # A run may hand off after temporary limits, but the chain is bounded
+          # unless at least one implementation+review+validation+QA cycle was
+          # completed. A validated cycle resets the consecutive-run counter.
           QUOTA_POOL_RESETS_NEXT="$(serialize_quota_pool_reset_state QUOTA_POOL_RESET_AT QUOTA_POOL_KEYS "$(date -u +%s)")"
           if should_auto_continue_after_run \
             "$AUTONOMOUS_STOP_REASON" \
             "$QUOTA_TARGET_REACHED" \
             "$ELIGIBLE_QUOTA_POOL_COUNT" \
-            "$IMPLEMENTATION_RETRYABLE_RUN_LIMIT"; then
+            "$IMPLEMENTATION_RETRYABLE_RUN_LIMIT" \
+            "$NEXT_NO_PROGRESS_RUNS" \
+            "$MAX_CONSECUTIVE_NO_PROGRESS_RUNS"; then
             AUTO_CONTINUE=true
             case "$AUTONOMOUS_STOP_REASON" in
               no_implementation_progress)
@@ -2027,7 +2072,11 @@ jobs:
             esac
             echo "::notice::Queueing a fresh run to resume from the latest persisted checkpoint: $AUTO_CONTINUE_REASON."
           else
-            if [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
+            if (( AUTONOMOUS_ROUNDS_COMPLETED == 0 && NEXT_NO_PROGRESS_RUNS >= MAX_CONSECUTIVE_NO_PROGRESS_RUNS )); then
+              AUTO_CONTINUE_REASON="stopped after ${NEXT_NO_PROGRESS_RUNS} consecutive workflow runs without a validated development cycle; manual intervention is required"
+              PIPELINE_EXIT=1
+              echo "::error::No-progress circuit breaker opened. No further automatic continuation will be dispatched until a validated cycle or a deliberate manual restart."
+            elif [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
               AUTO_CONTINUE_REASON="100% of currently eligible quota pools reached; no continuation needed"
             elif [[ "$ELIGIBLE_QUOTA_POOL_COUNT" -eq 0 ]]; then
               AUTO_CONTINUE_REASON="no eligible quota pools remain"
@@ -2044,6 +2093,15 @@ jobs:
             echo "::notice::This run is handing off to a fresh continuation. The full development task is not complete yet."
           fi
 
+          if (( AUTONOMOUS_ROUNDS_COMPLETED > 0 )); then
+            DEVELOPMENT_RESULT="VALIDATED DEVELOPMENT PROGRESS"
+          elif [[ "$AUTO_CONTINUE" == "true" ]]; then
+            DEVELOPMENT_RESULT="HANDOFF ONLY — ZERO VALIDATED DEVELOPMENT CYCLES"
+          else
+            DEVELOPMENT_RESULT="NO VALIDATED DEVELOPMENT PROGRESS — AUTOMATIC CONTINUATION STOPPED"
+          fi
+          echo "Development result: $DEVELOPMENT_RESULT"
+          echo "Consecutive zero-cycle runs: $CONSECUTIVE_NO_PROGRESS_RUNS -> $NEXT_NO_PROGRESS_RUNS (limit $MAX_CONSECUTIVE_NO_PROGRESS_RUNS)"
           echo "Autonomous cycles completed: $AUTONOMOUS_ROUNDS_COMPLETED"
           echo "Total model calls: $TOTAL_MODEL_CALLS/$MAX_TOTAL_MODEL_CALLS"
           echo "Autonomous stop reason: $AUTONOMOUS_STOP_REASON"
@@ -2053,6 +2111,8 @@ jobs:
             echo "# Pocket Habitat AI pipeline report"
             echo
             echo "- Run: ${GITHUB_RUN_NUMBER}"
+            echo "- **Development result: ${DEVELOPMENT_RESULT}**"
+            echo "- Consecutive zero-cycle runs: ${CONSECUTIVE_NO_PROGRESS_RUNS} -> ${NEXT_NO_PROGRESS_RUNS} (automatic handoff limit: ${MAX_CONSECUTIVE_NO_PROGRESS_RUNS})"
             echo "- Task: ${TASK}"
             echo "- Execution mode: LIVE MULTI-CYCLE"
             echo "- Models configured: ${#MODEL_CHAIN[@]}"
@@ -2114,6 +2174,9 @@ jobs:
           echo "===== PIPELINE REPORT ====="
           cat "$RUN_REPORT"
           echo "auto_continue=$AUTO_CONTINUE" >> "$GITHUB_OUTPUT"
+          echo "development_cycles=$AUTONOMOUS_ROUNDS_COMPLETED" >> "$GITHUB_OUTPUT"
+          echo "development_result=$DEVELOPMENT_RESULT" >> "$GITHUB_OUTPUT"
+          echo "no_progress_runs_next=$NEXT_NO_PROGRESS_RUNS" >> "$GITHUB_OUTPUT"
           echo "quota_pool_resets=$QUOTA_POOL_RESETS_NEXT" >> "$GITHUB_OUTPUT"
           echo "quota_day=$QUOTA_STATE_DAY" >> "$GITHUB_OUTPUT"
           echo "exhausted_quota_pools=" >> "$GITHUB_OUTPUT"
@@ -2170,6 +2233,7 @@ jobs:
           TASK: ${{ inputs.task }}
           IS_CONTINUATION: "true"
           QUOTA_POOL_RESETS: ${{ steps.pipeline.outputs.quota_pool_resets }}
+          NO_PROGRESS_RUNS_NEXT: ${{ steps.pipeline.outputs.no_progress_runs_next }}
         shell: bash
         run: |
           set -euo pipefail
@@ -2179,7 +2243,8 @@ jobs:
             --ref main \
             --raw-field "task=$TASK" \
             --raw-field "is_continuation=$IS_CONTINUATION" \
-            --raw-field "quota_pool_resets=$QUOTA_POOL_RESETS"
+            --raw-field "quota_pool_resets=$QUOTA_POOL_RESETS" \
+            --raw-field "consecutive_no_progress_runs=$NO_PROGRESS_RUNS_NEXT"
           echo "::notice::A continuation run was dispatched. It will start after the current run releases the workflow concurrency lock."
 
       - name: Verify continuation handoff
