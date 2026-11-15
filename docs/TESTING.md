@@ -9,8 +9,8 @@
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
 ## Creature behavior-loop recovery — 2026-11-14
-
-Resolved the Run #43 cycle-5 source findings. Direct inspection confirmed target positions were already clamped to habitat X/Y/Z bounds; the missing-root lifecycle issue was fixed by checking model, Humanoid, and root ancestry after the loop's yield and before use.
+ 
+Resolved the Run #43 cycle-5 source findings. Direct inspection confirmed target positions were already clamped to habitat X/Y/Z bounds; the missing-root lifecycle issue was fixed by checking model, Humanoid, and root ancestry after the loop's yield and before use. This recovery is now closed; see AUTONOMOUS_RECOVERY.md for the RESOLVED marker.
 
 - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty local artifact.
 - `stylua --check src`: PASS.

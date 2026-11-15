@@ -1,6 +1,31 @@
 # Pocket Habitat — Autonomous Recovery Record
+ 
+RECOVERY_STATUS: RESOLVED
+ 
+## 2026-11-15 — Run #43 cycle-5 creature-loop findings closed
+ 
+**Evidence:** The cycle-5 reviewer findings have been independently verified against current source. Both automation-resolvable source defects are resolved:
+1. **Vertical clamping was reported missing** but current source already clamps X, Y, and Z to habitat bounds (verified in CreatureManager lines 73-75).
+2. **Idle behavior root-part lifetime** was reported unsafe; the loop now exits after a yield if the model, Humanoid, or root is no longer in the expected hierarchy (verified in CreatureManager lines 35-42).
+ 
+**Verification on current worktree (`fa642dd`):**
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS; generated a nonempty local artifact.
+- `stylua --check src`: PASS.
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS (worktree is clean except for this documentation update).
+- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed.
+- Roblox Studio/server, multiplayer, DataStore, save/rejoin, shutdown, and manual tests: NOT RUN.
+- Independent pipeline review/QA: not claimed for this follow-up.
 
-RECOVERY_STATUS: OPEN
+**Remaining runtime gaps:** TestEZ execution, Roblox Studio/server engine behavior, multiplayer isolation, DataStore contention/rejoin/failure, and shutdown persistence remain explicitly unverified and are not represented as passing.
+
+## Facial note — Run #43 cycle-5 resolution
+ 
+At the time of the cycle-5 report, two source-level findings were identified in CreatureManager. Direct verification against the current worktree shows both:
+1. The reported "missing vertical clamping" finding was non-actionable because X/Y/Z clamping already exists.
+2. The reported "missing model ancestry check" finding is resolved by the loop's current checks for model, Humanoid, and root `IsDescendantOf` before using those objects.
+
+This recovery subsection closes only the listed automation-resolvable source debt, not Roblox runtime verification. See the main historical entries below for other closure evidence.
 
 ## 2026-11-14 — Run #43 cycle-5 creature-loop findings resolved
 
