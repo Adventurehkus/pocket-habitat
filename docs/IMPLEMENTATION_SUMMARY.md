@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-15  
 **Gameplay branch:** `ai/game-build`  
-**Snapshot commit:** `2f651313d4b855b3333d9670ac9585d7add0f026`  
+**Gameplay/source checkpoint reviewed:** `2f651313d4b855b3333d9670ac9585d7add0f026` (the later commits in this documentation pass changed documentation only)  
 **Estimated overall completion:** approximately **25%**
 
 > This is a project-readiness estimate, not a test result or an automatically calculated metric. Source modules exist for a meaningful portion of the gameplay loop, but the game is not yet proven playable in Roblox and still lacks much of its finished player experience.
