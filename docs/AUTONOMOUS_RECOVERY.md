@@ -1,6 +1,21 @@
 # Pocket Habitat — Autonomous Recovery Record
  
 RECOVERY_STATUS: OPEN
+
+## Current unresolved blocker — 2026-11-15 (Run #88 cycle 2)
+
+**Status: OPEN. Do not start unrelated feature work until this is repaired or independently shown to be non-actionable.**
+
+The Run #88 cycle-2 reviewer identified a critical regression in `src/shared/PocketHabitat.spec.lua`: the complete file was rewritten with whitespace removed, merging Luau tokens (for example, `localReplicatedStorage` and `localfunctionmakeData`). The reviewer concluded that the file is syntactically invalid and that the TestEZ suite cannot run.
+
+**Required recovery:**
+1. Restore `src/shared/PocketHabitat.spec.lua` from the pre-corruption parent revision `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`, after inspecting that revision and confirming it is the intended last good copy.
+2. Review the complete source diff; preserve all existing test cases and normal Luau formatting.
+3. Run `rojo build`, `stylua --check src`, `selene src`, and `git diff --check`.
+4. Execute TestEZ in a compatible Roblox runner when available. Do not claim TestEZ passed merely because the file is restored or the dependency is installed.
+
+Older entries below are historical recovery records. A prior RESOLVED entry does not supersede this later OPEN regression. Roblox Studio, multiplayer, DataStore, and save/rejoin verification also remain outstanding.
+
  
 ## 2026-11-15 — Run #85 cycle-4 whitespace resolution
  
