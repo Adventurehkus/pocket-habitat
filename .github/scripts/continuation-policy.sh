@@ -5,10 +5,19 @@ should_auto_continue_after_run() {
   local quota_target_reached="${2:-}"
   local eligible_pool_count="${3:-}"
   local retryable_implementation_barrier="${4:-}"
+  local consecutive_no_progress_runs="${5:-0}"
+  local max_no_progress_runs="${6:-2}"
 
   [[ "$quota_target_reached" == "false" ]] || return 1
   [[ "$eligible_pool_count" =~ ^[0-9]+$ ]] || return 1
   (( eligible_pool_count > 0 )) || return 1
+  [[ "$consecutive_no_progress_runs" =~ ^[0-9]+$ ]] || return 1
+  [[ "$max_no_progress_runs" =~ ^[1-9][0-9]*$ ]] || return 1
+  # Every continuation run must make validated progress within a bounded
+  # number of consecutive handoffs. Model cooldowns do not justify an
+  # unlimited chain of zero-cycle runs.
+  (( consecutive_no_progress_runs < max_no_progress_runs )) || return 1
+
   case "$stop_reason" in
     no_implementation_progress)
       [[ "$retryable_implementation_barrier" == "true" ]] || return 1
@@ -20,6 +29,22 @@ should_auto_continue_after_run() {
       ;;
   esac
   return 0
+}
+
+# Conservative preflight attachment budgets, expressed in UTF-8 bytes. These
+# are intentionally lower than published context windows to leave room for
+# tool schemas, system prompts, and provider-side input accounting.
+model_input_budget_bytes() {
+  local model="${1:-}"
+  local provider="${model%%/*}"
+  case "$provider" in
+    groq) echo 18432 ;;                       # ~4.5K tokens at 4 bytes/token
+    cloudflare-workers-ai) echo 49152 ;;     # ~12K tokens
+    cohere|openrouter) echo 98304 ;;         # ~24K tokens
+    google) echo 196608 ;;                   # ~48K tokens
+    github-copilot) echo 98304 ;;
+    *) echo 65536 ;;
+  esac
 }
 
 # Calculate a safe retry time for the quota scope that was exhausted.
