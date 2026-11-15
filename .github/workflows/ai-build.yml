@@ -164,7 +164,7 @@ jobs:
 
           RECOVERY_STATUS: OPEN
 
-          The previous recovery note exceeded the 12 KB prompt budget (${RECOVERY_CONTEXT_BYTES} bytes) and was moved to `docs/recovery-archive/$(basename "$RECOVERY_ARCHIVE")`.
+          The previous recovery note exceeded the 12 KB prompt budget (${RECOVERY_CONTEXT_BYTES} bytes) and was moved to docs/recovery-archive/${RECOVERY_ARCHIVE##*/}.
 
           Inspect the active source, PROJECT_STATE.md, ROADMAP.md, and the archived history only when a specific historical detail is required. Do not attach or reproduce the archive in model prompts. Replace this file with a compact current issue summary as recovery proceeds.
           EOF
