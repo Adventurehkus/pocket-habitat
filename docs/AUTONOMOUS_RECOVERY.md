@@ -1,6 +1,6 @@
 # Pocket Habitat — Autonomous Recovery Record
  
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
  
 ## 2026-11-15 — Run #85 cycle-4 whitespace resolution
  
@@ -3754,3 +3754,96 @@ index 8d4e595..1d49729 100644
              -- Level 3: 6 plots
              expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 3 }, 6)).to.equal(true)
              expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 3 }, 7)).to.equal(false)
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 87
+- Cycle: 2
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No configured implementation route completed cycle 2. Revisit temporarily limited routes after cooldown, try every still-eligible model, and inspect the route-attempt log. Do not abandon the original task.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 87
+- Cycle: 2
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+No trustworthy independent review decision was available in cycle 2 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: opencode-review-25.log
+
+[0m
+> reviewer · gemini-3.1-flash-lite
+[0m→ [0mRead docs/PROJECT_STATE.md 
+> reviewer · gemini-3.1-flash-lite
+[0m→ [0mRead docs/AUTONOMOUS_RECOVERY.md 
+> reviewer · gemini-3.1-flash-lite
+[0m✱ [0mGlob "src/**/*.lua" [90m24 matches[0m
+> reviewer · gemini-3.1-flash-lite
+[0m✱ [0mGrep "savePlayerData" [90min src/server/DataStoreManager.lua · 1 match[0m
+> reviewer · gemini-3.1-flash-lite
+[0m→ [0mRead src/server/DataStoreManager.lua [90m[limit=100, offset=721][0m
+> reviewer · gemini-3.1-flash-lite
+[0m✱ [0mGrep "function captureCharacterSpawnData" [90min src/server/DataStoreManager.lua · 1 match[0m
+> reviewer · gemini-3.1-flash-lite
+[0m→ [0mRead src/server/DataStoreManager.lua [90m[offset=533, limit=30][0m
+> reviewer · gemini-3.1-flash-lite
+[0m✱ [0mGrep "spawnOrRestoreCharacter" [90min src/server/CharacterSpawner.lua · 4 matches[0m
+> reviewer · gemini-3.1-flash-lite
+[0m→ [0mRead src/server/CharacterSpawner.lua [90m[offset=67, limit=50][0m
+> reviewer · gemini-3.1-flash-lite
+[0m✱ [0mGrep "getSpawnPosition" [90min src/server/CharacterSpawner.lua · 2 matches[0m
+> reviewer · gemini-3.1-flash-lite
+[0m→ [0mRead src/server/CharacterSpawner.lua [90m[offset=28, limit=30][0m
+> reviewer · gemini-3.1-flash-lite
+[0m✱ [0mGrep "updateCharacterSpawnData" [90min src/server/DataStoreManager.lua · 1 match[0m
+> reviewer · gemini-3.1-flash-lite
+[91m[1mError: [0mYou exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://aistudio.google.com/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. 
+* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_input_token_count, limit: 250000, model: gemini-3.1-flash-lite, description: Generate content input tokens per minute limit exceeded on Free Tier. See https://aistudio.google.com/docs/rate-limits.
+Please retry in 33.716009514s.
+
+## Evidence: pocket-habitat-implementation.diff
+
+diff --git a/docs/AUTONOMOUS_RECOVERY.md b/docs/AUTONOMOUS_RECOVERY.md
+index 47e1cda..a2f5112 100644
+--- a/docs/AUTONOMOUS_RECOVERY.md
++++ b/docs/AUTONOMOUS_RECOVERY.md
+@@ -1,6 +1,6 @@
+ # Pocket Habitat — Autonomous Recovery Record
+  
+-RECOVERY_STATUS: RESOLVED
++RECOVERY_STATUS: OPEN
+  
+ ## 2026-11-15 — Run #85 cycle-4 whitespace resolution
+  
+@@ -3754,3 +3754,17 @@ index 8d4e595..1d49729 100644
+              -- Level 3: 6 plots
+              expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 3 }, 6)).to.equal(true)
+              expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 3 }, 7)).to.equal(false)
++
++---
++
++# Pocket Habitat — unresolved autonomous recovery work
++
++- Run: 87
++- Cycle: 2
++- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
++
++## Required next action
++
++No configured implementation route completed cycle 2. Revisit temporarily limited routes after cooldown, try every still-eligible model, and inspect the route-attempt log. Do not abandon the original task.
++
++Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
