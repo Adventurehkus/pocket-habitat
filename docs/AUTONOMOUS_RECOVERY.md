@@ -3677,3 +3677,38 @@ Results:
 0 warnings
 0 parse errors
 PASS: Selene src
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 85
+- Cycle: 2
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+This cycle received independent review and QA, but deterministic validation still fails after bounded repair attempts. Fix every issue in the attached log before unrelated feature work. Do not mark this cycle validated and do not weaken checks.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-validation.log
+
+Building project 'Pocket Habitat'
+Built project to pocket-habitat.rbxl
+PASS: Rojo build -> build/pocket-habitat.rbxl
+Diff in src/shared/PocketHabitat.spec.lua:
+10541054 |             -- Level 2: 5 plots
+10551055 |             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 2 }, 5)).to.equal(true)
+10561056 |             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 2 }, 6)).to.equal(false)
+1057     |-            
+    1057 |+
+10581058 |             -- Level 3: 6 plots
+10591059 |             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 3 }, 6)).to.equal(true)
+10601060 |             expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 3 }, 7)).to.equal(false)
+FAIL: StyLua check src
+Results:
+0 errors
+0 warnings
+0 parse errors
+PASS: Selene src
