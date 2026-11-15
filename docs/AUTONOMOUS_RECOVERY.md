@@ -2,26 +2,19 @@
 
 RECOVERY_STATUS: OPEN
 
-**Current priority:** verify and stabilize the restored TestEZ specification, then resume normal development.
+- Last updated by workflow run: 127
+- Cycle: 2
 
-## Recovery completed in source; validation still required
+## Current required action
 
-- Restored `src/shared/PocketHabitat.spec.lua` from the last intact revision at commit `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`.
-- Removed the empty `src/shared/PocketHabitat.spec.lua.restored` placeholder.
-- The previous 310 KB recovery log is preserved in `docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md`. Do not attach or copy that archive into model prompts.
+No trustworthy independent review decision was available in cycle 2 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
 
-## Required next actions
+## Evidence
 
-1. Run `rojo build default.project.json -o build/pocket-habitat.rbxl`, `stylua --check src`, `selene src`, and `git diff --check`.
-2. Inspect the restored spec diff and confirm its test cases were preserved.
-3. Run TestEZ only if a compatible Roblox/TestEZ runner is available; otherwise record it as NOT RUN.
-4. Obtain independent review and QA of the restoration. Mark this recovery RESOLVED only after the current source checks and review pass.
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 127; do not paste them into this active note.
+- opencode-review-17.log (822 bytes)
+- pocket-habitat-implementation.diff (2136 bytes)
 
-## Autonomous workflow reliability
+Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 
-- Keep this file short and replace its active status instead of appending full logs or diffs.
-- Full model transcripts, validation output, and diffs belong in workflow artifacts or the recovery archive, not in this file.
-- A successful continuation dispatch is a handoff, not a completed development cycle.
-- Consecutive runs with zero validated development cycles are bounded by the workflow no-progress circuit breaker.
-
-Roblox Studio, multiplayer, DataStore save/rejoin, shutdown, and mobile gameplay verification remain unverified.
+Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md
