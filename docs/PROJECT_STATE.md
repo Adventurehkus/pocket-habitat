@@ -75,11 +75,11 @@ The updated workflow regression script has not yet been observed running in a fr
 ## Required next-work sequence (Status: In Progress)
 
 1. ~~Run the new workflow's continuation-policy regression tests and the project checks on the restored spec: Rojo, StyLua, Selene, and diff hygiene.~~ (Done)
-2. Obtain independent review/QA of the restoration and mark recovery RESOLVED only when evidence supports it.
-3. Execute TestEZ in a compatible Roblox runner if one is available; otherwise record NOT RUN.
-4. In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback.
-5. Verify two-client habitat/creature/resource isolation, then DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown.
-6. Continue with responsive UI, player feedback, environment/art, creature polish, sound, lighting, and mobile performance.
+2. ~~Obtain independent review/QA of the restoration and mark recovery RESOLVED only when evidence supports it.~~ (Done)
+3. Execute TestEZ in a compatible Roblox runner if one is available; otherwise record NOT RUN. (Currently NOT RUN)
+4. In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback. (Currently NOT RUN)
+5. Verify two-client habitat/creature/resource isolation, then DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown. (Currently NOT RUN)
+6. Continue with responsive UI, player feedback, environment/art, creature polish, sound, lighting, and mobile performance. (In progress: UI baseline exists)
 7. Complete balancing, content, and release QA. Do not publish without explicit authorization.
 
 ## Source-of-truth documents
