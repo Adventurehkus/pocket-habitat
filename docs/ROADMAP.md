@@ -11,6 +11,23 @@ Status labels:
 - **Blocked:** a known defect currently prevents the feature or runtime path from working.
 - **Planned:** not implemented.
 
+## Current status snapshot — 2026-11-15
+
+**Estimated overall completion: approximately 25%.** This is a directional product-readiness estimate, not a calculated metric. Many gameplay systems exist in source, but Roblox runtime behavior is unverified, presentation is still early, and release work has not started. See `docs/PROJECT_STATE.md` for the workstream estimates and evidence boundary.
+
+**Critical current blocker:** Run #88 cycle 2 corrupted `src/shared/PocketHabitat.spec.lua` by stripping whitespace. The independent reviewer classified the result as invalid Luau. `RECOVERY_STATUS` is **OPEN**. Restore the suite from its pre-corruption revision, review the diff, and rerun the source validation gates before feature work.
+
+**Current state by milestone:**
+- Milestone 0 — Foundation: complete as repository/tooling infrastructure.
+- Milestone 1 — Playable prototype: gameplay source paths exist; end-to-end playability is unverified.
+- Milestone 2 — Personal habitats: ownership/session/persistence source exists; multiplayer and DataStore runtime verification pending.
+- Milestone 3 — Progression/content: ten quests, plant progression, upgrades, and creature profiles exist in source; runtime and test execution pending.
+- Milestone 4 — Player experience: early/basic only; responsive UI, feedback, environment, animation, sound, and mobile polish remain.
+- Milestone 5 — QA/hardening: blocked by the current malformed TestEZ spec; TestEZ and Roblox runtime tests have not been run.
+- Milestone 6 — Release: planned; no release-readiness evidence.
+
+**Autonomous workflow note:** Run #115 completed only after dispatching Run #116; #115 itself recorded zero development cycles, zero validated checkpoints, and no saved repository changes. Run #116 was in progress at the time of this snapshot. Do not count a successful handoff as game progress.
+
 ## Milestone 0 — Foundation
 
 **Status: COMPLETE for the current project configuration and automated build foundation.**
@@ -179,16 +196,13 @@ Run #32 (ID 43119650837) passed Rojo, StyLua, and Selene and uploaded an .rbxl a
 
 ## Current focus
 
-**Immediate priority:** Execute the production-backed TestEZ suite in a compatible Roblox runner, then verify seed gathering through plant harvest, all ten quest claims, creature movement/isolation, and persistence in Roblox Studio. The all-plants production-rule spec is present but unexecuted. No compatible TestEZ/Roblox runner is available in this environment; the vendored TestEZ CLI is not suitable for this game project. The Run #43 cycle-5 source findings are resolved: target coordinates were already clamped on all axes, and creature behavior now stops when its model, Humanoid, or root leaves the expected hierarchy. No independent pipeline review/QA or Roblox runtime pass is claimed. Quest progression/HUD, plot expansion/restoration, watering efficiency, habitat isolation, save/rejoin, lease contention, shutdown, and plant-interaction lifecycle remain runtime-unverified. Decorative-tile purchases stay disabled until its visual effect is implemented.
+**Immediate priority: repair the current TestEZ source regression before feature work.** Restore `src/shared/PocketHabitat.spec.lua` from the last known-good pre-corruption revision (parent `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8` of the Run #88 corruption commit), inspect the full diff, and rerun Rojo, StyLua, Selene, and `git diff --check`.
 
-**Source-level completed (runtime verification pending):**
-- Restore saved plot/world progression from validated session data (WorldBuilder.buildHabitat now restores plant state)
-- Scope CreatureManager to each player's habitat (per-habitat Creatures folder, distinct creature models, bounded movement, restoration from discovery data, cleanup on leave)
-- Give each creature a distinct server-driven movement profile while keeping targets inside its owner's habitat bounds
-- Persist each player's resource cooldowns in their validated save data and throttle gather requests
-- Reserve and roll back gather cooldowns through production logic shared with focused TestEZ cases (execution pending)
-- Record all quest actions in backward-compatible player data; restore the full ten-quest sequence and validate real harvest, upgrade, and discovery objectives
-- Apply the purchased watering-can level to server-validated dewdrop consumption; source specs added, execution pending
-- Provide an owned resource node for every plant seed; world construction and gather rewards now consume `Constants.RESOURCE_NODES`, and a TestEZ spec asserts each plant-seed mapping (execution pending)
+After the recovery gate is clear:
+1. Execute the TestEZ suite in a compatible Roblox runner.
+2. Verify server startup, character join/respawn, gathering through seed → plant → grow → water → harvest, all ten quest claims, and upgrade effects in Roblox Studio.
+3. Verify two-client habitat/resource/creature isolation and DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown.
+4. Prioritize responsive UI, natural player feedback, environment/art, creature polish, sound/lighting, and mobile performance.
+5. Complete balancing and release QA; do not publish without explicit user authorization.
 
-Do not mark persistence or Milestone 2 complete while runtime verification is outstanding. Static CI gates are green, but runtime release readiness requires Roblox Studio/multiplayer/DataStore testing. Consult docs/PROJECT_STATE.md for current facts and docs/AUTONOMOUS_RECOVERY.md for the explicit runtime gaps checklist.
+Do not treat a workflow handoff, successful Rojo build, or historical static check as proof of runtime playability. Keep the recovery marker OPEN until the current test-file regression is fixed and evidenced.
