@@ -1045,14 +1045,15 @@ return function()
             expect(HabitatRules.getPlotCount({ other_upgrade = 1 })).to.equal(4)
         end)
 
-        it("validates plot index bounds correctly", function()
-            expect(HabitatRules.isPlotIndexUnlocked({}, 0)).to.equal(false)
-            expect(HabitatRules.isPlotIndexUnlocked({}, -1)).to.equal(false)
-            expect(HabitatRules.isPlotIndexUnlocked({}, 1)).to.equal(true)
-            expect(HabitatRules.isPlotIndexUnlocked({}, 4)).to.equal(true)
-            expect(HabitatRules.isPlotIndexUnlocked({}, 5)).to.equal(false)
-            expect(HabitatRules.isPlotIndexUnlocked({}, 7)).to.equal(false)
-            expect(HabitatRules.isPlotIndexUnlocked({}, 8)).to.equal(false)
+        it("validates plot index bounds correctly based on upgrades", function()
+            -- Initial level 1: 4 plots
+            expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 1 }, 1)).to.equal(true)
+            expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 1 }, 4)).to.equal(true)
+            expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 1 }, 5)).to.equal(false)
+
+            -- Level 2: 5 plots
+            expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 2 }, 5)).to.equal(true)
+            expect(HabitatRules.isPlotIndexUnlocked({ plot_expansion = 2 }, 6)).to.equal(false)
         end)
 
         it("handles fractional plot indices", function()

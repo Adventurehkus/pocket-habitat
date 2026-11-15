@@ -3651,3 +3651,29 @@ REVIEW_FINDINGS: YES
 
 ### Summary
 The provided implementation diff introduces extensive test coverage in `PocketHabitat.spec.lua` that validates the business logic against various edge cases. While this improves testability, the test cases confirm a critical flaw in the progression architecture: `HabitatRules` currently enforces static plot bounds regardless of actual player upgrades, rendering the plot expansion system non-functional for any plots beyond the default four. The `AUTONOMOUS_RECOVERY.md` correctly flags this cycle as failed. No further gameplay features should be added until the progression logic correctly consumes the `upgrades` table.
+
+---
+
+# Pocket Habitat — unresolved autonomous recovery work
+
+- Run: 57
+- Cycle: 2
+- Status: RECOVERY REQUIRED; do not claim deterministic validation or QA passed.
+
+## Required next action
+
+Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
+
+Do not start unrelated feature work until this issue is corrected or independently shown to be non-actionable. Do not weaken, skip, or falsify validation checks. Use other eligible models and continue bounded repair attempts.
+
+## Evidence: pocket-habitat-validation.log
+
+Building project 'Pocket Habitat'
+Built project to pocket-habitat.rbxl
+PASS: Rojo build -> build/pocket-habitat.rbxl
+PASS: StyLua check src
+Results:
+0 errors
+0 warnings
+0 parse errors
+PASS: Selene src
