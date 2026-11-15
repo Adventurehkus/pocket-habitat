@@ -8,18 +8,26 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
-## Current branch blocker — 2026-11-15 (Run #88 cycle 2)
+## Current recovery checkpoint — test suite restored (2026-11-15)
 
-The reviewed gameplay-source checkpoint is `2f651313d4b855b3333d9670ac9585d7add0f026` (subsequent commits in this documentation pass changed documentation only). At that source checkpoint, `src/shared/PocketHabitat.spec.lua` had been replaced with whitespace-stripped content. The Run #88 cycle-2 independent reviewer classified this as **CRITICAL**, citing merged tokens including `localReplicatedStorage` and `localfunctionmakeData`, and concluded the file is invalid Luau.
+The Run #117 recovery attempt had left both `src/shared/PocketHabitat.spec.lua` and its `.restored` placeholder empty. The TestEZ suite is now restored from its last intact version at `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8` (1,303 lines / 57,347 bytes), and the empty placeholder has been removed.
 
-- Recovery status: **OPEN**. See `docs/AUTONOMOUS_RECOVERY.md`.
-- Restore the file from the pre-corruption parent revision `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8` after reviewing it.
-- Re-run Rojo, StyLua, Selene, and `git diff --check` on the repaired commit.
-- TestEZ remains NOT RUN. No test result can be inferred from the presence of test specifications.
-- Prior PASS records below are historical and do not validate the current corrupted HEAD.
-- Roblox Studio, multiplayer, DataStore, save/rejoin, shutdown, and mobile tests remain NOT RUN.
+- Source restoration: DONE.
+- Recovery status: OPEN pending current-checkout static validation and independent review/QA.
+- Rojo build after restoration: NOT YET RUN in this task.
+- `stylua --check src` after restoration: NOT YET RUN in this task.
+- `selene src` after restoration: NOT YET RUN in this task.
+- `git diff --check` after restoration: NOT YET RUN in this task.
+- TestEZ: NOT RUN; no compatible runner result is available.
+- Roblox Studio/server, two-client multiplayer, DataStore save/rejoin, shutdown, and mobile tests: NOT RUN.
 
-Do not begin unrelated feature work or mark recovery resolved until this regression is fixed and the appropriate checks actually pass.
+Historical recovery logs are preserved in `docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md`; do not attach this archive to agent prompts.
+
+## Autonomous workflow reliability regression coverage
+
+The shared `.github/scripts/test-continuation-policy.sh` now covers provider input budgets and the two-run no-progress handoff limit. The main workflow also has inline regression fixtures for distinguishing Groq-style TPM throttling from hard request/context-size failures. These tests are **implemented but not yet observed executing** in a fresh workflow after the fixes.
+
+The workflow's active recovery-note budget is 12 KB. Historical transcripts and complete diffs stay in workflow artifacts or the recovery archive, not in the model's active recovery attachment. Consecutive runs without a validated implementation/review/validation/QA cycle are capped at two; a validated cycle resets the count.
 
 ## Historical Creature behavior-loop recovery — 2026-11-14
  
