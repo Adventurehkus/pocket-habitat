@@ -43,36 +43,60 @@ local function validateCreature(creatureId: string): boolean
         return false
     end
 
-    if type(def.behavior.moveInterval) ~= "number" or def.behavior.moveInterval < 0 or def.behavior.moveInterval ~= def.behavior.moveInterval then
+    if
+        type(def.behavior.moveInterval) ~= "number"
+        or def.behavior.moveInterval < 0
+        or def.behavior.moveInterval ~= def.behavior.moveInterval
+    then
         warn("Creature has invalid moveInterval: " .. tostring(creatureId))
         return false
     end
 
     if def.behavior.jumpInterval ~= nil then
-        if type(def.behavior.jumpInterval) ~= "number" or def.behavior.jumpInterval < 0 or def.behavior.jumpInterval ~= def.behavior.jumpInterval then
+        if
+            type(def.behavior.jumpInterval) ~= "number"
+            or def.behavior.jumpInterval < 0
+            or def.behavior.jumpInterval ~= def.behavior.jumpInterval
+        then
             warn("Creature has invalid jumpInterval: " .. tostring(creatureId))
             return false
         end
     end
 
     if def.behavior.hoverHeight ~= nil then
-        if type(def.behavior.hoverHeight) ~= "number" or def.behavior.hoverHeight < 0 or def.behavior.hoverHeight ~= def.behavior.hoverHeight then
+        if
+            type(def.behavior.hoverHeight) ~= "number"
+            or def.behavior.hoverHeight < 0
+            or def.behavior.hoverHeight ~= def.behavior.hoverHeight
+        then
             warn("Creature has invalid hoverHeight: " .. tostring(creatureId))
             return false
         end
     end
 
-    if type(def.requiredFlora) ~= "number" or def.requiredFlora < 0 or def.requiredFlora ~= def.requiredFlora then
+    if
+        type(def.requiredFlora) ~= "number"
+        or def.requiredFlora < 0
+        or def.requiredFlora ~= def.requiredFlora
+    then
         warn("Creature has invalid requiredFlora: " .. tostring(creatureId))
         return false
     end
 
-    if type(def.requiredWater) ~= "number" or def.requiredWater < 0 or def.requiredWater ~= def.requiredWater then
+    if
+        type(def.requiredWater) ~= "number"
+        or def.requiredWater < 0
+        or def.requiredWater ~= def.requiredWater
+    then
         warn("Creature has invalid requiredWater: " .. tostring(creatureId))
         return false
     end
 
-    if type(def.bellReward) ~= "number" or def.bellReward < 0 or def.bellReward ~= def.bellReward then
+    if
+        type(def.bellReward) ~= "number"
+        or def.bellReward < 0
+        or def.bellReward ~= def.bellReward
+    then
         warn("Creature has invalid bellReward: " .. tostring(creatureId))
         return false
     end
