@@ -20,6 +20,71 @@ local function getHabitatBounds(habitat: Folder): (Vector3, Vector3)
     return min, max
 end
 
+-- Validate creature definition and behavior structure
+local function validateCreature(creatureId: string): boolean
+    local def = Constants.CREATURES[creatureId]
+    if not def then
+        warn("Creature type not found: " .. tostring(creatureId))
+        return false
+    end
+
+    if type(def.behavior) ~= "table" then
+        warn("Creature definition missing or invalid behavior: " .. tostring(creatureId))
+        return false
+    end
+
+    if type(def.behavior.mode) ~= "string" or def.behavior.mode == "" then
+        warn("Creature behavior missing or invalid mode: " .. tostring(creatureId))
+        return false
+    end
+
+    if def.behavior.wanderRadius == nil then
+        warn("Creature missing wanderRadius: " .. tostring(creatureId))
+        return false
+    end
+
+    if type(def.behavior.moveInterval) ~= "number" or def.behavior.moveInterval < 0 or def.behavior.moveInterval ~= def.behavior.moveInterval then
+        warn("Creature has invalid moveInterval: " .. tostring(creatureId))
+        return false
+    end
+
+    if def.behavior.jumpInterval ~= nil then
+        if type(def.behavior.jumpInterval) ~= "number" or def.behavior.jumpInterval < 0 or def.behavior.jumpInterval ~= def.behavior.jumpInterval then
+            warn("Creature has invalid jumpInterval: " .. tostring(creatureId))
+            return false
+        end
+    end
+
+    if def.behavior.hoverHeight ~= nil then
+        if type(def.behavior.hoverHeight) ~= "number" or def.behavior.hoverHeight < 0 or def.behavior.hoverHeight ~= def.behavior.hoverHeight then
+            warn("Creature has invalid hoverHeight: " .. tostring(creatureId))
+            return false
+        end
+    end
+
+    if type(def.requiredFlora) ~= "number" or def.requiredFlora < 0 or def.requiredFlora ~= def.requiredFlora then
+        warn("Creature has invalid requiredFlora: " .. tostring(creatureId))
+        return false
+    end
+
+    if type(def.requiredWater) ~= "number" or def.requiredWater < 0 or def.requiredWater ~= def.requiredWater then
+        warn("Creature has invalid requiredWater: " .. tostring(creatureId))
+        return false
+    end
+
+    if type(def.bellReward) ~= "number" or def.bellReward < 0 or def.bellReward ~= def.bellReward then
+        warn("Creature has invalid bellReward: " .. tostring(creatureId))
+        return false
+    end
+
+    if type(def.name) ~= "string" or def.name == "" then
+        warn("Creature has invalid name: " .. tostring(creatureId))
+        return false
+    end
+
+    return true
+end
+
 local function idleBehavior(
     model: Model,
     humanoid: Humanoid,
@@ -85,7 +150,12 @@ local function createCreatureModel(
     position: Vector3,
     habitat: Folder,
     ownerUserId: number
-): Model
+): Model?
+    if not validateCreature(creatureId) then
+        warn("Cannot create creature: invalid or malformed definition: " .. tostring(creatureId))
+        return nil
+    end
+
     local def = Constants.CREATURES[creatureId]
     local model = Instance.new("Model")
     model.Name = creatureId .. "_" .. tostring(ownerUserId)
@@ -322,35 +392,51 @@ function CreatureManager.checkDiscoveries(player: Player)
     end
 
     for creatureId, def in pairs(Constants.CREATURES) do
+        local skip = false
+
         if not data.creaturesDiscovered[creatureId] then
             if floraCount >= def.requiredFlora and waterTotal >= def.requiredWater then
-                data.creaturesDiscovered[creatureId] = true
-                if not QuestRules.recordProgress(data.questProgress, "discover", creatureId, 1) then
+                if not validateCreature(creatureId) then
                     warn(
-                        "Failed to record creature quest progress for user "
-                            .. tostring(player.UserId)
+                        "Skipping creature discovery for malformed definition: "
+                            .. tostring(creatureId)
+                    )
+                    skip = true
+                end
+
+                if not skip then
+                    data.creaturesDiscovered[creatureId] = true
+                    if
+                        not QuestRules.recordProgress(data.questProgress, "discover", creatureId, 1)
+                    then
+                        warn(
+                            "Failed to record creature quest progress for user "
+                                .. tostring(player.UserId)
+                        )
+                    end
+                    EconomyManager.addBells(player, def.bellReward)
+
+                    -- Spawn creature in the player's habitat
+                    local baseOffset = habitat:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)
+                    local spawnPos = baseOffset
+                        + Vector3.new(math.random(-10, 10), 3, math.random(-10, 10))
+                    local model = createCreatureModel(creatureId, spawnPos, habitat, player.UserId)
+
+                    -- Track this creature for the player
+                    if model then
+                        if not playerCreatures[player.UserId] then
+                            playerCreatures[player.UserId] = {}
+                        end
+                        playerCreatures[player.UserId][creatureId] = model
+                    end
+
+                    RemoteEvents.SyncData:FireClient(player, data)
+                    RemoteEvents.CreatureDiscovered:FireClient(player, creatureId)
+                    RemoteEvents.Notification:FireClient(
+                        player,
+                        "Discovered new creature: " .. def.name .. "!"
                     )
                 end
-                EconomyManager.addBells(player, def.bellReward)
-
-                -- Spawn creature in the player's habitat
-                local baseOffset = habitat:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)
-                local spawnPos = baseOffset
-                    + Vector3.new(math.random(-10, 10), 3, math.random(-10, 10))
-                local model = createCreatureModel(creatureId, spawnPos, habitat, player.UserId)
-
-                -- Track this creature for the player
-                if not playerCreatures[player.UserId] then
-                    playerCreatures[player.UserId] = {}
-                end
-                playerCreatures[player.UserId][creatureId] = model
-
-                RemoteEvents.SyncData:FireClient(player, data)
-                RemoteEvents.CreatureDiscovered:FireClient(player, creatureId)
-                RemoteEvents.Notification:FireClient(
-                    player,
-                    "Discovered new creature: " .. def.name .. "!"
-                )
             end
         end
     end
@@ -372,7 +458,9 @@ function CreatureManager.restoreCreatures(player: Player, habitat: Folder, data:
             -- Spawn a creature for each discovered type
             local spawnPos = baseOffset + Vector3.new(math.random(-10, 10), 3, math.random(-10, 10))
             local model = createCreatureModel(creatureId, spawnPos, habitat, player.UserId)
-            playerCreatures[player.UserId][creatureId] = model
+            if model then
+                playerCreatures[player.UserId][creatureId] = model
+            end
         end
     end
 end

@@ -25,13 +25,19 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 
 ## Immediate recovery status
 
-**RECOVERY_STATUS: RESOLVED — restoration verified via static analysis and Rojo build. Pipeline review/QA remain outstanding.**
+**TestEZ spec restoration: RESOLVED — verified via static analysis and Rojo build.**
 
 - `src/shared/PocketHabitat.spec.lua` was restored from the intact revision at commit `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`. It is 1,303 lines / 57,347 bytes.
 - The empty `src/shared/PocketHabitat.spec.lua.restored` placeholder was removed.
 - The former 310 KB recovery record was preserved at `docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md`. It must not be attached to model prompts.
-- The active `docs/AUTONOMOUS_RECOVERY.md` is now a compact summary. Keep it short; full logs and diffs belong in workflow artifacts or archives.
-- Restoration is a source change, not proof of validation. Run Rojo, StyLua, Selene, and `git diff --check`; obtain independent review/QA. TestEZ is NOT RUN unless a compatible runner actually executes it.
+- Restoration is a source change, not proof of validation. TestEZ is NOT RUN unless a compatible runner actually executes it.
+
+**CreatureManager validation (Run 128 cycle 4): OPEN — pending independent review/QA.**
+
+- `src/server/CreatureManager.lua` adds defensive validation for creature definitions (`validateCreature` helper, early error in `createCreatureModel`, skip logic in `checkDiscoveries`).
+- All deterministic checks pass: Rojo build, `stylua --check src`, `selene src`, `git diff --check`.
+- Independent pipeline review/QA not yet obtained; recovery remains OPEN per `docs/AUTONOMOUS_RECOVERY.md`.
+- Do not start unrelated feature work until this review completes.
 
 ## Implemented source capabilities — not yet proven in Roblox
 
