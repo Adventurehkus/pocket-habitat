@@ -8,6 +8,17 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
+## Verification checkpoint — 2026-11-16
+
+Verified current repository source and autonomous continuation state on 2026-11-16:
+
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS (generated nonempty artifact).
+- `stylua --check src`: PASS (0 errors).
+- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- `git diff --check`: PASS.
+- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed in this environment.
+- Roblox Studio, multiplayer, DataStore, and runtime playtesting: NOT RUN.
+
 ## Current recovery checkpoint — test suite restored (2026-11-15)
 
 The Run #117 recovery attempt had left both `src/shared/PocketHabitat.spec.lua` and its `.restored` placeholder empty. The TestEZ suite is now restored from its last intact version at `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8` (1,303 lines / 57,347 bytes), and the empty placeholder has been removed.

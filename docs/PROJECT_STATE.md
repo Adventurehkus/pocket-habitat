@@ -1,6 +1,6 @@
 # Pocket Habitat — Project State
 
-**Snapshot date:** 2026-11-15  
+**Snapshot date:** 2026-11-16
 **Gameplay branch:** `ai/game-build`  
 **Reviewed gameplay checkpoint:** `785bede2dae41b6fc43cf6fec1175c3d05c2b967`  
 **Workflow/configuration checkpoint:** `8e467d97ee790c81af798e47a4d8c7715b841793` on `main`  

@@ -11,7 +11,7 @@ Status labels:
 - **Blocked:** a known defect currently prevents the feature or runtime path from working.
 - **Planned:** not implemented.
 
-## Current status snapshot — 2026-11-15
+## Current status snapshot — 2026-11-16
 
 **Estimated overall completion: approximately 25%.** This is a directional product-readiness estimate, not a measured metric. Source gameplay systems exist, but Roblox runtime playability, multiplayer, persistence, presentation, and release readiness remain unverified or incomplete. See `docs/PROJECT_STATE.md` for the breakdown.
 
