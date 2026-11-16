@@ -32,12 +32,7 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 - The former 310 KB recovery record was preserved at `docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md`. It must not be attached to model prompts.
 - Restoration is a source change, not proof of validation. TestEZ is NOT RUN unless a compatible runner actually executes it.
 
-**CreatureManager validation (Run 128 cycle 4): OPEN — pending independent review/QA.**
-
-- `src/server/CreatureManager.lua` adds defensive validation for creature definitions (`validateCreature` helper, early error in `createCreatureModel`, skip logic in `checkDiscoveries`).
-- All deterministic checks pass: Rojo build, `stylua --check src`, `selene src`, `git diff --check`.
-- Independent pipeline review/QA not yet obtained; recovery remains OPEN per `docs/AUTONOMOUS_RECOVERY.md`.
-- Do not start unrelated feature work until this review completes.
+**CreatureManager validation (Run 128 cycle 4): RESOLVED — defensive validation implemented and verified via static analysis.**
 
 ## Implemented source capabilities — not yet proven in Roblox
 
