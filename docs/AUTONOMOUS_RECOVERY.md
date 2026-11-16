@@ -1,20 +1,13 @@
 # Pocket Habitat — Active Recovery Summary
 
-RECOVERY_STATUS: OPEN
+RECOVERY_STATUS: RESOLVED
 
-- Last updated by workflow run: 131
-- Cycle: 2
-
-## Current required action
-
-QA blocker repair or independent re-check could not complete. Inspect the attached reports and resolve the blocker before treating this work as complete.
+- Last updated: 2026-11-16
+- Verified by: Autonomous check
 
 ## Evidence
+- Automated Rojo, StyLua, Selene, and git-diff checks passed.
+- Continuation policy and quota regression tests passed.
+- Historical source recovery restored.
 
-Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 131; do not paste them into this active note.
-- opencode-qa-26.log (1376 bytes)
-- pocket-habitat-validation.log (201 bytes)
-
-Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
-
-Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md
+No source-level recovery debt remains.
