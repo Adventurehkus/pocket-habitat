@@ -1,13 +1,21 @@
 # Pocket Habitat — Active Recovery Summary
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
 
-- Verified static checks for current checkout on 2026-11-16:
-  - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS
-  - `stylua --check src`: PASS
-  - `selene src`: PASS
-  - `git diff --check`: PASS
+- Last updated by workflow run: 132
+- Cycle: 4
 
-No automation-resolvable source-level findings remain. Independent pipeline review/QA remains outstanding.
+## Current required action
+
+No trustworthy QA decision was available in cycle 4 after trying the QA and fallback routes. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work.
+
+## Evidence
+
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 132; do not paste them into this active note.
+- opencode-review-53.log (2067 bytes)
+- pocket-habitat-implementation.diff (1324 bytes)
+- pocket-habitat-validation.log (201 bytes)
+
+Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 
 Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md
