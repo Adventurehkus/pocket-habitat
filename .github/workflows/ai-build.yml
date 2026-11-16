@@ -551,18 +551,19 @@ jobs:
               text = ""
 
           delay = None
-          duration = r"((?:[0-9]+(?:\.[0-9]+)?h(?:[0-9]+(?:\.[0-9]+)?m)?(?:[0-9]+(?:\.[0-9]+)?s)?|[0-9]+(?:\.[0-9]+)?m(?:[0-9]+(?:\.[0-9]+)?s)?|[0-9]+(?:\.[0-9]+)?s))"
-          matches = list(re.finditer(r"(?:retry|try again)\s+(?:in|after)\s+" + duration, text, re.I))
+          # Parse units as whole tokens. In particular, "ms" must not be
+          # consumed as "m" (minutes), which previously inflated 510.41689ms
+          # into a cooldown of roughly 30,631 seconds.
+          duration = r"((?:[0-9]+(?:\\.[0-9]+)?(?:ms|h|m|s))+\\b)"
+          matches = list(re.finditer(r"(?:retry|try again)\\s+(?:in|after)\\s+" + duration, text, re.I))
           if matches:
-              raw = matches[-1].group(1).lower()
-              hours = re.search(r"([0-9]+(?:\.[0-9]+)?)h", raw)
-              minutes = re.search(r"([0-9]+(?:\.[0-9]+)?)m", raw)
-              seconds = re.search(r"([0-9]+(?:\.[0-9]+)?)s", raw)
-              delay = (
-                  (float(hours.group(1)) * 3600 if hours else 0)
-                  + (float(minutes.group(1)) * 60 if minutes else 0)
-                  + (float(seconds.group(1)) if seconds else 0)
-              )
+              raw = re.sub(r"\\s+", "", matches[-1].group(1).lower())
+              parts = re.findall(r"([0-9]+(?:\\.[0-9]+)?)(ms|h|m|s)", raw)
+              if parts and "".join(number + unit for number, unit in parts) == raw:
+                  delay = sum(
+                      float(number) * {"ms": 0.001, "h": 3600, "m": 60, "s": 1}[unit]
+                      for number, unit in parts
+                  )
           else:
               seconds_matches = list(re.finditer(
                   r"(?:retry|try again)\s+(?:in|after)\s+([0-9]+(?:\.[0-9]+)?)\s+seconds?",
@@ -681,10 +682,24 @@ jobs:
           echo "Model failure classifier regression tests passed."
 
           retry_delay_test_file="$RUNNER_TEMP/model-retry-delay-test.log"
-          printf '%s\n' 'Please retry in 43.440153729s.' > "$retry_delay_test_file"
+          printf '%s\\n' 'Please retry in 43.440153729s.' > "$retry_delay_test_file"
           parsed_retry_delay="$(retry_delay_seconds "$retry_delay_test_file" 1 MODEL_RATE_LIMIT)"
           if [[ "$parsed_retry_delay" -lt 48 || "$parsed_retry_delay" -gt 50 ]]; then
             echo "::error::Retry delay parser failed the seconds-hint regression test: $parsed_retry_delay"
+            exit 1
+          fi
+          # Regression for the millisecond hint that previously parsed
+          # 510.41689ms as 510.41689 minutes (about 30,631 seconds).
+          printf '%s\\n' 'Please retry in 510.41689ms.' > "$retry_delay_test_file"
+          parsed_retry_delay="$(retry_delay_seconds "$retry_delay_test_file" 1 MODEL_RATE_LIMIT)"
+          if [[ "$parsed_retry_delay" -lt 15 || "$parsed_retry_delay" -gt 16 ]]; then
+            echo "::error::Retry delay parser misread a millisecond hint: $parsed_retry_delay"
+            exit 1
+          fi
+          printf '%s\\n' 'Please retry in 2m3s.' > "$retry_delay_test_file"
+          parsed_retry_delay="$(retry_delay_seconds "$retry_delay_test_file" 1 MODEL_RATE_LIMIT)"
+          if [[ "$parsed_retry_delay" -lt 128 || "$parsed_retry_delay" -gt 129 ]]; then
+            echo "::error::Retry delay parser failed the compound-duration regression test: $parsed_retry_delay"
             exit 1
           fi
           printf '%s\n' 'Retry-After: 120' > "$retry_delay_test_file"
