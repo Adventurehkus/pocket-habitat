@@ -93,7 +93,8 @@ jobs:
         run: |
           set -euo pipefail
           jq -e '.providers.google.models and .providers.cohere.models and .providers.openrouter.models and .providers["cloudflare-workers-ai"].models' opencode.json >/dev/null
-          echo "OpenCode provider/model registry is valid JSON and required provider sections exist."
+          jq -e '.providers.google.models["gemini-4-hydrogen"].limit.context == 1048576 and .providers.google.models["gemini-4-hydrogen"].limit.output == 65536 and .providers.google.models["gemini-4-hydrogen"].body.generationConfig.thinkingConfig.thinkingLevel == "HIGH"' opencode.json >/dev/null
+          echo "OpenCode provider/model registry is valid and Gemini 4 Hydrogen limits/thinking configuration are present."
 
       - name: Test automatic continuation policy
         shell: bash
@@ -265,6 +266,7 @@ jobs:
 
           if [[ -n "${GOOGLE_GENERATIVE_AI_API_KEY:-}" ]]; then
             MODEL_CHAIN+=(
+              "google/gemini-4-hydrogen"
               "google/gemini-3.5-flash-lite"
               "google/gemini-3.1-flash-lite"
               "google/gemini-3.8-flash"
