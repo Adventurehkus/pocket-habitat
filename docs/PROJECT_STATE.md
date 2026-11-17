@@ -25,7 +25,7 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 
 ## Immediate recovery status
 
-**Active recovery debt (`docs/AUTONOMOUS_RECOVERY.md`): RESOLVED — The UI toggle button defect is fixed and independently verified; test spec restoration is verified via static analysis and Rojo build.**
+**Active recovery debt (`docs/AUTONOMOUS_RECOVERY.md`): RESOLVED — The recovery status was marked RESOLVED following independent agent verification of static checks, test spec integrity, and implementation consistency.**
 
 - `src/shared/PocketHabitat.spec.lua` was restored from the intact revision at commit `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`.
 - The empty `src/shared/PocketHabitat.spec.lua.restored` placeholder was removed.
@@ -67,7 +67,7 @@ Relevant commits:
 1. ~~Run the new workflow's continuation-policy regression tests and the project checks on the restored spec: Rojo, StyLua, Selene, and diff hygiene.~~ (Done)
 2. ~~Obtain independent review/QA of the restoration and mark recovery RESOLVED only when evidence supports it.~~ (Done)
 3. Execute TestEZ in a compatible Roblox runner if one is available; otherwise record NOT RUN. (Currently NOT RUN, static checks passed)
-4. In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback. (Currently IN PROGRESS: Next task)
+4. In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback. (Currently IN PROGRESS: Requires Roblox Studio access)
 5. Verify two-client habitat/creature/resource isolation, then DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown. (Currently NOT RUN)
 6. Continue with responsive UI, player feedback, environment/art, creature polish, sound, lighting, and mobile performance. (In progress: UI baseline exists)
 
