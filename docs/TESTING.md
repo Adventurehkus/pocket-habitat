@@ -7,7 +7,7 @@
 - A test file is not a passed test. Dependency installation is not test execution.
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 
-## Verification checkpoint — 2026-11-17 (Recovery Resolved)
+## Verification checkpoint — 2026-11-17 (Independent QA pending)
 
 Verified current repository source and autonomous recovery state on 2026-11-17:
 
@@ -19,7 +19,7 @@ Verified current repository source and autonomous recovery state on 2026-11-17:
 - TestEZ: NOT RUN (no compatible runner).
 - Roblox Studio, multiplayer, DataStore, and runtime playtesting: NOT RUN.
 
-Active recovery status is now RESOLVED per `docs/AUTONOMOUS_RECOVERY.md`.
+Active recovery status remains OPEN. Run 137, cycle 4 recorded a successful independent code review but no valid `QA_BLOCKER: YES/NO` decision from either QA route. Its compact recovery summary records a 0-byte implementation diff and a 201-byte validation log; the exact QA provider error cannot be confirmed from that summary. The workflow configuration now retains both QA transcripts and parsed stage outcomes in future recovery checkpoints. Do not treat the absence of a reported QA blocker as a QA pass.
 
 ## Standard deterministic checks
 
