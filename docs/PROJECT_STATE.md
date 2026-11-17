@@ -43,6 +43,7 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 - Client prompt discovery and basic quest/HUD synchronization.
 - Unified plot interaction system (InteractWithPlot, PlantSeed, WaterPlot, HarvestPlot) with server-side validation.
 - **NEW**: Manager-level TestEZ specs for building blocks (307 lines, 13 tests) with deterministic, bounded, rule-level integration evidence; none of these tests invoke Roblox services.
+- **NEW**: Documentation of server-side integrity fixes in `src/server/Fixes_Documentation.md`.
 
 These are source-presence statements, not claims of a playable or release-ready game. Roblox startup, live interactions, two-client multiplayer, DataStore behavior, save/rejoin, shutdown, creature physics, and mobile input remain unverified.
 
