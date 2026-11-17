@@ -25,7 +25,7 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 
 ## Immediate recovery status
 
-**Active recovery debt (`docs/AUTONOMOUS_RECOVERY.md`): RESOLVED — all deterministic checks pass successfully and the UI toggle button variable initialization defect in `src/client/ClientMain.client.lua` has been fixed and verified.**
+**Active recovery debt (`docs/AUTONOMOUS_RECOVERY.md`): RESOLVED — The UI toggle button defect is fixed and independently verified.**
 
 **TestEZ spec restoration: RESOLVED — verified via static analysis and Rojo build.**
 

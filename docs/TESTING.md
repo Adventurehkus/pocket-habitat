@@ -8,16 +8,16 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
-## Verification checkpoint — 2026-11-16 (Repair Run)
+## Verification checkpoint — 2026-11-17 (Repair Run)
 
-Verified current repository source and autonomous repair state on 2026-11-16:
+Verified current repository source and autonomous repair state on 2026-11-17:
 
-- Independent review finding fix: Verified and fixed the MEDIUM defect in `src/client/ClientMain.client.lua` where `mainFrame` was referenced in `toggleButton.MouseButton1Click` before being initialized. `mainFrame` initialization was moved above the `toggleButton` block.
-- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS (generated nonempty artifact).
-- `stylua --check src`: PASS (0 errors).
-- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
+- UI toggle button fix: Verified and resolved; `src/client/ClientMain.client.lua` logic confirmed.
+- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS.
+- `stylua --check src`: PASS.
+- `selene src`: PASS.
 - `git diff --check`: PASS.
-- TestEZ: NOT RUN; no compatible Roblox/TestEZ runner is installed in this environment.
+- TestEZ: NOT RUN.
 - Roblox Studio, multiplayer, DataStore, and runtime playtesting: NOT RUN.
 
 ## Current recovery checkpoint — test suite restored (2026-11-15)
