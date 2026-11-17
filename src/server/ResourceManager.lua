@@ -22,7 +22,7 @@ function ResourceManager.init()
         player: Player,
         nodeId: any
     ): (boolean, string)
-        local now = os.clock()
+        local now = os.time()
         local lastRequestAt = lastGatherRequestAt[player.UserId]
         if lastRequestAt and now - lastRequestAt < GATHER_REQUEST_INTERVAL then
             return false, "Gather request rate limited"

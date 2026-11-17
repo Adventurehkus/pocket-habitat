@@ -179,7 +179,7 @@ local function validateRespawnRequest(player: Player): boolean
 end
 
 local function onRespawnRequest(player: Player)
-    local now = os.clock()
+    local now = os.time()
     if respawnsInProgress[player] then
         return
     end
@@ -203,7 +203,7 @@ local function onRespawnRequest(player: Player)
     local character =
         CharacterSpawner.spawnOrRestoreCharacter(player, sessionData.characterSpawnData)
     if character then
-        lastRespawnTimes[player] = os.clock()
+        lastRespawnTimes[player] = os.time()
     end
 end
 

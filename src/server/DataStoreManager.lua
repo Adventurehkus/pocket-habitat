@@ -789,8 +789,8 @@ function DataStoreManager.releaseSession(
     session.releasing = true
     cancelRenewal(session)
     cancelReleaseRetry(session)
-    local deadline = math.min(os.clock() + 10, shutdownDeadline or math.huge)
-    while session.busy and os.clock() < deadline do
+    local deadline = math.min(os.time() + 10, shutdownDeadline or math.huge)
+    while session.busy and os.time() < deadline do
         task.wait(0.1)
     end
     if session.busy then
@@ -811,7 +811,7 @@ function DataStoreManager.releaseSession(
         maxAttempts += #RELEASE_RETRY_DELAYS
     end
     for attempt = 1, maxAttempts do
-        if shutdownDeadline and os.clock() >= shutdownDeadline then
+        if shutdownDeadline and os.time() >= shutdownDeadline then
             break
         end
 
@@ -824,7 +824,7 @@ function DataStoreManager.releaseSession(
             local delaySeconds = if attempt < RELEASE_ATTEMPTS
                 then attempt
                 else RELEASE_RETRY_DELAYS[attempt - RELEASE_ATTEMPTS + 1]
-            local remaining = if shutdownDeadline then shutdownDeadline - os.clock() else math.huge
+            local remaining = if shutdownDeadline then shutdownDeadline - os.time() else math.huge
             if remaining <= delaySeconds then
                 break
             end

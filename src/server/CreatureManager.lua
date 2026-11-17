@@ -132,7 +132,7 @@ local function idleBehavior(
             break
         end
 
-        local now = os.clock()
+        local now = os.time()
         if behavior.jumpInterval and now - lastJumpTime >= behavior.jumpInterval then
             lastJumpTime = now
             humanoid.Jump = true

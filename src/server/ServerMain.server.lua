@@ -75,9 +75,37 @@ local function onPlayerAdded(player: Player)
 end
 
 local function cleanupPlayer(player: Player, shutdownDeadline: number?)
+    -- Check if player is still being initialized
+    if initializingPlayers[player] then
+        -- Wait for initialization to complete, with shutdown deadline consideration
+        local timeout = 10 -- Maximum time to wait for initialization
+        local waitInterval = 0.1
+        local waited = 0
+        while initializingPlayers[player] and waited < timeout do
+            local remaining = shutdownDeadline and math.max(0, shutdownDeadline - os.time())
+                or waitInterval
+            if remaining <= 0 then
+                warn(
+                    "Shutdown deadline reached before initialization could complete for "
+                        .. tostring(player.UserId)
+                )
+                break
+            end
+            task.wait(math.min(waitInterval, remaining))
+            waited += waitInterval
+        end
+        if initializingPlayers[player] then
+            warn(
+                "Player initialization timed out for "
+                    .. tostring(player.UserId)
+                    .. "; proceeding with cleanup anyway"
+            )
+        end
+    end
+
     if cleaningPlayers[player] then
         while cleaningPlayers[player] do
-            local remaining = if shutdownDeadline then shutdownDeadline - os.clock() else 0.1
+            local remaining = if shutdownDeadline then shutdownDeadline - os.time() else 0.1
             if remaining <= 0 then
                 warn("Timed out waiting for player cleanup during server shutdown")
                 return false
@@ -117,7 +145,7 @@ for _, player in ipairs(Players:GetPlayers()) do
 end
 
 game:BindToClose(function()
-    local deadline = os.clock() + 25
+    local deadline = os.time() + 25
     local pending = 0
     for _, player in ipairs(Players:GetPlayers()) do
         pending += 1
@@ -128,7 +156,7 @@ game:BindToClose(function()
     end
 
     while pending > 0 do
-        local remaining = deadline - os.clock()
+        local remaining = deadline - os.time()
         if remaining <= 0 then
             break
         end

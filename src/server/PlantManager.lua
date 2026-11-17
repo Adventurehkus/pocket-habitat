@@ -178,7 +178,7 @@ local function handleInteraction(
         return false, "Invalid player"
     end
 
-    local now = os.clock()
+    local now = os.time()
     local lastRequestAt = lastPlantRequestAt[player.UserId]
     if lastRequestAt and now - lastRequestAt < PLANT_REQUEST_INTERVAL then
         return false, "Plot request rate limited"
