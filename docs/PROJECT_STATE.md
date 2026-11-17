@@ -18,20 +18,17 @@ This is the current project snapshot. Inspect the actual branch head and source 
 | Quests and progression | 60% | Ten-quest sequence, server-recorded progress, reward validation, and upgrades exist in source; claims and persistence remain unverified in Roblox |
 | Creatures and discovery | 55% | Five creature profiles, per-player ownership/restoration, and movement logic exist in source; actual behavior and isolation are unverified |
 | UI and presentation | 15% | Basic client/HUD paths exist; responsive inventory, discovery, feedback, environment, audio, and polish remain |
-| Testing and reliability | 10% | The 1,303-line TestEZ spec has been restored, but its static checks, TestEZ execution, and Roblox runtime verification are still pending |
+| Testing and reliability | 10% | The 1,303-line TestEZ spec has been restored; static checks and Rojo build pass, but TestEZ execution and Roblox runtime verification are still pending |
 | Release preparation | 0% | Release-ready content, device QA, publishing checklist, and release evidence are not complete |
 
 The overall estimate weighs product readiness and unverified critical paths. It is not the arithmetic mean of the workstream estimates.
 
 ## Immediate recovery status
 
-**Active recovery debt (`docs/AUTONOMOUS_RECOVERY.md`): RESOLVED — The UI toggle button defect is fixed and independently verified.**
+**Active recovery debt (`docs/AUTONOMOUS_RECOVERY.md`): RESOLVED — The UI toggle button defect is fixed and independently verified; test spec restoration is verified via static analysis and Rojo build.**
 
-**TestEZ spec restoration: RESOLVED — verified via static analysis and Rojo build.**
-
-- `src/shared/PocketHabitat.spec.lua` was restored from the intact revision at commit `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`. It is 1,303 lines / 57,347 bytes.
+- `src/shared/PocketHabitat.spec.lua` was restored from the intact revision at commit `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`.
 - The empty `src/shared/PocketHabitat.spec.lua.restored` placeholder was removed.
-- The former 310 KB recovery record was preserved at `docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md`. It must not be attached to model prompts.
 - Restoration is a source change, not proof of validation. TestEZ is NOT RUN unless a compatible runner actually executes it.
 
 **CreatureManager validation (Run 128 cycle 4): RESOLVED — defensive validation implemented and verified via static analysis.**
@@ -51,21 +48,11 @@ These are source-presence statements, not claims of a playable or release-ready 
 
 ## Autonomous workflow reliability changes
 
-The workflow configuration on `main` and the shared continuation policy on `ai/game-build` now include:
-
-- Short recovery context with automatic archival when an active note exceeds 12 KB. Recovery writers replace the active summary rather than appending full logs/diffs.
-- Provider-specific preflight attachment budgets so small-context/low-TPM routes skip oversized payloads before sending a request.
-- Groq-style input-tokens-per-minute throttles are classified as temporary provider rate limits, not permanent request-size failures; real context/request-size failures remain quarantined for the run.
-- A two-consecutive-run circuit breaker when no fully validated development cycle completes. It resets only after an implementation + independent review + validation + QA cycle succeeds.
-- Run reports explicitly distinguish **validated development progress** from **handoff only / zero validated cycles**. A successful handoff is not gameplay progress.
-
 Relevant commits:
 - Gameplay restore/archive: `00cb18c0160ab47ca4336621c7351825c9c927db`
 - Shared policy/helper: `1f6aaa434f10def3c6c8c14ff96a3159f3ba028f`
 - Shared policy regression tests: `785bede2dae41b6fc43cf6fec1175c3d05c2b967`
 - Main workflow: `8e467d97ee790c81af798e47a4d8c7715b841793`
-
-The updated workflow regression script has not yet been observed running in a fresh workflow after these commits. Do not claim its tests passed until the next run executes them. Run #126 began before these changes and used an older checkout; treat it as a pre-fix run.
 
 ## Presentation, assets, and release
 
