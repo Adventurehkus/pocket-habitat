@@ -1067,6 +1067,10 @@ jobs:
                 fi
                 echo "::endgroup::"
                 STAGE_LOG["$stage"]="$log_file"
+                # Retain the last attempted route even when it fails so recovery
+                # notes and the run report identify the provider/model that needs attention.
+                STAGE_MODEL["$stage"]="$model"
+                STAGE_PROVIDER["$stage"]="$provider"
 
                 if [[ "$status" -eq 0 ]]; then
                   MODEL_ATTEMPTED["$model"]="1"
@@ -1902,7 +1906,7 @@ jobs:
               fi
             fi
             if [[ "$QA_RESULT" -ne 0 || "$QA_DECISION" == "INVALID" ]]; then
-              write_recovery_context "No trustworthy QA decision was available in cycle $round. Primary QA route: ${STAGE_PROVIDER[qa]:-unknown} / ${STAGE_STATUS[qa]:-unknown}. Fallback QA route: ${STAGE_PROVIDER[qa-fallback]:-unknown} / ${STAGE_STATUS[qa-fallback]:-not attempted}. The implementation diff contains $(wc -c < "$DIFF_FILE") bytes. Both QA transcripts are retained below and in the workflow artifact. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work." "$REVIEW_LOG_PATH" "$QA_PRIMARY_LOG" "$QA_FALLBACK_LOG" "$DIFF_FILE" "$VALIDATION_LOG"
+              write_recovery_context "No trustworthy QA decision was available in cycle $round. Primary QA route: ${STAGE_PROVIDER[qa]:-unknown}/${STAGE_MODEL[qa]:-unknown} / ${STAGE_STATUS[qa]:-unknown}. Fallback QA route: ${STAGE_PROVIDER[qa-fallback]:-unknown}/${STAGE_MODEL[qa-fallback]:-unknown} / ${STAGE_STATUS[qa-fallback]:-not attempted}. The implementation diff contains $(wc -c < "$DIFF_FILE") bytes. Both QA transcripts are retained below and in the workflow artifact. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work." "$REVIEW_LOG_PATH" "$QA_PRIMARY_LOG" "$QA_FALLBACK_LOG" "$DIFF_FILE" "$VALIDATION_LOG"
               if ! persist_recovery_checkpoint; then
                 PIPELINE_EXIT=1
                 AUTONOMOUS_STOP_REASON="recovery_checkpoint_persistence_failed"
