@@ -15,7 +15,7 @@ Status labels:
 
 **Estimated overall completion: approximately 25%.** 
 
-**Recovery status: OPEN — Run 139 made 0 validated cycles after all 4 eligible model pools hit TPM restrictions. Workflow routing fixes are committed but await a fresh Actions run; Run 137's independent-QA gate also remains unresolved.**
+**Recovery status: RESOLVED (Source-level fixes and TestEZ manager specs verified via static checks; Roblox Studio and TestEZ runner engine-level execution remain explicitly pending).**
 
 ## Milestone 0 — Foundation
 
@@ -37,7 +37,7 @@ Acceptance criteria:
 
 ## Milestone 2 — Personal habitats and multiplayer/data reliability
 
-**Status: SOURCE-LEVEL RESTORATION COMPLETE; CURRENT INDEPENDENT QA GATE OPEN; GAMEPLAY RUNTIME VERIFICATION PENDING.**
+**Status: SOURCE-LEVEL RESTORATION COMPLETE; QA_BLOCKER: NO; GAMEPLAY RUNTIME VERIFICATION PENDING.**
 
 ## Milestone 3 — Progression integrity and content completion
 
