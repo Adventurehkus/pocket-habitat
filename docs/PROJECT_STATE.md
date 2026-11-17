@@ -3,7 +3,7 @@
 **Snapshot date:** 2026-11-17
 **Gameplay branch:** `ai/game-build`  
 **Reviewed gameplay checkpoint:** `785bede2dae41b6fc43cf6fec1175c3d05c2b967`  
-**Workflow/configuration checkpoint:** `8e467d97ee790c81af798e47a4d8c7715b841793` on `main`  
+**Workflow/configuration checkpoint:** `401f78ac27b501b5955abd806369abb9807a657c` on `main`  
 **Overall completion estimate:** approximately **25%** (directional readiness estimate, not a measured metric)
 
 This is the current project snapshot. Inspect the actual branch head and source before relying on historical reports.
@@ -25,11 +25,12 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 
 ## Immediate recovery status
 
-**Active recovery debt (`docs/AUTONOMOUS_RECOVERY.md`): RESOLVED — The recovery status was marked RESOLVED following independent agent verification of static checks, test spec integrity, and implementation consistency.**
+**Active workflow recovery: OPEN — Run 137, cycle 4 did not produce a trustworthy independent QA decision.** The recovery note records that code review passed, but both the primary QA route and its fallback failed to return the required `QA_BLOCKER: YES` or `QA_BLOCKER: NO` marker. The recorded implementation diff was 0 bytes and the validation log was 201 bytes. This is an unresolved QA-evidence gate, not proof of a new gameplay defect. The exact provider/model error is not available in the compact branch record; the workflow now preserves both QA transcripts and stage outcomes in future recovery checkpoints.
 
 - `src/shared/PocketHabitat.spec.lua` was restored from the intact revision at commit `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`.
 - The empty `src/shared/PocketHabitat.spec.lua.restored` placeholder was removed.
-- Restoration is a source change, not proof of validation. TestEZ is NOT RUN unless a compatible runner actually executes it.
+- Those source-restoration items are complete, but they do not by themselves close the later QA-evidence gate. Keep `docs/AUTONOMOUS_RECOVERY.md` OPEN until independent baseline QA returns a valid decision and any confirmed blockers are resolved.
+- TestEZ is NOT RUN unless a compatible runner actually executes it; Roblox Studio, multiplayer, DataStore, save/rejoin, and shutdown behavior remain unverified.
 
 **CreatureManager validation (Run 128 cycle 4): RESOLVED — defensive validation implemented and verified via static analysis.**
 
