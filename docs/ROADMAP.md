@@ -15,7 +15,7 @@ Status labels:
 
 **Estimated overall completion: approximately 25%.** 
 
-**Recovery status: OPEN — Run 137, cycle 4 passed independent code review but neither QA route returned a trustworthy `QA_BLOCKER` decision. Do not count this as a validated development cycle.**
+**Recovery status: OPEN — Run 139 made 0 validated cycles after all 4 eligible model pools hit TPM restrictions. Workflow routing fixes are committed but await a fresh Actions run; Run 137's independent-QA gate also remains unresolved.**
 
 ## Milestone 0 — Foundation
 
@@ -57,12 +57,13 @@ Acceptance criteria:
 
 ## Current focus
 
-**Immediate priority:** Re-establish a trustworthy independent QA decision for the current baseline before counting another validated development cycle; then continue Milestone 1-3 runtime validation.
+**Immediate priority:** Exercise the committed workflow routing repairs with a fresh Actions run. The next run must obtain implementation progress from the compacted handoff, then clear the outstanding independent-QA gate.
 
-1. Re-run independent baseline QA with a valid `QA_BLOCKER: YES` or `QA_BLOCKER: NO` first line. Inspect both QA transcripts and repair any confirmed blockers; keep `docs/AUTONOMOUS_RECOVERY.md` OPEN until evidence supports closure.
-2. Execute TestEZ in a compatible Roblox runner if one is available; otherwise record NOT RUN. (Currently NOT RUN, static checks passed)
-3. In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback. (Currently NOT RUN)
-4. Verify two-client habitat/creature/resource isolation, then DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown. (Currently NOT RUN)
-5. Continue with responsive UI, player feedback, environment/art, creature polish, sound, lighting, and mobile performance.
+1. Run the updated Actions workflow and inspect the model attempt log. Confirm explicit Groq TPM request-size errors are skipped without repeated cooldown retries and the Groq output caps/compacted prompt are applied.
+2. Obtain a valid independent baseline QA decision with a `QA_BLOCKER: YES` or `QA_BLOCKER: NO` first line. Repair any confirmed blocker; keep `docs/AUTONOMOUS_RECOVERY.md` OPEN until evidence supports closure.
+3. Execute TestEZ in a compatible Roblox runner if one is available; otherwise record NOT RUN. (Currently NOT RUN)
+4. In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback. (Currently NOT RUN)
+5. Verify two-client habitat/creature/resource isolation, then DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown. (Currently NOT RUN)
+6. Continue with responsive UI, player feedback, environment/art, creature polish, sound, lighting, and mobile performance.
 
 Do not count a successful workflow handoff as progress. A development cycle counts only after implementation, independent review, deterministic validation, QA, and checkpoint persistence succeed.
