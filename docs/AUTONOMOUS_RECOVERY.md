@@ -1,15 +1,19 @@
 # Pocket Habitat — Active Recovery Summary
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
 
 - Last updated by workflow run: 137
-- Cycle: 6
+- Cycle: 2
+
+## Current required action
+
+Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
 
 ## Evidence
 
-- Verified static checks (Rojo, StyLua, Selene): PASS
-- Verified continuation policy tests: PASS
-- Verified git diff hygiene: PASS
-- QA evaluation: All source-level deterministic checks passed. No issues identified in current source that block gameplay validation. Runtime tests (TestEZ, Roblox) remain unverified due to environment constraints.
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 137; do not paste them into this active note.
+- pocket-habitat-validation.log (201 bytes)
 
-This concludes the recovery work for cycle 5/6.
+Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
+
+Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md

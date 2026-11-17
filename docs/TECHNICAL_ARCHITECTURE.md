@@ -45,6 +45,7 @@ The project uses a compact Rojo mapping rather than the older proposed Systems/D
 - default.project.json — Rojo project mapping.
 - rokit.toml and wally.toml — pinned toolchain and package dependencies.
 - opencode.json — provider/model registry for the autonomous development pipeline.
+- src/shared/PocketHabitat.spec.lua — TestEZ specifications for shared production rules.
 - DevPackages — installed/vendored dependencies; do not edit or format dependency source.
 
 ## Current runtime architecture and known limitations
