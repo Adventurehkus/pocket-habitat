@@ -148,6 +148,15 @@ jobs:
           set -uo pipefail
 
           mkdir -p build
+
+          # The repository's evergreen handoff is maintained in AGENTS.md and
+          # docs/. Avoid resending the entire handoff as a workflow_dispatch
+          # input on every run; keep custom/user-supplied tasks untouched.
+          if [[ "$TASK" == *"# POCKET HABITAT — EVERGREEN AUTONOMOUS DEVELOPMENT HANDOFF"* ]]; then
+            TASK="Continue autonomous development of Pocket Habitat from the checked-out source. Read AGENTS.md and docs/AUTONOMOUS_AGENT_GUIDE.md, then inspect docs/PROJECT_STATE.md, docs/ROADMAP.md, docs/TECHNICAL_ARCHITECTURE.md, and docs/TESTING.md. Verify the highest-priority unfinished task against current source, implement one meaningful integrated vertical slice, preserve server authority/player-data safety/multiplayer isolation, run supported checks, and update the living docs accurately. Continue across meaningful tasks rather than planning only. The repository documents are the durable handoff; do not repeat or recreate an old milestone. Never publish, modify credentials/provider settings, edit vendored dependencies, or manually commit/push."
+            echo "::notice::Compacted the recognized evergreen handoff input; permanent instructions remain in repository documentation."
+          fi
+
           RUN_REPORT="$RUNNER_TEMP/pocket-habitat-agent-report.md"
           USAGE_LOG="$RUNNER_TEMP/pocket-habitat-model-usage.tsv"
           VALIDATION_LOG="$RUNNER_TEMP/pocket-habitat-validation.log"
@@ -223,7 +232,10 @@ jobs:
           else
             echo "::warning::Invalid no-progress continuation state; resetting the circuit-breaker counter to zero."
           fi
-          MAX_CONSECUTIVE_NO_PROGRESS_RUNS=2
+          # Allow several bounded fresh runs to revisit still-eligible providers
+          # after temporary TPM/capacity limits, without permitting an endless
+          # zero-progress continuation chain.
+          MAX_CONSECUTIVE_NO_PROGRESS_RUNS=5
           PIPELINE_EXIT=0
           IMPLEMENTATION_RETRYABLE_RUN_LIMIT=false
           # Each workflow execution has bounded local call, round, and wait budgets.
@@ -444,10 +456,17 @@ jobs:
               return 0
             fi
 
-            # Groq (and some compatible providers) phrase TPM throttles as
-            # "request too large" and include the input-token rate limit plus
-            # requested count. Treat these as temporary provider limits, not a
-            # permanent model/context-size failure.
+            # An explicit per-request TPM ceiling with both Limit and Requested
+            # counts is not a transient cooldown: waiting cannot make this exact
+            # request fit. Classify it before the generic minute-limit matcher.
+            # This covers Groq ITPM, OTPM, and combined TPM responses.
+            if grep -Eiq 'request too large for model.{0,500}(tokens per minute|TPM).{0,160}limit[[:space:]]*:?[[:space:]]*[0-9,]+,[[:space:]]*requested[[:space:]]*:?[[:space:]]*[0-9,]+' "$log_file"; then
+              echo "REQUEST_TOO_LARGE"
+              return 0
+            fi
+
+            # Ordinary TPM/RPM throttles without an explicit per-request
+            # Limit/Requested mismatch remain retryable after provider cooldown.
             if grep -Eiq 'input tokens per minute|tokens per minute.{0,100}(limit|exceeded)|TPM.{0,80}(limit|exceeded)' "$log_file"; then
               case "$provider" in
                 groq|cohere|openrouter|cloudflare-workers-ai)
@@ -669,8 +688,11 @@ jobs:
           assert_failure_class "google" 'Generate content free tier input token count per minute limit exceeded. Please retry in 43.4s.' "MODEL_RATE_LIMIT"
           assert_failure_class "google" 'Generate content free tier requests per minute limit exceeded. Please retry in 43.4s.' "MODEL_RATE_LIMIT"
           assert_failure_class "google" 'Please retry in 43.4s.' "MODEL_RATE_LIMIT"
-          assert_failure_class "groq" 'Request too large for model; input tokens per minute Limit 7000, Requested 12283.' "PROVIDER_RATE_LIMIT"
+          assert_failure_class "groq" 'Request too large for model; input tokens per minute (ITPM): Limit 7000, Requested 12283.' "REQUEST_TOO_LARGE"
+          assert_failure_class "groq" 'Request too large for model; output tokens per minute (OTPM): Limit 1000, Requested 1242.' "REQUEST_TOO_LARGE"
+          assert_failure_class "groq" 'Request too large for model; tokens per minute (TPM): Limit 8000, Requested 9262.' "REQUEST_TOO_LARGE"
           assert_failure_class "groq" 'Request too large for model: maximum context length exceeded.' "REQUEST_TOO_LARGE"
+          assert_failure_class "groq" '429 provider tokens per minute limit exceeded. Please retry in 45s.' "PROVIDER_RATE_LIMIT"
           assert_failure_class "cohere" 'Trial key is limited to 20 API calls / minute.' "PROVIDER_RATE_LIMIT"
           assert_failure_class "cohere" 'You are using a Trial key, which is limited to 1000 API calls / month. You can continue to use the Trial key for free or upgrade to a Production key with higher rate limits.' "SHARED_MONTHLY_QUOTA"
           assert_failure_class "github-copilot" 'You have exhausted your monthly premium requests allowance.' "SHARED_MONTHLY_QUOTA"
