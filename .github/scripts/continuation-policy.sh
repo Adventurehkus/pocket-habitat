@@ -6,7 +6,7 @@ should_auto_continue_after_run() {
   local eligible_pool_count="${3:-}"
   local retryable_implementation_barrier="${4:-}"
   local consecutive_no_progress_runs="${5:-0}"
-  local max_no_progress_runs="${6:-2}"
+  local max_no_progress_runs="${6:-5}"
 
   [[ "$quota_target_reached" == "false" ]] || return 1
   [[ "$eligible_pool_count" =~ ^[0-9]+$ ]] || return 1
