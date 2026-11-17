@@ -11,6 +11,7 @@ local RemoteEvents = require(Shared:WaitForChild("RemoteEvents"))
 local DataStoreManager = require(script.Parent:WaitForChild("DataStoreManager"))
 local EconomyManager = require(script.Parent:WaitForChild("EconomyManager"))
 local CreatureManager = require(script.Parent:WaitForChild("CreatureManager"))
+local WorldBuilder = require(script.Parent:WaitForChild("WorldBuilder"))
 
 local PlantManager = {}
 
@@ -51,6 +52,10 @@ local function plantSeed(player: Player, data: any, plan: any): (boolean, string
     plot.plantedTime = os.time()
     plot.waterCount = 0
     plot.stage = 1
+
+    if plan.habitat then
+        WorldBuilder.updatePlotVisual(plan.habitat, plot, plan.plotIndex)
+    end
 
     if not QuestRules.recordProgress(data.questProgress, "plant", seedId, 1) then
         warn("Failed to record planting quest progress for user " .. tostring(player.UserId))
@@ -97,6 +102,10 @@ local function waterPlant(player: Player, data: any, plan: any): (boolean, strin
         plot.stage = 2
     end
 
+    if plan.habitat then
+        WorldBuilder.updatePlotVisual(plan.habitat, plot, plan.plotIndex)
+    end
+
     if not QuestRules.recordProgress(data.questProgress, "water", nil, 1) then
         warn("Failed to record watering quest progress for user " .. tostring(player.UserId))
     end
@@ -107,8 +116,9 @@ local function waterPlant(player: Player, data: any, plan: any): (boolean, strin
         or getPlotPosition(plan.plotIndex)
     RemoteEvents.WaterEffect:FireClient(player, plotPosition, plot.waterCount, plantDef.waterNeeded)
 
-    local message = if dewdropCost == 0
-        then "Watered plant without using a dewdrop!"
+    local message = if plot.stage == 2
+        then "Watered plant! Ready to harvest!"
+        elseif dewdropCost == 0 then "Watered plant without using a dewdrop!"
         else "Watered plant!"
     syncAndNotify(player, data, message)
     return true, "Success"
@@ -139,6 +149,10 @@ local function harvestPlant(player: Player, data: any, plan: any): (boolean, str
     plot.plantedTime = 0
     plot.waterCount = 0
     plot.stage = 0
+
+    if plan.habitat then
+        WorldBuilder.updatePlotVisual(plan.habitat, plot, plan.plotIndex)
+    end
 
     if not QuestRules.recordProgress(data.questProgress, "harvest", reward.itemId, rewardQty) then
         warn("Failed to record harvest quest progress for user " .. tostring(player.UserId))
@@ -178,12 +192,12 @@ local function handleInteraction(
         return false, "Invalid player"
     end
 
-    local now = os.time()
+    local nowClock = os.clock()
     local lastRequestAt = lastPlantRequestAt[player.UserId]
-    if lastRequestAt and now - lastRequestAt < PLANT_REQUEST_INTERVAL then
+    if lastRequestAt and nowClock - lastRequestAt < PLANT_REQUEST_INTERVAL then
         return false, "Plot request rate limited"
     end
-    lastPlantRequestAt[player.UserId] = now
+    lastPlantRequestAt[player.UserId] = nowClock
 
     local data = DataStoreManager.getSession(player)
     if type(data) ~= "table" then
@@ -235,8 +249,9 @@ local function handleInteraction(
         return false, "Too far away from plot"
     end
 
-    -- Update plan with actual plot Instance for effects
+    -- Update plan with actual plot Instance and habitat for visuals and effects
     plan.plotInstance = plotInstance
+    plan.habitat = habitat
 
     if plan.action == "plant" then
         return plantSeed(player, data, plan)

@@ -549,6 +549,13 @@ function DataStoreManager.getDefaultData(userId: number)
 end
 
 function DataStoreManager.init(): boolean
+    RemoteEvents.RequestSync.OnServerInvoke = function(player: Player): any?
+        if typeof(player) ~= "Instance" or not player:IsA("Player") then
+            return nil
+        end
+        return DataStoreManager.getSession(player)
+    end
+
     local store, err = getDataStore()
     if not store then
         warn("DataStoreManager init failed: " .. tostring(err))
@@ -792,6 +799,9 @@ function DataStoreManager.releaseSession(
     local deadline = math.min(os.time() + 10, shutdownDeadline or math.huge)
     while session.busy and os.time() < deadline do
         task.wait(0.1)
+    end
+    if activeSessions[player] ~= session then
+        return true
     end
     if session.busy then
         warn("Timed out waiting to release player session for " .. tostring(player.UserId))

@@ -193,9 +193,10 @@ local function createCreatureModel(
     root.Position = position
     root.Anchored = false
     root.CanCollide = false
-    root.Massless = true
+    root.Massless = false
     root.Transparency = 1
     root.Parent = model
+    model.PrimaryPart = root
 
     -- Create visual body based on creature type
     local body = Instance.new("Part")

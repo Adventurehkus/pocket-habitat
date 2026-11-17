@@ -50,8 +50,8 @@ local function onPlayerAdded(player: Player)
         return
     end
     if not player.Parent then
-        initializingPlayers[player] = nil
         DataStoreManager.releaseSession(player)
+        initializingPlayers[player] = nil
         return
     end
 

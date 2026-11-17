@@ -3,6 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Constants"))
 local HabitatRules = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("HabitatRules"))
+local PlantRules = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("PlantRules"))
 
 local WorldBuilder = {}
 
@@ -159,12 +160,11 @@ local function createGardenPlot(folder: Folder, index: number, position: Vector3
     border.Transparency = 0.5
     border.Parent = folder
 
-    -- Add proximity prompt for planting/interacting
-    -- Players can use this to harvest, or plant seeds directly (alternative flower seeds in future)
+    -- Add proximity prompt for planting/watering/harvesting
     local prompt =
-        addProximityPrompt(plotPart, "Harvest/Plant", "Garden Plot " .. index, 1, Enum.KeyCode.E)
+        addProximityPrompt(plotPart, "Plant Seed", "Garden Plot " .. index, 0.75, Enum.KeyCode.E)
     prompt:SetAttribute("PlotIndex", index)
-    prompt:SetAttribute("PlotAction", "harvest_or_plant")
+    prompt:SetAttribute("PlotAction", "interact")
 
     return plotPart
 end
@@ -173,7 +173,7 @@ local function restorePlotState(folder: Folder, plotData: any, plotIndex: number
     local plotName = "Plot_" .. tostring(plotIndex)
     local plotsFolder = folder:FindFirstChild("GardenPlots") or folder
     local plotPart = plotsFolder:FindFirstChild(plotName)
-    if not plotPart then
+    if not plotPart or not plotPart:IsA("BasePart") then
         return
     end
 
@@ -183,19 +183,24 @@ local function restorePlotState(folder: Folder, plotData: any, plotIndex: number
         end
     end
 
+    local prompt = plotPart:FindFirstChildOfClass("ProximityPrompt")
+
     if
         type(plotData) ~= "table"
         or type(plotData.seedId) ~= "string"
         or plotData.plantedTime == nil
     then
+        if prompt then
+            prompt.ActionText = "Plant Seed"
+        end
         return
     end
 
-    local plantDef = Constants.PLANTS[plotData.seedId:gsub("seed_", "")]
+    local plantDef = PlantRules.getPlantDef(plotData.seedId)
     if plantDef and plotData.plantedTime > 0 then
+        local waterCount = plotData.waterCount or 0
         local elapsed = os.time() - plotData.plantedTime
-        local isMature = elapsed >= plantDef.growthTime
-            and (plotData.waterCount or 0) >= plantDef.waterNeeded
+        local isMature = elapsed >= plantDef.growthTime and waterCount >= plantDef.waterNeeded
         local stage = isMature and 2 or 1
 
         local plant = Instance.new("Part")
@@ -203,11 +208,11 @@ local function restorePlotState(folder: Folder, plotData: any, plotIndex: number
         plant.Size = Vector3.new(2, stage * 1.5, 2)
         plant.Position = plotPart.Position + Vector3.new(0, (stage * 1.5) / 2 + 0.2, 0)
         plant.Anchored = true
-        plant.BrickColor = BrickColor.new(plantDef.color)
+        plant.Color = plantDef.color
         plant.Material = Enum.Material.SmoothPlastic
         plant.Parent = plotPart
 
-        if (plotData.waterCount or 0) > 0 then
+        if waterCount > 0 then
             local waterIndicator = Instance.new("Part")
             waterIndicator.Name = "WaterDrops"
             waterIndicator.Size = Vector3.new(1, 0.5, 1)
@@ -219,7 +224,27 @@ local function restorePlotState(folder: Folder, plotData: any, plotIndex: number
             waterIndicator.Transparency = 0.5
             waterIndicator.Parent = plotPart
         end
+
+        if prompt then
+            if isMature then
+                prompt.ActionText = "Harvest " .. plantDef.name
+            elseif waterCount < plantDef.waterNeeded then
+                prompt.ActionText = "Water ("
+                    .. tostring(waterCount)
+                    .. "/"
+                    .. tostring(plantDef.waterNeeded)
+                    .. ")"
+            else
+                prompt.ActionText = "Growing..."
+            end
+        end
+    elseif prompt then
+        prompt.ActionText = "Plant Seed"
     end
+end
+
+function WorldBuilder.updatePlotVisual(habitat: Folder, plotData: any, plotIndex: number)
+    restorePlotState(habitat, plotData, plotIndex)
 end
 
 function WorldBuilder.addGardenPlot(habitat: Folder, index: number, plotData: any?): BasePart?

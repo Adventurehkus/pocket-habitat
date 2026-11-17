@@ -22,12 +22,12 @@ function ResourceManager.init()
         player: Player,
         nodeId: any
     ): (boolean, string)
-        local now = os.time()
+        local nowClock = os.clock()
         local lastRequestAt = lastGatherRequestAt[player.UserId]
-        if lastRequestAt and now - lastRequestAt < GATHER_REQUEST_INTERVAL then
+        if lastRequestAt and nowClock - lastRequestAt < GATHER_REQUEST_INTERVAL then
             return false, "Gather request rate limited"
         end
-        lastGatherRequestAt[player.UserId] = now
+        lastGatherRequestAt[player.UserId] = nowClock
 
         if typeof(nodeId) ~= "string" then
             return false, "Invalid argument"

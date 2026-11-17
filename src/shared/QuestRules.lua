@@ -7,14 +7,15 @@ local EconomyRules = require(Shared:WaitForChild("EconomyRules"))
 
 local QuestRules = {}
 
-local validTargets = {
+local validTargets = table.freeze({
     gather = true,
     plant = true,
     water = true,
     harvest = true,
     discover = true,
     upgrade = true,
-}
+})
+QuestRules.validTargets = validTargets
 
 local function isInteger(value: any, allowZero: boolean): boolean
     return type(value) == "number"

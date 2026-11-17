@@ -179,14 +179,15 @@ local function validateRespawnRequest(player: Player): boolean
 end
 
 local function onRespawnRequest(player: Player)
+    local requestClock = os.clock()
     local now = os.time()
     if respawnsInProgress[player] then
         return
     end
-    if lastRequestTimes[player] and now - lastRequestTimes[player] < REQUEST_INTERVAL then
+    if lastRequestTimes[player] and requestClock - lastRequestTimes[player] < REQUEST_INTERVAL then
         return
     end
-    lastRequestTimes[player] = now
+    lastRequestTimes[player] = requestClock
 
     if lastRespawnTimes[player] and now - lastRespawnTimes[player] < RESPAWN_COOLDOWN then
         return

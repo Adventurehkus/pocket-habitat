@@ -253,6 +253,27 @@ function PlantRules.validateInteraction(
         end
 
         return validateHarvest(plot, plotIndex, now)
+    elseif action == "interact" then
+        if plot.seedId == nil then
+            return validatePlant(data, plot, plotIndex, seedId, true)
+        end
+
+        local harvestPlan, harvestError = validateHarvest(plot, plotIndex, now)
+        if harvestPlan then
+            return harvestPlan, nil
+        end
+
+        local plantDef = PlantRules.getPlantDef(plot.seedId)
+        if
+            plantDef
+            and isIntegerAtLeast(plot.waterCount, 0)
+            and isIntegerAtLeast(plantDef.waterNeeded, 1)
+            and plot.waterCount < plantDef.waterNeeded
+        then
+            return validateWater(data, plot, plotIndex)
+        end
+
+        return nil, harvestError or "Plant is still growing"
     elseif action == "water" then
         return validateWater(data, plot, plotIndex)
     elseif action == "harvest" then

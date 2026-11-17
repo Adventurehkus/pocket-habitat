@@ -43,6 +43,7 @@ RemoteEvents.InteractWithPlot =
 RemoteEvents.PurchaseUpgrade =
     getOrCreateRemote("RemoteFunction", "PurchaseUpgrade") :: RemoteFunction
 RemoteEvents.ClaimQuest = getOrCreateRemote("RemoteFunction", "ClaimQuest") :: RemoteFunction
+RemoteEvents.RequestSync = getOrCreateRemote("RemoteFunction", "RequestSync") :: RemoteFunction
 
 RemoteEvents.SyncData = getOrCreateRemote("RemoteEvent", "SyncData") :: RemoteEvent
 RemoteEvents.Notification = getOrCreateRemote("RemoteEvent", "Notification") :: RemoteEvent
