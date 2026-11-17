@@ -1,17 +1,19 @@
 # Pocket Habitat — Active Recovery Summary
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
 
-- Last updated by autonomous agent run (Run 133 follow-up / Cycle resolution)
-- Status: All deterministic source checks pass successfully (`rojo build`, `stylua --check src`, `selene src`, `git diff --check`).
+- Last updated by workflow run: 134
+- Cycle: 3
+
+## Current required action
+
+Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
 
 ## Evidence
 
-- `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS (non-empty `.rbxl` generated).
-- `stylua --check src`: PASS (0 errors).
-- `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).
-- `git diff --check`: PASS (clean diff hygiene).
-- TestEZ: NOT RUN (no compatible runner in environment).
-- Roblox Studio / multiplayer / DataStore runtime: NOT RUN (require Roblox engine execution).
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 134; do not paste them into this active note.
+- pocket-habitat-validation.log (201 bytes)
+
+Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 
 Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md
