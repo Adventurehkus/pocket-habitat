@@ -19,7 +19,7 @@ Verified current repository source and autonomous recovery state on 2026-11-17:
 - TestEZ: NOT RUN (no compatible runner).
 - Roblox Studio, multiplayer, DataStore, and runtime playtesting: NOT RUN.
 
-Active recovery status remains OPEN. Run 137, cycle 4 recorded a successful independent code review but no valid `QA_BLOCKER: YES/NO` decision from either QA route. Its compact recovery summary records a 0-byte implementation diff and a 201-byte validation log; the exact QA provider error cannot be confirmed from that summary. The workflow configuration now retains both QA transcripts and parsed stage outcomes in future recovery checkpoints. Do not treat the absence of a reported QA blocker as a QA pass.
+Active recovery status remains OPEN. Run 137, cycle 4 recorded a successful independent code review but no valid `QA_BLOCKER: YES/NO` decision from either QA route. Its compact recovery summary records a 0-byte implementation diff and a 201-byte validation log; the exact QA provider error cannot be confirmed from that summary. The workflow configuration now retains both QA transcripts, the last attempted provider/model, and parsed stage outcomes in future recovery checkpoints. The original run-137 summary omitted those QA route details, so its exact provider-side failure remains unconfirmed. Do not treat the absence of a reported QA blocker as a QA pass.
 
 ## Standard deterministic checks
 
