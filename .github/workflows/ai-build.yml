@@ -1866,28 +1866,43 @@ jobs:
             COPILOT_STAGE_ALLOWED=false
             prioritize_models QA_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "$REPAIR_PROVIDER"
             STAGE_FILES=("$DIFF_FILE" "$VALIDATION_LOG")
-            QA_PROMPT="You are the read-only Pocket Habitat QA agent. Independently inspect the entire current cycle diff and deterministic validation log, then inspect all relevant source and call sites. Do not trust reviewer summaries without verifying them. Trace server startup from the first line through module initialization and player event connections; verify every invoked module function exists. Inspect geometry/transforms, player spawn/respawn, saved-state restoration, exact plot/resource ownership and distance checks, persistence failure handling, and multiplayer boundaries. Start with exactly one line: QA_BLOCKER: YES or QA_BLOCKER: NO. Say YES for a concrete critical/high correctness, security, progression, or player-data issue. Report what CI actually passed and all missing tests. A deterministic validation failure is diagnostic evidence, not a reason to abandon QA or claim success. Do not edit files, run shell commands, or claim unexecuted TestEZ, Roblox engine, multiplayer, or manual playtests passed."
+            QA_PROMPT="You are the read-only Pocket Habitat QA agent. Independently inspect the entire current cycle diff and deterministic validation log, then inspect all relevant source and call sites. Do not trust reviewer summaries without verifying them. If the attached diff is empty, including a zero-byte diff, treat this as a baseline QA review rather than an invalid task: inspect the current source and project documentation directly, and assess the existing checkpoint for concrete correctness risks. Do not reject, skip, or return an invalid response solely because there are no changed lines. Trace server startup from the first line through module initialization and player event connections; verify every invoked module function exists. Inspect geometry/transforms, player spawn/respawn, saved-state restoration, exact plot/resource ownership and distance checks, persistence failure handling, and multiplayer boundaries. Start with exactly one line: QA_BLOCKER: YES or QA_BLOCKER: NO. Say YES for a concrete critical/high correctness, security, progression, or player-data issue. Report what CI actually passed and all missing tests. A deterministic validation failure is diagnostic evidence, not a reason to abandon QA or claim success. Do not edit files, run shell commands, or claim unexecuted TestEZ, Roblox engine, multiplayer, or manual playtests passed."
             run_stage "qa" "qa" "$QA_PROMPT" "${QA_MODELS[@]}"
             QA_RESULT=$?
             QA_LOG="${STAGE_LOG[qa]:-}"
+            QA_PRIMARY_LOG="$QA_LOG"
+            QA_FALLBACK_LOG=""
             QA_DECISION="INVALID"
             if [[ "$QA_RESULT" -eq 0 && -f "$QA_LOG" ]]; then
               QA_DECISION="$(qa_decision "$QA_LOG")"
             fi
+            if [[ "$QA_RESULT" -eq 0 ]]; then
+              if [[ "$QA_DECISION" == "INVALID" ]]; then
+                STAGE_STATUS["qa"]="SUCCESS (invalid/missing QA_BLOCKER marker)"
+              else
+                STAGE_STATUS["qa"]="SUCCESS (QA_BLOCKER: $QA_DECISION)"
+              fi
+            fi
             if [[ "$QA_RESULT" -ne 0 || "$QA_DECISION" == "INVALID" ]]; then
               echo "::warning::QA failed or returned an invalid decision. Trying the remaining independent QA routes."
-              QA_FALLBACK_PROMPT="Independently inspect the attached current diff and validation log. Do not edit files or run commands. Your FIRST output line MUST be exactly QA_BLOCKER: YES or QA_BLOCKER: NO. YES requires a concrete critical/high correctness, security, progression, or player-data issue. Report evidence and missing runtime tests; never claim unrun tests passed."
+              QA_FALLBACK_PROMPT="Independently inspect the attached current diff and validation log. If the diff is empty or zero bytes, inspect the current source and project documentation as a baseline QA review; do not treat an empty diff as invalid or skip the decision. Do not edit files or run commands. Your FIRST output line MUST be exactly QA_BLOCKER: YES or QA_BLOCKER: NO. YES requires a concrete critical/high correctness, security, progression, or player-data issue. Report evidence and missing runtime tests; never claim unrun tests passed."
               prioritize_models QA_FALLBACK_MODELS "$IMPLEMENT_PROVIDER" "$REVIEW_PROVIDER" "${STAGE_PROVIDER[qa]:-}"
               STAGE_FILES=("$DIFF_FILE" "$VALIDATION_LOG")
               run_stage "qa-fallback" "qa" "$QA_FALLBACK_PROMPT" "${QA_FALLBACK_MODELS[@]}"
               QA_RESULT=$?
+              QA_FALLBACK_LOG="${STAGE_LOG[qa-fallback]:-}"
               if [[ "$QA_RESULT" -eq 0 ]]; then
-                QA_LOG="${STAGE_LOG[qa-fallback]:-}"
+                QA_LOG="$QA_FALLBACK_LOG"
                 QA_DECISION="$(qa_decision "$QA_LOG")"
+                if [[ "$QA_DECISION" == "INVALID" ]]; then
+                  STAGE_STATUS["qa-fallback"]="SUCCESS (invalid/missing QA_BLOCKER marker)"
+                else
+                  STAGE_STATUS["qa-fallback"]="SUCCESS (QA_BLOCKER: $QA_DECISION)"
+                fi
               fi
             fi
             if [[ "$QA_RESULT" -ne 0 || "$QA_DECISION" == "INVALID" ]]; then
-              write_recovery_context "No trustworthy QA decision was available in cycle $round after trying the QA and fallback routes. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work." "$REVIEW_LOG_PATH" "$DIFF_FILE" "$VALIDATION_LOG"
+              write_recovery_context "No trustworthy QA decision was available in cycle $round. Primary QA route: ${STAGE_PROVIDER[qa]:-unknown} / ${STAGE_STATUS[qa]:-unknown}. Fallback QA route: ${STAGE_PROVIDER[qa-fallback]:-unknown} / ${STAGE_STATUS[qa-fallback]:-not attempted}. The implementation diff contains $(wc -c < "$DIFF_FILE") bytes. Both QA transcripts are retained below and in the workflow artifact. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work." "$REVIEW_LOG_PATH" "$QA_PRIMARY_LOG" "$QA_FALLBACK_LOG" "$DIFF_FILE" "$VALIDATION_LOG"
               if ! persist_recovery_checkpoint; then
                 PIPELINE_EXIT=1
                 AUTONOMOUS_STOP_REASON="recovery_checkpoint_persistence_failed"
