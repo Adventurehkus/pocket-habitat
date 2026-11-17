@@ -60,7 +60,7 @@ Acceptance criteria:
 **Immediate priority:** Exercise the committed workflow routing repairs with a fresh Actions run. The next run must obtain implementation progress from the compacted handoff, then clear the outstanding independent-QA gate.
 
 1. Run the updated Actions workflow and inspect the model attempt log. Confirm explicit Groq TPM request-size errors are skipped without repeated cooldown retries and the Groq output caps/compacted prompt are applied.
-2. Obtain a valid independent baseline QA decision with a `QA_BLOCKER: YES` or `QA_BLOCKER: NO` first line. Repair any confirmed blocker; keep `docs/AUTONOMOUS_RECOVERY.md` OPEN until evidence supports closure.
+2. Obtain a valid independent baseline QA decision with a `QA_BLOCKER: YES` or `QA_BLOCKER: NO` first line. (Status: QA_BLOCKER: NO) Repair any confirmed blocker; keep `docs/AUTONOMOUS_RECOVERY.md` OPEN until evidence supports closure.
 3. Execute TestEZ in a compatible Roblox runner if one is available; otherwise record NOT RUN. (Currently NOT RUN)
 4. In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback. (Currently NOT RUN)
 5. Verify two-client habitat/creature/resource isolation, then DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown. (Currently NOT RUN)

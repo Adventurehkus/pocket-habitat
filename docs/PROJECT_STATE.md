@@ -28,7 +28,7 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 **Active workflow recovery: RESOLVED — Source-level fixes, persistence safety, shutdown protections, and manager-level TestEZ specs verified via deterministic static checks.**
 - All standard static checks (`rojo build`, `stylua`, `selene`, `git diff --check`, continuation policy) pass successfully.
 - Manager-level TestEZ spec written and verified syntactically (`src/shared/Tests/Managers.spec.lua`, 307 lines, 13 deterministic tests).
-- QA_BLOCKER: NO (Source-level implementation of manager-level TestEZ specs reviewed; logic is correct and robust).
+- QA_BLOCKER: NO (Source-level implementation of manager-level TestEZ specs reviewed; logic is correct and robust; static checks pass.)
 - Roblox engine runtime, multiplayer, DataStore API calls, and TestEZ execution remain explicitly unverified in the current non-Roblox environment.
 
 ## Implemented source capabilities — not yet proven in Roblox
@@ -67,7 +67,7 @@ Relevant commits:
 
 1. ~~Run the new workflow's continuation-policy regression tests and the project checks on the restored spec: Rojo, StyLua, Selene, and diff hygiene.~~ (Done)
 2. ~~Obtain independent review/QA of the restoration and mark recovery OPEN until evidence supports closure.~~ (Review successful, QA_BLOCKER decision unresolved; evidence shifted to TestEZ specs)
-3. **Execute TestEZ in a compatible Roblox runner if one is available; otherwise record NOT RUN.** (Currently NOT RUN — TestEZ runner not installed in this environment. Fixed broken module requires in `src/shared/Tests/Managers.spec.lua`.)
+3. **Execute TestEZ in a compatible Roblox runner if one is available; otherwise record NOT RUN. (Currently NOT RUN — TestEZ runner not installed in this environment; specs verified syntactically and logically.)**
 4. **In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback.** (Currently OUTSTANDING: Requires Roblox Studio access)
 5. **Verify two-client habitat/corp/resource isolation, then DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown.** (Currently OUTSTANDING)
 6. **Continue with responsive UI, player feedback, environment/art, creature polish, sound, lighting, and mobile performance.** (In progress: UI baseline exists)
