@@ -135,8 +135,9 @@ end
 -- Main Frame
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0.9, 0, 0.7, 0)
-mainFrame.Position = UDim2.new(0.05, 0, 0.15, 0)
+mainFrame.Size = UDim2.new(0, 300, 0, 400)
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+mainFrame.Visible = false -- Start hidden
 mainFrame.BackgroundColor3 = Color3.fromRGB(245, 235, 220)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = gui
@@ -144,6 +145,24 @@ mainFrame.Parent = gui
 local uiCorner = Instance.new("UICorner")
 uiCorner.CornerRadius = UDim.new(0, 12)
 uiCorner.Parent = mainFrame
+
+-- Toggle Button
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(0, 50, 0, 50)
+toggleButton.Position = UDim2.new(0, 20, 0, 20)
+toggleButton.BackgroundColor3 = Color3.fromRGB(90, 140, 95)
+toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleButton.Text = "☰"
+toggleButton.TextSize = 24
+toggleButton.Parent = gui
+
+local uiCornerToggle = Instance.new("UICorner")
+uiCornerToggle.CornerRadius = UDim.new(0, 8)
+uiCornerToggle.Parent = toggleButton
+
+toggleButton.MouseButton1Click:Connect(function()
+    mainFrame.Visible = not mainFrame.Visible
+end)
 
 -- Title
 local titleLabel = Instance.new("TextLabel")

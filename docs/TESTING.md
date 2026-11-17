@@ -8,10 +8,11 @@
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 - Keep historical results, but label them by run and do not present them as the current baseline.
 
-## Verification checkpoint — 2026-11-16
+## Verification checkpoint — 2026-11-16 (Repair Run)
 
-Verified current repository source and autonomous continuation state on 2026-11-16:
+Verified current repository source and autonomous repair state on 2026-11-16:
 
+- Independent review finding fix: Verified and fixed the MEDIUM defect in `src/client/ClientMain.client.lua` where `mainFrame` was referenced in `toggleButton.MouseButton1Click` before being initialized. `mainFrame` initialization was moved above the `toggleButton` block.
 - `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS (generated nonempty artifact).
 - `stylua --check src`: PASS (0 errors).
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors).

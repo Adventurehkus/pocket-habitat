@@ -25,6 +25,8 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 
 ## Immediate recovery status
 
+**Active recovery debt (`docs/AUTONOMOUS_RECOVERY.md`): RESOLVED — all deterministic checks pass successfully and the UI toggle button variable initialization defect in `src/client/ClientMain.client.lua` has been fixed and verified.**
+
 **TestEZ spec restoration: RESOLVED — verified via static analysis and Rojo build.**
 
 - `src/shared/PocketHabitat.spec.lua` was restored from the intact revision at commit `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`. It is 1,303 lines / 57,347 bytes.
