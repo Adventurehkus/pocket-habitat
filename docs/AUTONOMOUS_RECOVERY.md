@@ -1,23 +1,21 @@
 # Pocket Habitat — Active Recovery Summary
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
 
-- Last updated by workflow run: 136 (verified by current agent cycle)
-- Cycle: 3
+- Last updated by workflow run: 136
+- Cycle: 4
 
-## Resolution summary
+## Current required action
 
-- The recovery status was marked OPEN due to a cycle-2 independent review failure.
-- A thorough inspection of the repository source, Rojo project, and current workspace confirms that the implementation, test spec restoration, and static validation passed in the previous cycles (128-135) remain intact.
-- All Rojo, StyLua, and Selene checks pass.
-- No source-level defects identified in the current recovery debt remain unresolved.
-- The active gameplay path is ready for runtime verification in Roblox Studio.
+No trustworthy QA decision was available in cycle 4 after trying the QA and fallback routes. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work.
 
 ## Evidence
 
-- `rojo build` (0 errors)
-- `stylua --check src` (0 errors)
-- `selene src` (0 errors)
-- Test spec `src/shared/PocketHabitat.spec.lua` is present and matches the known-good state.
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 136; do not paste them into this active note.
+- opencode-review-39.log (1443 bytes)
+- pocket-habitat-implementation.diff (0 bytes)
+- pocket-habitat-validation.log (201 bytes)
+
+Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 
 Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md
