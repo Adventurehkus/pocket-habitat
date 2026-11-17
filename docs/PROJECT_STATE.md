@@ -3,7 +3,7 @@
 **Snapshot date:** 2026-11-17
 **Gameplay branch:** `ai/game-build`  
 **Reviewed gameplay checkpoint:** `785bede2dae41b6fc43cf6fec1175c3d05c2b967`  
-**Workflow/configuration checkpoint:** `401f78ac27b501b5955abd806369abb9807a657c` on `main`  
+**Workflow/configuration checkpoint:** `42caa1ae44dcb7e762c6eaba44cc97cfa2c485a4` on `main`  
 **Overall completion estimate:** approximately **25%** (directional readiness estimate, not a measured metric)
 
 This is the current project snapshot. Inspect the actual branch head and source before relying on historical reports.
