@@ -3,7 +3,7 @@
 **Snapshot date:** 2026-11-17
 **Gameplay branch:** `ai/game-build`  
 **Reviewed gameplay checkpoint:** `785bede2dae41b6fc43cf6fec1175c3d05c2b967`  
-**Workflow/configuration checkpoint:** `42caa1ae44dcb7e762c6eaba44cc97cfa2c485a4` on `main`  
+**Workflow/configuration checkpoint:** `faba3c85437bdaf742ffbc0f0262cbe826bee71c` on `main`  
 **Overall completion estimate:** approximately **25%** (directional readiness estimate, not a measured metric)
 
 This is the current project snapshot. Inspect the actual branch head and source before relying on historical reports.
@@ -25,12 +25,14 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 
 ## Immediate recovery status
 
-**Active workflow recovery: OPEN — Run 137, cycle 4 did not produce a trustworthy independent QA decision.** The recovery note records that code review passed, but both the primary QA route and its fallback failed to return the required `QA_BLOCKER: YES` or `QA_BLOCKER: NO` marker. The recorded implementation diff was 0 bytes and the validation log was 201 bytes. This is an unresolved QA-evidence gate, not proof of a new gameplay defect. The exact provider/model error is not available in the compact branch record; the workflow now preserves both QA transcripts and stage outcomes in future recovery checkpoints.
+**Active workflow recovery: OPEN — Latest failed execution is Run 139 (2026-11-17).** It made no gameplay changes and completed 0 validated cycles. Nine of 13 quota pools were held by carried reset state, leaving four eligible pools: two Gemini Gemma routes and two Groq routes. Across 23 calls and 410 seconds of automatic cooldown waits, all four encountered input/output tokens-per-minute constraints. The run stopped at the old two-run no-progress circuit breaker before review, QA, and main source validation.
 
-- `src/shared/PocketHabitat.spec.lua` was restored from the intact revision at commit `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`.
-- The empty `src/shared/PocketHabitat.spec.lua.restored` placeholder was removed.
-- Those source-restoration items are complete, but they do not by themselves close the later QA-evidence gate. Keep `docs/AUTONOMOUS_RECOVERY.md` OPEN until independent baseline QA returns a valid decision and any confirmed blockers are resolved.
-- TestEZ is NOT RUN unless a compatible runner actually executes it; Roblox Studio, multiplayer, DataStore, save/rejoin, and shutdown behavior remain unverified.
+**Workflow fixes committed on `main` but not yet exercised by a new Actions run:** explicit Groq TPM request-size classification, 800-token Groq output caps, compaction of the known evergreen handoff input, and a bounded five-run zero-progress continuation limit. The workflow now also retains QA transcripts and failed-route provider/model diagnostics.
+
+The earlier Run 137 independent-QA gate remains unresolved: code review passed, but neither QA route returned a valid `QA_BLOCKER: YES/NO` decision. Keep `docs/AUTONOMOUS_RECOVERY.md` OPEN until a fresh run produces a valid baseline QA decision, any confirmed blockers are repaired, and the required workflow validation passes.
+
+- `src/shared/PocketHabitat.spec.lua` was restored from intact revision `6cfdc9ea061b8c80ab2a93651b11cc97b81187a8`; the empty `.restored` placeholder was removed.
+- TestEZ remains NOT RUN; Roblox Studio, multiplayer, DataStore, save/rejoin, shutdown, and manual runtime tests remain unverified.
 
 **CreatureManager validation (Run 128 cycle 4): RESOLVED — defensive validation implemented and verified via static analysis.**
 
