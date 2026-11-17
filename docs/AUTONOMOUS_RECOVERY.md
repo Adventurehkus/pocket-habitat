@@ -1,8 +1,21 @@
 # Pocket Habitat — Active Recovery Summary
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
 
 - Last updated by workflow run: 137
-- Cycle: 2
-- Evidence: Full review logs, validation output, model transcripts, and diffs retained for run 137. Static checks (Rojo, Stylua, Selene) and source-integrity verification (test suite restoration) completed successfully.
+- Cycle: 4
 
+## Current required action
+
+No trustworthy QA decision was available in cycle 4 after trying the QA and fallback routes. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work.
+
+## Evidence
+
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 137; do not paste them into this active note.
+- opencode-review-31.log (1029 bytes)
+- pocket-habitat-implementation.diff (0 bytes)
+- pocket-habitat-validation.log (201 bytes)
+
+Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
+
+Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md
