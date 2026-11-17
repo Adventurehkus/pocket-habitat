@@ -179,6 +179,31 @@
           }
         }
       }
+    },
+    "groq": {
+      "models": {
+        "qwen/qwen3.8-27b": {
+          "name": "Qwen 3.8 27B",
+          "limit": {
+            "context": 131072,
+            "output": 800
+          }
+        },
+        "openai/gpt-oss-120b": {
+          "name": "GPT-OSS 120B",
+          "limit": {
+            "context": 131072,
+            "output": 800
+          }
+        },
+        "openai/gpt-oss-20b": {
+          "name": "GPT-OSS 20B",
+          "limit": {
+            "context": 131072,
+            "output": 800
+          }
+        }
+      }
     }
   },
   "agents": {
