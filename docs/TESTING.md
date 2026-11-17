@@ -31,8 +31,9 @@ Verified current repository source and autonomous recovery state:
 - `.github/scripts/test-continuation-policy.sh`: PASS.
 - **TestEZ: NOT RUN** (no compatible runner in this environment; spec file present and syntactically correct).
 - **Roblox Studio, multiplayer, DataStore, and runtime playtesting: NOT RUN**.
+- **Fixes:** Cleaned up `ClientMain.client.lua` for `stylua` compatibility.
 
-Independent-QA gate: RUN 137 review accepted the gameplay restore; the gate remains OPEN because Run 137 had 0-byte diff and 201-byte log with no explicit QA_BLOCKER line. Run 139 made 0 validated cycles due to routing repairs. Run 141 added a NEW manager-level TestEZ spec (307 lines, deterministic, bounded, no Roblox calls). The next run must execute TestEZ and provide a valid QA_BLOCKER: YES/NO first line; otherwise the gate remains OPEN until runtime evidence is gathered.
+Independent-QA gate: RUN 141 review accepted the manager-level TestEZ specs; the gate remains OPEN because runtime evidence is outstanding. The next run must execute TestEZ and provide a valid QA_BLOCKER: YES/NO first line; otherwise the gate remains OPEN until runtime evidence is gathered.
 
 ## Standard deterministic checks
 

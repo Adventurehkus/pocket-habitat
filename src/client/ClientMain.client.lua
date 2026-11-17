@@ -227,22 +227,18 @@ questCorner.CornerRadius = UDim.new(0, 8)
 questCorner.Parent = questLabel
 
 -- Inventory Scroll
-local inventoryLabel = Instance.new("TextLabel")
-inventoryLabel.Size = UDim2.new(1, -30, 0, 80)
-inventoryLabel.Position = UDim2.new(0, 15, 0, 100)
-inventoryLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-inventoryLabel.TextColor3 = Color3.fromRGB(50, 50, 50)
-inventoryLabel.TextSize = 14
-inventoryLabel.Font = Enum.Font.Gotham
-inventoryLabel.TextXAlignment = Enum.TextXAlignment.Left
-inventoryLabel.TextYAlignment = Enum.TextYAlignment.Top
-inventoryLabel.TextWrapped = true
-inventoryLabel.Text = "Inventory: Loading..."
-inventoryLabel.Parent = mainFrame
+local inventoryFrame = Instance.new("ScrollingFrame")
+inventoryFrame.Name = "InventoryFrame"
+inventoryFrame.Size = UDim2.new(1, -30, 0, 80)
+inventoryFrame.Position = UDim2.new(0, 15, 0, 100)
+inventoryFrame.BackgroundTransparency = 1
+inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+inventoryFrame.ScrollBarThickness = 4
+inventoryFrame.Parent = mainFrame
 
-local invCorner = Instance.new("UICorner")
-invCorner.CornerRadius = UDim.new(0, 8)
-invCorner.Parent = inventoryLabel
+local invListLayout = Instance.new("UIListLayout")
+invListLayout.Padding = UDim.new(0, 4)
+invListLayout.Parent = inventoryFrame
 
 -- Actions Container (Buttons)
 local actionsFrame = Instance.new("ScrollingFrame")
@@ -383,11 +379,27 @@ RemoteEvents.SyncData.OnClientEvent:Connect(function(data: any)
             claimQuestButton.Text = "⭐ All Quests Complete!"
         end
 
-        local invText = "Inventory:\n"
-        for itemId, qty in pairs(playerData.inventory) do
-            invText ..= "• " .. itemId .. ": " .. tostring(qty) .. "\n"
+        local invList = inventoryFrame
+        for _, child in pairs(invList:GetChildren()) do
+            if child:IsA("TextLabel") then
+                child:Destroy()
+            end
         end
-        inventoryLabel.Text = invText
+
+        for itemId, qty in pairs(playerData.inventory) do
+            local itemLabel = Instance.new("TextLabel")
+            itemLabel.Size = UDim2.new(1, 0, 0, 20)
+            itemLabel.BackgroundTransparency = 1
+            itemLabel.Text = "• " .. itemId .. ": " .. tostring(qty)
+            itemLabel.TextColor3 = Color3.fromRGB(50, 50, 50)
+            itemLabel.Font = Enum.Font.Gotham
+            itemLabel.TextSize = 14
+            itemLabel.TextXAlignment = Enum.TextXAlignment.Left
+            itemLabel.Parent = invList
+        end
+        local listLayout = invList:FindFirstChildOfClass("UIListLayout")
+        local contentSizeY = if listLayout then listLayout.AbsoluteContentSize.Y else 0
+        invList.CanvasSize = UDim2.new(0, 0, 0, contentSizeY)
     end
 end)
 

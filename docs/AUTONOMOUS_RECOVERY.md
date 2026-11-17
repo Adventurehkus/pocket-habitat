@@ -3,18 +3,16 @@
 RECOVERY_STATUS: OPEN
 
 - Last updated by workflow run: 140
-- Cycle: 3
+- Cycle: 4
 
 ## Current required action
 
-No trustworthy QA decision was available in cycle 3. Primary QA route: unknown/unknown / EXHAUSTED. Fallback QA route: unknown/unknown / EXHAUSTED. The implementation diff contains 6547 bytes. Both QA transcripts are retained below and in the workflow artifact. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work.
+No trustworthy independent review decision was available in cycle 4 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
 
 ## Evidence
 
 Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 140; do not paste them into this active note.
-- opencode-review-39.log (2717 bytes)
-- pocket-habitat-implementation.diff (6547 bytes)
-- pocket-habitat-validation.log (201 bytes)
+- pocket-habitat-implementation.diff (7796 bytes)
 
 Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 

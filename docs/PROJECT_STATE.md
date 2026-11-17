@@ -28,7 +28,7 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 **Active workflow recovery: RESOLVED — Source-level fixes, persistence safety, shutdown protections, and manager-level TestEZ specs verified via deterministic static checks.**
 - All standard static checks (`rojo build`, `stylua`, `selene`, `git diff --check`, continuation policy) pass successfully.
 - Manager-level TestEZ spec written and verified syntactically (`src/shared/Tests/Managers.spec.lua`, 307 lines, 13 deterministic tests).
-- QA_BLOCKER: NO (Source-level implementation of manager-level TestEZ specs reviewed; logic is correct and robust; static checks pass.)
+- QA_BLOCKER: NO (Source-level implementation of manager-level TestEZ specs reviewed; logic is correct and robust; static checks pass. Cleaned up syntax for `stylua` compatibility.)
 - Roblox engine runtime, multiplayer, DataStore API calls, and TestEZ execution remain explicitly unverified in the current non-Roblox environment.
 
 ## Implemented source capabilities — not yet proven in Roblox
