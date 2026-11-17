@@ -7,6 +7,23 @@
 - A test file is not a passed test. Dependency installation is not test execution.
 - Do not infer multiplayer, persistence, or security guarantees from a successful Rojo build.
 
+## Latest workflow execution — Run 139 (2026-11-17; failed before review/QA)
+
+Run 139 completed with failure and 0 validated development cycles.
+
+- Initial toolchain Rojo build: PASS.
+- OpenCode model-registry preflight: PASS.
+- Continuation-policy preflight test: PASS (the pre-fix test suite in effect during Run 139).
+- Implementation stage: FAILED to produce source changes. Four eligible routes (two Google Gemma models and two Groq models) were attempted; nine of thirteen quota pools were held.
+- Model calls: 23; automatic cooldown waits: 410 seconds.
+- Google: free-tier input-token-per-minute limits were reached.
+- Groq: Qwen 3.8 27B hit ITPM 7,000 / requested 9,026 and OTPM 1,000 / requested 1,242; GPT-OSS 20B hit TPM 8,000 with requests from 9,016 to 11,292.
+- Stop reason: no implementation progress after two consecutive zero-cycle runs. Review, QA, and the main Rojo/StyLua/Selene source-validation stage were NOT RUN in Run 139. No gameplay changes were committed by this run.
+
+Workflow fixes committed afterward on `main` (`faba3c85437bdaf742ffbc0f0262cbe826bee71c)): explicit request-size classification before generic TPM retry classification, 800-token output caps for Groq Qwen/GPT-OSS, compaction of the known evergreen task input, and a five-run bounded no-progress continuation limit. The updated classifier fixtures were exercised locally and passed. The new GitHub Actions model-registry assertion and continuation-policy tests, as well as a full workflow run with these changes, remain NOT YET EXECUTED.
+
+Run 137's prior independent-QA evidence gap remains open and must be rechecked; a successful handoff or zero-change run does not satisfy it.
+
 ## Verification checkpoint — 2026-11-17 (Independent QA pending)
 
 Verified current repository source and autonomous recovery state on 2026-11-17:
