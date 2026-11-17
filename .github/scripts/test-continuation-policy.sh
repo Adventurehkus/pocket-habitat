@@ -24,6 +24,7 @@ assert_policy true no_implementation_progress false 6 true 0 5
 assert_policy true no_implementation_progress false 6 true 1 5
 assert_policy true no_implementation_progress false 6 true 2 5
 assert_policy true no_implementation_progress false 6 true 4 5
+assert_policy true no_implementation_progress false 6 true 4
 assert_policy false no_implementation_progress false 6 true 5 5
 assert_policy true total_model_call_budget false 6 false 0 2
 assert_policy true autonomous_round_budget false 1 false 1 2
