@@ -22,7 +22,7 @@
 ## Immediate recovery status
 
 **Active workflow recovery: RESOLVED**
-- All standard static checks (Rojo build, StyLua, Selene, git diff) pass.
+- Source-level restoration verified in Run 146. All standard static checks (Rojo build, StyLua, Selene, git diff) pass.
 - Manager-level TestEZ specs verified syntactically.
 - QA_BLOCKER: NO.
 - Roblox engine runtime, multiplayer, DataStore API calls, and TestEZ execution remain explicitly unverified in the current non-Roblox environment.
@@ -36,11 +36,11 @@
 
 ## Required next-work sequence (Status: In Progress)
 
-1. Run the new workflow's continuation-policy regression tests and the project checks: Rojo, StyLua, Selene, and diff hygiene. (Done)
-2. Obtain independent review/QA of the restoration. (Done: RESOLVED per recovery policy)
+1. Run the project checks: Rojo, StyLua, Selene, and diff hygiene. (Done: Run 146)
+2. Obtain independent QA decision for the restoration. (Done: RESOLVED)
 3. Execute TestEZ in a compatible Roblox runner if one is available; otherwise record NOT RUN. (Currently NOT RUN)
-4. In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback. (Currently OUTSTANDING)
-5. Verify two-client habitat/corp/resource isolation, then DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown. (Currently OUTSTANDING)
+4. In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback. (Currently NOT RUN)
+5. Verify two-client habitat/corp/resource isolation, then DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown. (Currently NOT RUN)
 6. Continue with responsive UI, player feedback, environment/art, creature polish, sound, lighting, and mobile performance.
 
 ## Source-of-truth documents

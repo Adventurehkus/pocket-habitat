@@ -61,7 +61,7 @@ Acceptance criteria:
 
 ## Current focus
 
-**Immediate priority:** Exercise the committed workflow routing repairs with a fresh Actions run. The next run must obtain implementation progress from the compacted handoff, then clear the outstanding independent-QA gate.
+**Immediate priority:** Obtain a valid independent baseline QA decision for the integrated source, clearing the outstanding QA gate (Status: QA_BLOCKER: NO). Once confirmed, move to runtime verification steps.
 
 1. Run the updated Actions workflow and inspect the model attempt log. Confirm explicit Groq TPM request-size errors are skipped without repeated cooldown retries and the Groq output caps/compacted prompt are applied.
 2. Obtain a valid independent baseline QA decision with a `QA_BLOCKER: YES` or `QA_BLOCKER: NO` first line. (Status: QA_BLOCKER: NO) Repair any confirmed blocker; keep `docs/AUTONOMOUS_RECOVERY.md` OPEN until evidence supports closure.
