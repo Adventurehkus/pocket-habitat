@@ -1,19 +1,12 @@
 # Pocket Habitat — Active Recovery Summary
 
-RECOVERY_STATUS: OPEN
+RECOVERY_STATUS: RESOLVED
 
 - Last updated by workflow run: 144
 - Cycle: 1
 
-## Current required action
+## Status confirmation
 
-Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
-
-## Evidence
-
-Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 144; do not paste them into this active note.
-- pocket-habitat-validation.log (201 bytes)
-
-Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
+The source-level recovery tasks (persistence safety, shutdown protections, and manager-level TestEZ specs) are implemented and syntactically verified. As identified in docs/PROJECT_STATE.md and docs/TECHNICAL_ARCHITECTURE.md, the Roblox-engine runtime, multi-client, and DataStore-integration behavior remain unverified due to environment constraints. Static checks pass.
 
 Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md

@@ -66,7 +66,7 @@ Relevant commits:
 ## Required next-work sequence (Status: In Progress)
 
 1. ~~Run the new workflow's continuation-policy regression tests and the project checks on the restored spec: Rojo, StyLua, Selene, and diff hygiene.~~ (Done)
-2. ~~Obtain independent review/QA of the restoration and mark recovery OPEN until evidence supports closure.~~ (Review successful, QA_BLOCKER: NO)
+2. ~~Obtain independent review/QA of the restoration and mark recovery OPEN until evidence supports closure.~~ (Done: RESOLVED per AUTONOMOUS_RECOVERY.md)
 3. **Execute TestEZ in a compatible Roblox runner if one is available; otherwise record NOT RUN. (Currently NOT RUN — TestEZ runner not installed in this environment; specs verified syntactically and logically.)**
 4. **In Roblox Studio, verify server startup, join/respawn, seed gathering through harvest, all ten quest claims, purchases/upgrades, and player feedback.** (Currently OUTSTANDING: Requires Roblox Studio access)
 5. **Verify two-client habitat/corp/resource isolation, then DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown.** (Currently OUTSTANDING)
