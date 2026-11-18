@@ -199,7 +199,9 @@ local function setGuiVisible(visible: boolean)
         })
         tween:Play()
         task.delay(TWEEN_TIME, function()
-            if not mainFrame.Visible then return end
+            if not mainFrame.Visible then
+                return
+            end
             -- Only hide if still in closed state (not reopened during animation)
             if mainFrame.Size == CLOSED_SIZE and mainFrame.Position == CLOSED_POSITION then
                 mainFrame.Visible = false
