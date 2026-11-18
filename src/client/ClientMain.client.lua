@@ -170,8 +170,46 @@ uiStrokeToggle.Color = Color3.fromRGB(60, 100, 65)
 uiStrokeToggle.Thickness = 2
 uiStrokeToggle.Parent = toggleButton
 
+-- Centralized UI visibility handler with consistent animation state
+local OPEN_SIZE = UDim2.new(0, 300, 0, 400)
+local OPEN_POSITION = UDim2.new(0.5, -150, 0.5, -200)
+local CLOSED_SIZE = UDim2.new(0, 0, 0, 0)
+local CLOSED_POSITION = UDim2.new(0.5, 0, 0.5, 0)
+local TWEEN_TIME = 0.3
+
+local function setGuiVisible(visible: boolean)
+    if visible then
+        -- Animate in: start from closed state, then tween to open
+        mainFrame.Size = CLOSED_SIZE
+        mainFrame.Position = CLOSED_POSITION
+        mainFrame.Visible = true
+
+        local tweenInfo = TweenInfo.new(TWEEN_TIME, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+        local tween = TweenService:Create(mainFrame, tweenInfo, {
+            Size = OPEN_SIZE,
+            Position = OPEN_POSITION,
+        })
+        tween:Play()
+    else
+        -- Animate out: tween to closed state, then hide
+        local tweenInfo = TweenInfo.new(TWEEN_TIME, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local tween = TweenService:Create(mainFrame, tweenInfo, {
+            Size = CLOSED_SIZE,
+            Position = CLOSED_POSITION,
+        })
+        tween:Play()
+        task.delay(TWEEN_TIME, function()
+            if not mainFrame.Visible then return end
+            -- Only hide if still in closed state (not reopened during animation)
+            if mainFrame.Size == CLOSED_SIZE and mainFrame.Position == CLOSED_POSITION then
+                mainFrame.Visible = false
+            end
+        end)
+    end
+end
+
 toggleButton.MouseButton1Click:Connect(function()
-    mainFrame.Visible = not mainFrame.Visible
+    setGuiVisible(not mainFrame.Visible)
 end)
 
 -- Title
@@ -199,7 +237,7 @@ closeCorner.CornerRadius = UDim.new(0, 8)
 closeCorner.Parent = closeButton
 
 closeButton.MouseButton1Click:Connect(function()
-    mainFrame.Visible = false
+    setGuiVisible(false)
 end)
 
 local titleCorner = Instance.new("UICorner")
@@ -449,23 +487,48 @@ RemoteEvents.SyncData.OnClientEvent:Connect(function(data: any)
         end
 
         local invList = inventoryFrame
+
+        -- Efficient inventory UI update: reuse existing labels instead of destroy/recreate
+        local existingLabels: { [string]: TextLabel } = {}
         for _, child in pairs(invList:GetChildren()) do
             if child:IsA("TextLabel") then
-                child:Destroy()
+                -- Extract itemId from existing label text (format: "• itemId: qty")
+                local itemId = child.Text:match("^•%s*([^:]+):")
+                if itemId then
+                    existingLabels[itemId] = child
+                end
             end
         end
 
+        local labelIndex = 0
         for itemId, qty in pairs(playerData.inventory) do
-            local itemLabel = Instance.new("TextLabel")
-            itemLabel.Size = UDim2.new(1, 0, 0, 20)
-            itemLabel.BackgroundTransparency = 1
-            itemLabel.Text = "• " .. itemId .. ": " .. tostring(qty)
-            itemLabel.TextColor3 = Color3.fromRGB(50, 50, 50)
-            itemLabel.Font = Enum.Font.Gotham
-            itemLabel.TextSize = 14
-            itemLabel.TextXAlignment = Enum.TextXAlignment.Left
-            itemLabel.Parent = invList
+            labelIndex += 1
+            local label = existingLabels[itemId]
+            if label then
+                -- Reuse existing label
+                label.Text = "• " .. itemId .. ": " .. tostring(qty)
+                label.LayoutOrder = labelIndex
+                existingLabels[itemId] = nil -- Mark as used
+            else
+                -- Create new label only when needed
+                local itemLabel = Instance.new("TextLabel")
+                itemLabel.Size = UDim2.new(1, 0, 0, 20)
+                itemLabel.BackgroundTransparency = 1
+                itemLabel.Text = "• " .. itemId .. ": " .. tostring(qty)
+                itemLabel.TextColor3 = Color3.fromRGB(50, 50, 50)
+                itemLabel.Font = Enum.Font.Gotham
+                itemLabel.TextSize = 14
+                itemLabel.TextXAlignment = Enum.TextXAlignment.Left
+                itemLabel.LayoutOrder = labelIndex
+                itemLabel.Parent = invList
+            end
         end
+
+        -- Destroy unused labels (items no longer in inventory)
+        for _, unusedLabel in pairs(existingLabels) do
+            unusedLabel:Destroy()
+        end
+
         local listLayout = invList:FindFirstChildOfClass("UIListLayout")
         local contentSizeY = if listLayout then listLayout.AbsoluteContentSize.Y else 0
         invList.CanvasSize = UDim2.new(0, 0, 0, contentSizeY)
