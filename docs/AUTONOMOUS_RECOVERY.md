@@ -1,22 +1,19 @@
 # Pocket Habitat — Active Recovery Summary
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
 
-- Last updated by workflow run: (Current Run)
-- Cycle: 1
+- Last updated by workflow run: 143
+- Cycle: 3
 
 ## Current required action
 
-Source-level fixes, persistence safety, shutdown protections, and manager-level TestEZ specs verified via deterministic static checks (rojo build, stylua, selene, git diff --check, continuation policy).
+No trustworthy independent review decision was available in cycle 3 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
 
 ## Evidence
 
-Deterministic validation passed:
-- Static checks: Passed (rojo build, stylua, selene, git diff --check).
-- Continuation policy: Passed.
-- TestEZ Specs: `src/shared/Tests/Managers.spec.lua` and `src/shared/PocketHabitat.spec.lua` exist and verified syntactically.
-- QA_BLOCKER: NO.
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 143; do not paste them into this active note.
+- pocket-habitat-implementation.diff (2402 bytes)
 
-Roblox engine runtime, multiplayer, DataStore API calls, and TestEZ execution remain explicitly unverified in the current non-Roblox environment.
+Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 
 Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md
