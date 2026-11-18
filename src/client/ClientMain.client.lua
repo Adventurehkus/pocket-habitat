@@ -142,6 +142,11 @@ mainFrame.BackgroundColor3 = Color3.fromRGB(245, 235, 220)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = gui
 
+local uiStroke = Instance.new("UIStroke")
+uiStroke.Color = Color3.fromRGB(180, 160, 140)
+uiStroke.Thickness = 2
+uiStroke.Parent = mainFrame
+
 local uiCorner = Instance.new("UICorner")
 uiCorner.CornerRadius = UDim.new(0, 12)
 uiCorner.Parent = mainFrame
@@ -159,6 +164,11 @@ toggleButton.Parent = gui
 local uiCornerToggle = Instance.new("UICorner")
 uiCornerToggle.CornerRadius = UDim.new(0, 8)
 uiCornerToggle.Parent = toggleButton
+
+local uiStrokeToggle = Instance.new("UIStroke")
+uiStrokeToggle.Color = Color3.fromRGB(60, 100, 65)
+uiStrokeToggle.Thickness = 2
+uiStrokeToggle.Parent = toggleButton
 
 toggleButton.MouseButton1Click:Connect(function()
     mainFrame.Visible = not mainFrame.Visible
@@ -211,6 +221,21 @@ local bellsCorner = Instance.new("UICorner")
 bellsCorner.CornerRadius = UDim.new(0, 8)
 bellsCorner.Parent = bellsLabel
 
+-- Garden Status Label (New)
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, -30, 0, 30)
+statusLabel.Position = UDim2.new(0, 15, 0, 95)
+statusLabel.BackgroundColor3 = Color3.fromRGB(230, 250, 230)
+statusLabel.TextColor3 = Color3.fromRGB(60, 100, 60)
+statusLabel.TextSize = 14
+statusLabel.Font = Enum.Font.GothamMedium
+statusLabel.Text = "Garden: 0/4 Plots Active"
+statusLabel.Parent = mainFrame
+
+local statusCorner = Instance.new("UICorner")
+statusCorner.CornerRadius = UDim.new(0, 8)
+statusCorner.Parent = statusLabel
+
 -- Quest Label
 local questLabel = Instance.new("TextLabel")
 questLabel.Size = UDim2.new(0.6, -15, 0, 35)
@@ -226,11 +251,26 @@ local questCorner = Instance.new("UICorner")
 questCorner.CornerRadius = UDim.new(0, 8)
 questCorner.Parent = questLabel
 
+-- Creatures Discovered Label
+local creaturesLabel = Instance.new("TextLabel")
+creaturesLabel.Size = UDim2.new(1, -30, 0, 30)
+creaturesLabel.Position = UDim2.new(0, 15, 0, 130)
+creaturesLabel.BackgroundColor3 = Color3.fromRGB(250, 240, 250)
+creaturesLabel.TextColor3 = Color3.fromRGB(100, 60, 100)
+creaturesLabel.TextSize = 14
+creaturesLabel.Font = Enum.Font.GothamMedium
+creaturesLabel.Text = "Creatures: 0 Discovered"
+creaturesLabel.Parent = mainFrame
+
+local creaturesCorner = Instance.new("UICorner")
+creaturesCorner.CornerRadius = UDim.new(0, 8)
+creaturesCorner.Parent = creaturesLabel
+
 -- Inventory Scroll
 local inventoryFrame = Instance.new("ScrollingFrame")
 inventoryFrame.Name = "InventoryFrame"
 inventoryFrame.Size = UDim2.new(1, -30, 0, 80)
-inventoryFrame.Position = UDim2.new(0, 15, 0, 100)
+inventoryFrame.Position = UDim2.new(0, 15, 0, 165)
 inventoryFrame.BackgroundTransparency = 1
 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 inventoryFrame.ScrollBarThickness = 4
@@ -242,8 +282,8 @@ invListLayout.Parent = inventoryFrame
 
 -- Actions Container (Buttons)
 local actionsFrame = Instance.new("ScrollingFrame")
-actionsFrame.Size = UDim2.new(1, -30, 0, 280)
-actionsFrame.Position = UDim2.new(0, 15, 0, 195)
+actionsFrame.Size = UDim2.new(1, -30, 0, 250)
+actionsFrame.Position = UDim2.new(0, 15, 0, 225)
 actionsFrame.BackgroundTransparency = 1
 actionsFrame.CanvasSize = UDim2.new(0, 0, 0, 400)
 actionsFrame.ScrollBarThickness = 6
@@ -267,6 +307,11 @@ local function createActionButton(text: string, callback: () -> ()): TextButton
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 8)
     corner.Parent = btn
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(80, 120, 85)
+    stroke.Thickness = 2
+    stroke.Parent = btn
 
     btn.MouseButton1Click:Connect(function()
         playSound("notify")
@@ -367,6 +412,30 @@ RemoteEvents.SyncData.OnClientEvent:Connect(function(data: any)
     local playerData = data.playerData or data.data or data
     if type(playerData) == "table" and type(playerData.inventory) == "table" then
         bellsLabel.Text = "Bells: " .. tostring(playerData.bells or 0) .. " 🔔"
+
+        -- Update Garden Status
+        local activePlots = 0
+        if type(playerData.plots) == "table" then
+            for _, plot in pairs(playerData.plots) do
+                if plot.plantId then
+                    activePlots += 1
+                end
+            end
+        end
+        statusLabel.Text = "Garden: "
+            .. activePlots
+            .. "/"
+            .. tostring(playerData.unlockedPlots or 4)
+            .. " Plots Active"
+
+        -- Update Creature Status
+        local creatureCount = 0
+        if type(playerData.discoveredCreatures) == "table" then
+            for _ in pairs(playerData.discoveredCreatures) do
+                creatureCount += 1
+            end
+        end
+        creaturesLabel.Text = "Creatures: " .. creatureCount .. " Discovered"
 
         local questId = playerData.currentQuest
         local questDef = if type(questId) == "string" then Constants.QUESTS[questId] else nil

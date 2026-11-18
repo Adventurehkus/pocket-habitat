@@ -28,7 +28,7 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 **Active workflow recovery: RESOLVED — Source-level fixes, persistence safety, shutdown protections, and manager-level TestEZ specs verified via deterministic static checks.**
 - All standard static checks (`rojo build`, `stylua`, `selene`, `git diff --check`, continuation policy) pass successfully.
 - Manager-level TestEZ spec written and verified syntactically (`src/shared/Tests/Managers.spec.lua`, 307 lines, 13 deterministic tests).
-- QA_BLOCKER: NO (Source-level implementation of manager-level TestEZ specs reviewed; logic is correct and robust; static checks pass. Cleaned up syntax for `stylua` compatibility. Recovery status formally resolved in `docs/AUTONOMOUS_RECOVERY.md`.)
+- QA_BLOCKER: NO.
 - Roblox engine runtime, multiplayer, DataStore API calls, and TestEZ execution remain explicitly unverified in the current non-Roblox environment.
 
 ## Implemented source capabilities — not yet proven in Roblox
@@ -43,7 +43,7 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 - Client prompt discovery and basic quest/HUD synchronization.
 - Unified plot interaction system (InteractWithPlot, PlantSeed, WaterPlot, HarvestPlot) with server-side validation.
 - **NEW**: Manager-level TestEZ specs for building blocks (307 lines, 13 tests) with deterministic, bounded, rule-level integration evidence; none of these tests invoke Roblox services.
-- **NEW**: Documentation of server-side integrity fixes in `src/server/Fixes_Documentation.md`.
+- **NEW**: UI polish (added `UIStroke` to the main HUD container).
 
 These are source-presence statements, not claims of a playable or release-ready game. Roblox startup, live interactions, two-client multiplayer, DataStore behavior, save/rejoin, shutdown, creature physics, and mobile input remain unverified.
 
