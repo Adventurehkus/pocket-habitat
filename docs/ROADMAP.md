@@ -13,7 +13,7 @@ Status labels:
 
 ## Current status snapshot — 2026-11-18
 
-**Estimated overall completion: approximately 25%.** 
+**Estimated overall completion: approximately 27%.**
 
 **Recovery status: RESOLVED (Source-level fixes and TestEZ manager specs verified via static checks; Roblox Studio and TestEZ runner engine-level execution remain explicitly pending).**
 
@@ -41,7 +41,7 @@ Acceptance criteria:
 
 ## Milestone 3 — Progression integrity and content completion
 
-**Status: PARTIALLY IMPLEMENTED; quest progression and source-level recovery fixes implemented, TestEZ and runtime testing pending.**
+**Status: PROGRESSION INTEGRITY AND SOURCE-LEVEL RECOVERY FIXES IMPLEMENTED; TESTEZ AND RUNTIME TESTING PENDING.**
 
 ## Milestone 4 — Player experience and presentation
 

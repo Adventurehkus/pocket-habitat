@@ -5,7 +5,7 @@
 - Separate source/static checks from Roblox-engine and manual playtesting.
 - A test file is not a passed test.
 
-## Latest workflow execution — Run 143 (2026-11-18)
+## Latest workflow execution — Run 146 (2026-11-18)
 
 - Rojo build: PASS.
 - Static checks (StyLua, Selene, diff hygiene): PASS.
@@ -16,10 +16,10 @@
 ## Standard deterministic checks
 
 1. Validate project JSON and relevant manifests.
-2. Build: `rojo build default.project.json -o build/pocket-habitat.rbxl`: PASS.
-3. Format: `stylua --check src`: PASS.
-4. Lint: `selene src`: PASS.
-5. Diff hygiene: `git diff --check`: PASS.
+2. Build: rojo build default.project.json -o build/pocket-habitat.rbxl: PASS.
+3. Format: stylua --check src: PASS.
+4. Lint: selene src: PASS.
+5. Diff hygiene: git diff --check: PASS.
 6. Continuation policy tests: PASS.
 7. Inspect working tree: Clean.
 8. Manager TestEZ specs: Syntactically verified; execution pending compatible environment.
