@@ -55,6 +55,10 @@ Acceptance criteria:
 
 **Status: PLANNED.**
 
+## Milestone 7 — Testing and reliability
+
+**Status: PARTIALLY IMPLEMENTED; TestEZ spec for shared rules and Manager-level integration tests exist; execution pending.**
+
 ## Current focus
 
 **Immediate priority:** Exercise the committed workflow routing repairs with a fresh Actions run. The next run must obtain implementation progress from the compacted handoff, then clear the outstanding independent-QA gate.

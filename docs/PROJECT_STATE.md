@@ -16,7 +16,7 @@
 | Quests and progression | 60% | Ten-quest sequence, server-recorded progress, reward validation, and upgrades exist; quest progress and claims remain unverified in Roblox |
 | Creatures and discovery | 55% | Five creature profiles, per-player ownership/restoration, and movement logic exist; behavior/isolation unverified |
 | UI and presentation | 20% | Basic client/HUD paths exist; unified plot interactions implemented |
-| Testing and reliability | 20% | TestEZ spec for shared rules exists; Manager-level TestEZ spec with 13 integration tests exists; execution pending |
+| Testing and reliability | 25% | TestEZ spec for shared rules and Manager-level integration tests exist; execution pending |
 | Release preparation | 0% | Release-ready content, device QA, publishing checklist, and release evidence pending |
 
 ## Immediate recovery status
