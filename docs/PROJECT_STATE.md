@@ -42,8 +42,7 @@ The overall estimate weighs product readiness and unverified critical paths. It 
 - Five creature types with distinct movement profiles, player-specific discovery/restoration, and habitat-scoped behavior/cleanup.
 - Client prompt discovery and basic quest/HUD synchronization.
 - Unified plot interaction system (InteractWithPlot, PlantSeed, WaterPlot, HarvestPlot) with server-side validation.
-- **NEW**: Manager-level TestEZ specs for building blocks (307 lines, 13 tests) with deterministic, bounded, rule-level integration evidence; none of these tests invoke Roblox services.
-- **NEW**: UI polish (added `UIStroke` to the main HUD container).
+- **NEW**: Fixed a bug in `src/client/ClientMain.client.lua` where `questLogButton` was referenced but not initialized, preventing the UI from initializing. Added a functional Quest Log toggle button.
 
 These are source-presence statements, not claims of a playable or release-ready game. Roblox startup, live interactions, two-client multiplayer, DataStore behavior, save/rejoin, shutdown, creature physics, and mobile input remain unverified.
 

@@ -170,6 +170,105 @@ uiStrokeToggle.Color = Color3.fromRGB(60, 100, 65)
 uiStrokeToggle.Thickness = 2
 uiStrokeToggle.Parent = toggleButton
 
+-- Toggle Button for Quest Log
+local questLogButton = Instance.new("TextButton")
+questLogButton.Size = UDim2.new(0, 50, 0, 50)
+questLogButton.Position = UDim2.new(0, 80, 0, 20)
+questLogButton.BackgroundColor3 = Color3.fromRGB(80, 120, 180)
+questLogButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+questLogButton.Text = "⭐"
+questLogButton.TextSize = 24
+questLogButton.Parent = gui
+
+local uiCornerQuest = Instance.new("UICorner")
+uiCornerQuest.CornerRadius = UDim.new(0, 8)
+uiCornerQuest.Parent = questLogButton
+
+local uiStrokeQuest = Instance.new("UIStroke")
+uiStrokeQuest.Color = Color3.fromRGB(50, 80, 120)
+uiStrokeQuest.Thickness = 2
+uiStrokeQuest.Parent = questLogButton
+
+-- Quest Log Frame
+local questLogFrame = Instance.new("Frame")
+questLogFrame.Name = "QuestLogFrame"
+questLogFrame.Size = UDim2.new(0, 300, 0, 400)
+questLogFrame.Position = UDim2.new(0.5, -150, 0.5, -200)
+questLogFrame.Visible = false
+questLogFrame.BackgroundColor3 = Color3.fromRGB(240, 245, 255)
+questLogFrame.BorderSizePixel = 0
+questLogFrame.Parent = gui
+
+local questLogStroke = Instance.new("UIStroke")
+questLogStroke.Color = Color3.fromRGB(140, 160, 180)
+questLogStroke.Thickness = 2
+questLogStroke.Parent = questLogFrame
+
+local questLogCorner = Instance.new("UICorner")
+questLogCorner.CornerRadius = UDim.new(0, 12)
+questLogCorner.Parent = questLogFrame
+
+local questLogTitle = Instance.new("TextLabel")
+questLogTitle.Size = UDim2.new(1, 0, 0, 45)
+questLogTitle.BackgroundColor3 = Color3.fromRGB(80, 120, 180)
+questLogTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+questLogTitle.TextSize = 20
+questLogTitle.Font = Enum.Font.FredokaOne
+questLogTitle.Text = "⭐ Quest Log"
+questLogTitle.Parent = questLogFrame
+
+local questCloseButton = Instance.new("TextButton")
+questCloseButton.Size = UDim2.new(0, 30, 0, 30)
+questCloseButton.Position = UDim2.new(1, -35, 0, 7)
+questCloseButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+questCloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+questCloseButton.Text = "X"
+questCloseButton.TextSize = 18
+questCloseButton.Font = Enum.Font.GothamBold
+questCloseButton.Parent = questLogTitle
+
+local questCloseCorner = Instance.new("UICorner")
+questCloseCorner.CornerRadius = UDim.new(0, 8)
+questCloseCorner.Parent = questCloseButton
+
+questCloseButton.MouseButton1Click:Connect(function()
+    questLogFrame.Visible = false
+end)
+
+local questScroll = Instance.new("ScrollingFrame")
+questScroll.Size = UDim2.new(1, -20, 1, -60)
+questScroll.Position = UDim2.new(0, 10, 0, 50)
+questScroll.BackgroundTransparency = 1
+questScroll.CanvasSize = UDim2.new(0, 0, 0, 1000)
+questScroll.ScrollBarThickness = 6
+questScroll.Parent = questLogFrame
+
+local questLayout = Instance.new("UIListLayout")
+questLayout.Padding = UDim.new(0, 8)
+questLayout.Parent = questScroll
+
+for _, questId in ipairs(Constants.QUEST_ORDER) do
+    local quest = Constants.QUESTS[questId]
+    local qLabel = Instance.new("TextLabel")
+    qLabel.Size = UDim2.new(1, -10, 0, 60)
+    qLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    qLabel.TextColor3 = Color3.fromRGB(50, 50, 50)
+    qLabel.TextSize = 14
+    qLabel.Font = Enum.Font.Gotham
+    qLabel.TextXAlignment = Enum.TextXAlignment.Left
+    qLabel.TextWrapped = true
+    qLabel.Text = quest.title .. "\n" .. quest.description
+    qLabel.Parent = questScroll
+
+    local qCorner = Instance.new("UICorner")
+    qCorner.CornerRadius = UDim.new(0, 8)
+    qCorner.Parent = qLabel
+end
+
+questLogButton.MouseButton1Click:Connect(function()
+    questLogFrame.Visible = not questLogFrame.Visible
+end)
+
 -- Centralized UI visibility handler with consistent animation state
 local OPEN_SIZE = UDim2.new(0, 300, 0, 400)
 local OPEN_POSITION = UDim2.new(0.5, -150, 0.5, -200)
@@ -306,10 +405,10 @@ local creaturesCorner = Instance.new("UICorner")
 creaturesCorner.CornerRadius = UDim.new(0, 8)
 creaturesCorner.Parent = creaturesLabel
 
--- Inventory Scroll
+-- Inventory Scroll (Responsive height)
 local inventoryFrame = Instance.new("ScrollingFrame")
 inventoryFrame.Name = "InventoryFrame"
-inventoryFrame.Size = UDim2.new(1, -30, 0, 80)
+inventoryFrame.Size = UDim2.new(1, -30, 0, 100) -- Increased size slightly
 inventoryFrame.Position = UDim2.new(0, 15, 0, 165)
 inventoryFrame.BackgroundTransparency = 1
 inventoryFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -320,12 +419,12 @@ local invListLayout = Instance.new("UIListLayout")
 invListLayout.Padding = UDim.new(0, 4)
 invListLayout.Parent = inventoryFrame
 
--- Actions Container (Buttons)
+-- Actions Container (Buttons) (Responsive height)
 local actionsFrame = Instance.new("ScrollingFrame")
-actionsFrame.Size = UDim2.new(1, -30, 0, 250)
-actionsFrame.Position = UDim2.new(0, 15, 0, 225)
+actionsFrame.Size = UDim2.new(1, -30, 1, -280) -- Adaptive size
+actionsFrame.Position = UDim2.new(0, 15, 0, 270)
 actionsFrame.BackgroundTransparency = 1
-actionsFrame.CanvasSize = UDim2.new(0, 0, 0, 400)
+actionsFrame.CanvasSize = UDim2.new(0, 0, 0, 600)
 actionsFrame.ScrollBarThickness = 6
 actionsFrame.Parent = mainFrame
 
