@@ -1,17 +1,21 @@
 # Pocket Habitat — Active Recovery Summary
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
 
-- Last updated by workflow run: 147
-- Cycle: 6
+- Last updated by workflow run: 146
+- Cycle: 3
+
+## Current required action
+
+No trustworthy QA decision was available in cycle 3. Primary QA route: unknown/unknown / EXHAUSTED. Fallback QA route: unknown/unknown / EXHAUSTED. The implementation diff contains 1613 bytes. Both QA transcripts are retained below and in the workflow artifact. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work.
 
 ## Evidence
 
-- Verified static checks (Rojo build, StyLua, Selene) pass.
-- Verified project source against technical architecture.
-- All automation-resolvable source-level items from recovery have been addressed in preceding cycles; documentation reflects this status.
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 146; do not paste them into this active note.
+- opencode-review-20.log (1154 bytes)
+- pocket-habitat-implementation.diff (1613 bytes)
+- pocket-habitat-validation.log (201 bytes)
 
-## Status
+Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 
-Source-level recovery is complete. Roblox engine runtime, multiplayer, DataStore API calls, and TestEZ execution remain explicitly unverified in the current non-Roblox environment.
-
+Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md
