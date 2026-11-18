@@ -11,7 +11,7 @@ Status labels:
 - **Blocked:** a known defect currently prevents the feature or runtime path from working.
 - **Planned:** not implemented.
 
-## Current status snapshot — 2026-11-17
+## Current status snapshot — 2026-11-18
 
 **Estimated overall completion: approximately 25%.** 
 
