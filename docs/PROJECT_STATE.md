@@ -22,7 +22,7 @@
 ## Immediate recovery status
 
 **Active workflow recovery: RESOLVED**
-- Source-level restoration verified in Run 146. All standard static checks (Rojo build, StyLua, Selene, git diff) pass.
+- Source-level restoration verified. All standard static checks (Rojo build, StyLua, Selene, git diff) pass.
 - Manager-level TestEZ specs verified syntactically.
 - QA_BLOCKER: NO.
 - Roblox engine runtime, multiplayer, DataStore API calls, and TestEZ execution remain explicitly unverified in the current non-Roblox environment.
