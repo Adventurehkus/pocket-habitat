@@ -11,7 +11,7 @@ local BERRY_SEED = Constants.RESOURCES.SEED_BERRY
 local FLOWER_SEED = Constants.RESOURCES.SEED_FLOWER
 
 -- Mock manager functions for testing
-local function mockAddItem(session, itemId, amount)
+local function mockAddItem(session: any, itemId: string, amount: number)
     local current = session.inventory[itemId] or 0
     local newAmount = current + amount
     if newAmount > EconomyRules.getMaxCapacity(session.upgrades, itemId) or newAmount < 0 then
@@ -21,7 +21,7 @@ local function mockAddItem(session, itemId, amount)
     return true
 end
 
-local function mockRemoveItem(session, itemId, amount)
+local function mockRemoveItem(session: any, itemId: string, amount: number)
     local current = session.inventory[itemId]
     if not current or current < amount then
         return false
@@ -30,7 +30,7 @@ local function mockRemoveItem(session, itemId, amount)
     return true
 end
 
-local function mockAddBells(session, bells)
+local function mockAddBells(session: any, bells: number)
     local newAmount = session.bells + bells
     if newAmount < 0 then
         return false
@@ -51,6 +51,8 @@ local function makeSession(): any
             [2] = { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 },
         },
         questProgress = {},
+        creaturesDiscovered = {},
+        questsCompleted = {},
         upgrades = {
             watering_can = 1,
         },

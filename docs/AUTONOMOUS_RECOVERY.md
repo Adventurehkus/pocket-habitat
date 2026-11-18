@@ -2,17 +2,17 @@
 
 RECOVERY_STATUS: OPEN
 
-- Last updated by workflow run: 142
-- Cycle: 3
+- Last updated by workflow run: 143
+- Cycle: 1
 
 ## Current required action
 
-No trustworthy independent review decision was available in cycle 3 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
 
 ## Evidence
 
-Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 142; do not paste them into this active note.
-- pocket-habitat-implementation.diff (8207 bytes)
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 143; do not paste them into this active note.
+- pocket-habitat-validation.log (201 bytes)
 
 Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 
