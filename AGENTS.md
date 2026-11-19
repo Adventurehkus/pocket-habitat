@@ -1,46 +1,32 @@
 # Pocket Habitat — Agent Instructions
 
-Develop Pocket Habitat: a polished, low-poly Roblox habitat builder about collecting resources, growing plants, discovering creatures, completing quests, and upgrading personal habitats.
+Build a polished, low-poly Roblox habitat game about collecting resources, growing plants, discovering creatures, completing quests, and upgrading personal habitats.
+
+## Required startup
+Read docs/AUTONOMOUS_AGENT_GUIDE.md, docs/PROJECT_STATE.md, docs/ROADMAP.md, and docs/TESTING.md at the start of every run. Read only the sections of docs/TECHNICAL_ARCHITECTURE.md and other large design documents that are relevant to the selected task. Find headings and use narrow line-range reads; do not load the entire architecture document into every model context.
 
 ## Permanent engineering rules
+- Use Luau and the pinned Rojo/Rokit/Wally toolchain.
+- Keep gameplay server-authoritative; validate client input, remote requests, ownership, distance, cooldowns, rewards, inventory, purchases, progression, and player data.
+- Preserve player-data integrity, safe persistence, schema compatibility, and multiplayer isolation.
+- Build integrated, testable vertical slices rather than disconnected scaffolding.
+- Preserve correct existing code. Never claim unrun tests passed.
+- Keep prompts lean: inspect only relevant source and documentation, avoid repeated/full-file reads, and summarize logs/diffs. Reduce context when a provider reports request-size or input-token limits.
+- Keep docs/AUTONOMOUS_RECOVERY.md compact (under 12 KB). Store full logs and diffs in workflow artifacts or docs/recovery-archive, not the active recovery note.
+- A handoff/recovery checkpoint is not validated progress. A validated cycle requires implementation, independent review, deterministic validation, independent QA, and successful persistence.
+- Treat temporary model/provider limits as recoverable workflow conditions, not gameplay defects. Do not bypass review, QA, tests, or bounded safety guards.
+- The workflow handles model routing, retries, cooldowns, review/QA orchestration, validation, and persistence. Do not call provider APIs directly, create nested agents, hard-code model lists, or change credentials, provider configuration, or workflow files unless the user explicitly asks for that work.
+- Never modify or reformat DevPackages/_Index, vendored Wally dependencies, third-party code, or generated caches.
+- Format/lint only project-owned Luau under src. Never run StyLua over the repository root.
+- Do not create/switch branches, manually commit/push, publish to Roblox, create releases, or access publishing credentials.
+- Use only tools available in the current environment. Do not invent APIs, credentials, test results, or capabilities.
 
-- Use Luau and the existing versions pinned in rokit.toml.
-- Keep gameplay server-authoritative; validate client requests and protect ownership, rewards, inventory, purchases, progression, and player data.
-- Use safe, versioned persistence and isolate multiplayer player data.
-- Prefer original, efficient Roblox geometry and assets; make UI work on mouse, keyboard, touch, and gamepad where practical.
-- Preserve correct existing code. Make integrated, testable changes and never claim unrun tests passed.
-- Keep `docs/AUTONOMOUS_RECOVERY.md` as a compact active-task summary (target under 12 KB). Do not paste full model logs or diffs into it; preserve full history in `docs/recovery-archive/` or workflow artifacts and never attach the archive to model prompts.
-- A green run that only dispatches a continuation is a handoff, not development progress. Count progress only after a validated implementation/review/validation/QA cycle.
-- Treat implementation, review, repair, QA, and deterministic validation failures as recovery work rather than automatic run-ending conditions. Use fallback routes, retry eligible models in later cycles, and preserve unresolved findings in `docs/AUTONOMOUS_RECOVERY.md`. Never weaken checks or call an unvalidated recovery checkpoint complete. Stop only for documented hard safety/budget/persistence limits or when no meaningful safe progress is possible.
-- Do not publish to Roblox or use publishing credentials.
-- Use only tools exposed in the current agent environment. Do not invent tools, credentials, APIs, or test results.
-- Do not create or switch branches, commit, or push manually. GitHub Actions persists implementation changes to ai/game-build.
+## Living project documents
+- docs/PROJECT_STATE.md — factual implementation and verification status, risks, and next task.
+- docs/ROADMAP.md — milestones, acceptance criteria, priorities, and current focus.
+- docs/TECHNICAL_ARCHITECTURE.md — architecture and known gaps.
+- docs/TESTING.md — commands and actual test results.
+- docs/AUTONOMOUS_RECOVERY.md — compact active recovery debt.
+Keep them consistent with the checked-out source and actual Git history.
 
-## Required operating guide and project documents
-
-Read docs/AUTONOMOUS_AGENT_GUIDE.md at the beginning of every run. It defines the permanent autonomous workflow and engineering policy.
-
-The changing project status belongs in:
-- docs/PROJECT_STATE.md — factual current implementation, verification, known risks, and exact next task.
-- docs/ROADMAP.md — milestone status, acceptance criteria, priorities, and current focus.
-- docs/TECHNICAL_ARCHITECTURE.md — actual architecture, intended design, and known gaps.
-- docs/TESTING.md — reproducible checks and exact historical/current test results.
-
-Also inspect relevant product and design documentation before changing those areas. The current repository source and these living documents take precedence over old prompts, old run summaries, and embedded assumptions.
-
-## Dynamic task selection
-
-When the user supplies a specific task, implement that task and its necessary dependencies.
-
-When the user asks to continue or provides a generic development handoff, choose the highest-priority incomplete task recorded in PROJECT_STATE.md and ROADMAP.md after verifying it against the current source. Do not hard-code a milestone, run number, commit hash, model list, or permanent next task into reusable prompts.
-
-After meaningful progress, update project state and roadmap so the next run can continue without the user rewriting the handoff.
-
-## Formatting and dependency boundaries
-
-- Format and lint project-owned Luau files under src/ only (for example, stylua --check src and selene src).
-- Never run StyLua over the repository root.
-- Do not modify, reformat, or rewrite vendored dependency sources under DevPackages/_Index/.
-- Do not change provider credentials, model routing, or GitHub Actions workflow configuration unless the user's current task explicitly requests it.
-
-For the complete procedure, follow docs/AUTONOMOUS_AGENT_GUIDE.md.
+The full operating procedure, source-of-truth order, Roblox safety rules, test boundaries, and required handoff are in docs/AUTONOMOUS_AGENT_GUIDE.md.
