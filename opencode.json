@@ -246,6 +246,6 @@
     "keep": {
       "tokens": 2000
     },
-    "buffer": "80%"
+    "buffer": "15%"
   }
 }
