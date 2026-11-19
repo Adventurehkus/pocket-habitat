@@ -45,13 +45,15 @@
         },
         "gemma-4-31b-it": {
           "limit": {
-            "context": 262144,
+            "context": 32768,
+            "input": 12000,
             "output": 8192
           }
         },
         "gemma-4-26b-a4b-it": {
           "limit": {
-            "context": 262144,
+            "context": 32768,
+            "input": 12000,
             "output": 8192
           }
         },
@@ -185,21 +187,24 @@
         "qwen/qwen3.8-27b": {
           "name": "Qwen 3.8 27B",
           "limit": {
-            "context": 131072,
+            "context": 32768,
+            "input": 6000,
             "output": 800
           }
         },
         "openai/gpt-oss-120b": {
           "name": "GPT-OSS 120B",
           "limit": {
-            "context": 131072,
+            "context": 32768,
+            "input": 6000,
             "output": 800
           }
         },
         "openai/gpt-oss-20b": {
           "name": "GPT-OSS 20B",
           "limit": {
-            "context": 131072,
+            "context": 32768,
+            "input": 6000,
             "output": 800
           }
         }
@@ -235,5 +240,12 @@
         }
       ]
     }
+  },
+  "compaction": {
+    "auto": true,
+    "keep": {
+      "tokens": 2000
+    },
+    "buffer": "80%"
   }
 }
