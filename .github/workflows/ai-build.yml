@@ -277,6 +277,67 @@ jobs:
               *) echo "unknown" ;;
             esac
           }
+ 
+          # Recompute active cooldowns after a complete model pass. A slow
+          # provider response can outlast the first deadline observed in that
+          # pass; retaining that stale minimum would suppress every later wait.
+          earliest_future_cooldown() {
+            local now_epoch="$1"
+            local stage="$2"
+            shift 2
+            local model provider attempt_key model_cooldown provider_cooldown cooldown_until
+            local earliest=0
+
+            for model in "$@"; do
+              provider="$(provider_for_model "$model")"
+              attempt_key="$stage|$model"
+
+              # Do not wait for a route that this stage cannot try again.
+              if [[ -n "${MODEL_ATTEMPTED[$model]:-}" ||
+                    -n "${MODEL_STAGE_EXHAUSTED[$attempt_key]:-}" ||
+                    -n "${MODEL_BLOCKED[$model]:-}" ||
+                    -n "${PROVIDER_BLOCKED[$provider]:-}" ]]; then
+                continue
+              fi
+              if [[ "${MODEL_RUN_CALLS[$model]:-0}" -ge "$MAX_MODEL_CALLS_PER_MODEL" ]]; then
+                continue
+              fi
+
+              model_cooldown="${MODEL_COOLDOWN_UNTIL[$model]:-0}"
+              provider_cooldown="${PROVIDER_COOLDOWN_UNTIL[$provider]:-0}"
+              cooldown_until="$model_cooldown"
+              if [[ "$provider_cooldown" -gt "$cooldown_until" ]]; then
+                cooldown_until="$provider_cooldown"
+              fi
+
+              if [[ "$cooldown_until" -gt "$now_epoch" ]] &&
+                 { [[ "$earliest" -eq 0 ]] || [[ "$cooldown_until" -lt "$earliest" ]]; }; then
+                earliest="$cooldown_until"
+              fi
+            done
+
+            printf '%s' "$earliest"
+          }
+
+          # Regression: an expired first deadline must not hide a later active
+          # model/provider cooldown; provider cooldowns override model deadlines.
+          (
+            MODEL_COOLDOWN_UNTIL["google/expired"]="100"
+            MODEL_COOLDOWN_UNTIL["groq/future"]="300"
+            PROVIDER_COOLDOWN_UNTIL["groq"]="350"
+            actual="$(earliest_future_cooldown 200 implementation "google/expired" "groq/future")"
+            if [[ "$actual" != "350" ]]; then
+              echo "::error::Cooldown scheduler regression: expected 350, got $actual."
+              exit 1
+            fi
+            MODEL_COOLDOWN_UNTIL["cohere/other"]="310"
+            actual="$(earliest_future_cooldown 200 implementation "google/expired" "groq/future" "cohere/other")"
+            if [[ "$actual" != "310" ]]; then
+              echo "::error::Cooldown scheduler regression: expected earliest active deadline 310, got $actual."
+              exit 1
+            fi
+          ) || exit 1
+          echo "Cooldown scheduler regression tests passed: expired deadlines are ignored and active provider/model cooldowns are recomputed."
 
           if [[ -n "${GOOGLE_GENERATIVE_AI_API_KEY:-}" ]]; then
             MODEL_CHAIN+=(
@@ -1175,8 +1236,13 @@ jobs:
                 break
               fi
 
-              # Wait only after all currently available alternatives were tried.
+              # Recompute after all calls: the previous minimum may have
+              # expired while a later provider request was still running.
+              # This prevents stale deadlines from skipping a valid retry wait.
               now="$(date +%s)"
+              earliest_cooldown="$(earliest_future_cooldown "$now" "$stage" "${candidates[@]}")"
+
+              # Wait only after all currently available alternatives were tried.
               if [[ "$earliest_cooldown" -gt "$now" ]]; then
                 remaining_stage=$((stage_deadline - now))
                 remaining_total=$((TOTAL_TEMP_WAIT_BUDGET_SECONDS - TOTAL_TEMP_WAIT_SECONDS))
