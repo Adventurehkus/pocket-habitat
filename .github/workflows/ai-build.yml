@@ -277,7 +277,7 @@ jobs:
               *) echo "unknown" ;;
             esac
           }
- 
+
           # Recompute active cooldowns after a complete model pass. A slow
           # provider response can outlast the first deadline observed in that
           # pass; retaining that stale minimum would suppress every later wait.
