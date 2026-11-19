@@ -1,213 +1,115 @@
-# Pocket Habitat — Autonomous Agent Operating Guide
+# Pocket Habitat — Autonomous Agent Guide
 
-## Purpose
+## Purpose and source of truth
 
-This document defines the durable operating procedure for every autonomous development run. It is intentionally independent of milestone numbers, run numbers, commit hashes, model names, provider availability, and temporary implementation priorities.
+This is the reusable operating guide for autonomous work. The repository, not an old handoff or run report, determines the current state and next task.
 
-The repository is the source of truth. The reusable handoff prompt tells the agent to follow this guide; the live project state and roadmap determine what to do next. Do not require the user to rewrite a milestone-specific prompt after each successful run.
+When information conflicts, trust this order:
+1. Current source, configuration, tests, and Git history.
+2. AGENTS.md.
+3. docs/PROJECT_STATE.md for factual implementation and verification status.
+4. docs/ROADMAP.md for priorities and acceptance criteria.
+5. Relevant sections of docs/TECHNICAL_ARCHITECTURE.md.
+6. docs/TESTING.md for reproducible checks and evidence.
+7. Product/design documents for their specific subject.
+8. Old prompts and run reports as historical context only.
 
-## Source-of-truth hierarchy
+Never copy an old run number, commit, completion claim, or model list forward without checking it against the current repository.
 
-When information conflicts, use this order:
+## Start every run — keep context bounded
 
-1. The current checked-out source, project configuration, tests, and actual Git history.
-2. AGENTS.md for repository-wide constraints.
-3. docs/PROJECT_STATE.md for the latest factual implementation and verification snapshot.
-4. docs/ROADMAP.md for priorities, milestone acceptance criteria, and the current next task.
-5. docs/TECHNICAL_ARCHITECTURE.md for the current architecture and intended boundaries.
-6. docs/TESTING.md for test commands, actual results, and known verification gaps.
-7. Game/design/asset/monetization documents for product intent in their respective areas.
-8. Previous run reports and handoff prompts as historical context only.
+1. Check the current branch, HEAD, and working tree. Preserve existing valid changes.
+2. Read AGENTS.md, this guide, docs/PROJECT_STATE.md, docs/ROADMAP.md, and docs/TESTING.md.
+3. Do NOT load the entire docs/TECHNICAL_ARCHITECTURE.md by default. Find its headings with a targeted search, then read only the section(s) relevant to the selected task using narrow line ranges. Do the same for large design documents.
+4. Inspect only the source modules, remote call sites, data structures, and tests needed for the selected vertical slice. Search first; read focused ranges.
+5. Compare source with the current state and roadmap. Correct stale status rather than repeating it.
 
-If a document disagrees with the source, inspect the source and correct the document. Never copy an old commit hash, run number, model list, or implementation claim forward without verifying it.
+Context efficiency is a reliability requirement, not permission to skip engineering. Avoid loading the same document or source repeatedly, dumping entire directories, or attaching complete logs/diffs. Summarize evidence and inspect exact ranges. The configured low-limit models have small request budgets; keep initial context especially lean, and reduce context when a provider reports a request-size or input-token limit. Do not replay an unchanged oversized prompt.
 
-## Run initialization
+Do not ask the user to repeat information already in the repository. Make a conservative documented decision unless an essential product choice is genuinely unknowable.
 
-At the beginning of every implementation run:
+## Choose one valuable task
 
-1. Inspect the current branch, working tree, and latest commit. Do not assume the starting revision from a previous prompt.
-2. Read AGENTS.md, this guide, docs/PROJECT_STATE.md, docs/ROADMAP.md, docs/TECHNICAL_ARCHITECTURE.md, and docs/TESTING.md.
-3. Read the relevant design documents and inspect the actual source modules, call sites, remotes, data structures, and tests before editing.
-4. Identify changes made since the last recorded checkpoint. Preserve correct work and avoid repeating completed tasks.
-5. Check whether the roadmap's stated next task is still the highest-value incomplete task. Update it when new evidence changes the priority.
+For a specific user request, implement that objective and necessary dependencies. For a generic continuation, choose the highest-value unfinished item in PROJECT_STATE and ROADMAP, normally in this order:
+1. Player-data integrity, exploit prevention, multiplayer isolation, and persistence safety.
+2. Broken or incomplete core gameplay paths.
+3. Integration between habitats, plots, resources, plants, creatures, quests, upgrades, economy, and UI.
+4. Repeatable tests and verification for high-risk behavior.
+5. Player experience, accessibility, performance, and presentation.
+6. Additional content and release preparation.
 
-Do not ask the user to repeat information already present in the repository or conversation. Ask a question only when a genuinely essential product decision cannot be safely inferred. Otherwise, make a conservative, documented engineering decision and proceed.
+Prefer one complete, integrated vertical slice over broad disconnected scaffolding. A feature is not complete merely because a module, remote, constant, model, attribute, test, or UI element exists.
 
-## How to choose work
+## Implementation and Roblox correctness
 
-### When the user supplies a specific task
-
-Treat the user's task as the immediate objective, subject to security, repository, and platform constraints. Inspect how it fits the architecture and roadmap. Implement it completely enough to integrate with the existing game. If it reveals a more serious correctness or data-safety problem, address that dependency first and explain the scope adjustment in the handoff.
-
-### When the user supplies a generic continuation request
-
-Do not invent a new milestone. Select the highest-priority unfinished item from docs/PROJECT_STATE.md and docs/ROADMAP.md using this order:
-
-1. Player-data integrity, exploit prevention, cross-player isolation, and persistence safety.
-2. Broken or incomplete core gameplay paths that block a usable game loop.
-3. Integration gaps between existing systems (habitat, plots, resources, plants, creatures, quests, upgrades, economy, UI).
-4. Missing tests and repeatable verification for high-risk functionality.
-5. Player experience, accessibility, performance, and visual polish.
-6. Additional content, optional features, and release preparation.
-
-This order is a guide, not a substitute for examining current evidence. A verified critical regression takes precedence over planned feature work.
-
-Choose one coherent, achievable vertical slice. Prefer a working end-to-end path over broad scaffolding. Do not scatter unfinished code across unrelated systems to make a milestone appear larger.
-
-### Dynamic milestone rule
-
-Milestone numbers and next tasks are maintained in docs/ROADMAP.md and docs/PROJECT_STATE.md. They are not permanently embedded in this guide or the reusable prompt.
-
-After completing or materially advancing a task:
-- Update the actual milestone status and acceptance criteria.
-- Record what is implemented, partially implemented, or still only planned.
-- Select the next task from the remaining evidence-backed gaps.
-- Leave enough context for the next run to continue without the user rewriting the prompt.
-
-A milestone is not complete merely because files, constants, remotes, models, or UI elements exist. Completion requires integrated gameplay and appropriate verification.
-
-## Implementation workflow
-
-1. **Inspect:** Trace the complete path from client input through remotes, server validation, state mutation, persistence, and player feedback.
-2. **Design minimally:** Reuse existing production rules and modules. Make the smallest architecture change that safely enables the required behavior.
-3. **Implement:** Build a complete vertical slice with server-authoritative ownership and failure handling.
-4. **Test:** Add or extend tests against production logic. Run every compatible deterministic check available.
-5. **Review locally:** Inspect the full diff for regressions, unrelated edits, secrets, generated files, and vendored changes.
-6. **Document:** Update only the documents affected by real changes and verification.
-7. **Handoff:** State exact outcomes, remaining risks, and the next evidence-backed task.
-
-Do useful implementation work throughout the available execution budget. Do not spend most of a run rewriting plans or duplicating this guide. If the whole milestone is too large, complete the strongest coherent slice and document the next step.
-
-## Engineering standards
+Trace the complete path: client input and presentation; remote invocation; server validation; ownership/session checks; state mutation and transaction ordering; rewards, inventory, currency, and progression; persistence/restoration; player feedback; and cleanup.
 
 - Use Luau and the pinned Rojo/Rokit/Wally toolchain.
-- Preserve the existing project architecture unless a verified limitation justifies a change.
-- Keep gameplay and rewards server-authoritative.
-- Treat every client argument as untrusted. Validate type, range, ownership, distance, session state, cooldown, and request frequency on the server.
-- Never trust client-supplied UserIds, instance ownership attributes, progress, reward amounts, currency balances, or completion flags as proof of authorization.
-- Make multi-step economy and reward operations transaction-safe. Prevent duplicate rewards, double-spending, race conditions, and cross-player data access.
-- Treat DataStore failures differently from genuinely absent records. Never replace existing player data with defaults after a failed read.
-- Preserve existing save compatibility and use explicit schema migrations for changes.
-- Use bounded, observable retry logic for external services. Never hide persistent failures.
-- Optimize for ordinary Roblox clients, including mobile devices.
-- Prefer original, licensed, lightweight assets and document their provenance.
-- Do not claim a feature is complete just because it builds.
+- Reuse the current architecture and production rules unless a verified limitation requires change.
+- The server is authoritative. Treat all client values as untrusted. Validate types, ranges, ownership, session, target membership, server-measured distance, cooldowns, request frequency, inventory, currency, and gameplay state before mutation.
+- Prevent cross-player access, duplicate rewards, double spending, remote spam, race conditions, and data loss.
+- Never replace player data with defaults after a failed DataStore read. Preserve save compatibility and use explicit migrations.
+- Make multi-step reward/economy operations transaction-safe.
+- Verify uncertain Roblox API behavior against current official documentation and actual call sites.
+- RemoteFunction:InvokeServer and RemoteEvent:FireServer automatically supply the requesting Player as the first server callback argument. Do not manually pass LocalPlayer as an extra argument.
+- ProximityPrompt.Triggered supplies playerWhoTriggered; still validate the action server-side. Client prompt visibility is not a security boundary.
+- Optimize for normal Roblox clients, including mobile. Prefer original, lightweight assets and document provenance.
 
-## Roblox API correctness
+## Pipeline boundaries
 
-Verify uncertain Roblox APIs against current official documentation and the actual call site. Do not blindly accept model-generated review suggestions.
+GitHub Actions owns provider/model routing, retries, cooldowns, implementation, independent review, repair, QA, deterministic validation, and persistence.
 
-For client RemoteFunction calls, Roblox supplies the requesting Player as the first argument to the server's OnServerInvoke callback. Do not manually pass LocalPlayer as an extra InvokeServer argument. The same automatic Player parameter applies to the server OnServerEvent callback for FireServer.
+- Use configured routes. Do not hard-code model lists, call provider APIs directly, create nested agents, or manually reproduce pipeline stages.
+- Do not change secrets, credentials, provider routing, or workflow configuration unless the current user task authorizes the change.
+- A transient RPM/TPM limit, 429, 5xx, timeout, or capacity issue is not a gameplay defect. Do not claim remaining quota unless an authoritative balance was checked.
+- The workflow cannot read live provider balances. It only marks quota exhausted after an explicit provider/model quota error.
+- Keep prompts and tool outputs lean. If a provider rejects a request as too large or exceeds input tokens per minute, inspect the prompt/context size and remove irrelevant document/source output before retrying. Do not weaken review, QA, or deterministic checks to make a run green.
+- A successful handoff or recovery checkpoint is not validated development progress. Only implementation + independent review + deterministic validation + independent QA + successful checkpoint persistence counts as a validated cycle.
+- Keep docs/AUTONOMOUS_RECOVERY.md as a compact current-task note (maximum 12 KB). Preserve full logs/diffs in workflow artifacts or docs/recovery-archive; never paste full transcripts into the active note.
+- Resolve active source-level recovery debt before unrelated features. Mark RECOVERY_STATUS: RESOLVED only when every automation-resolvable item is fixed and concrete evidence is recorded. Keep Roblox Studio, multiplayer, DataStore, TestEZ, and device checks marked unverified when they were not executed.
+- Respect bounded model-call, wait, cycle, and no-progress guards. Never disable a safety guard merely to force continuation. Report when human restart or provider reset is required.
 
-For ProximityPrompt.Triggered, use the playerWhoTriggered parameter from the event and still validate the action on the server. Client prompt visibility or properties are not security boundaries.
-
-## Multi-model pipeline and temporary limits
-
-The GitHub Actions workflow owns model selection, provider routing, implementation/review/repair/QA orchestration, quota classification, automatic cooldowns, retry scheduling, validation, and persistence.
-
-- Use only the configured model/provider routes supplied by the workflow and repository configuration.
-- Do not hard-code model lists or assume a particular provider is available.
-- Do not call provider APIs directly, create nested agents, or manually reproduce the pipeline's stages.
-- Do not change provider configuration, secrets, credentials, model routing, or the GitHub Actions workflow unless the user's current task explicitly authorizes that work.
-- Do not treat a temporary RPM/TPM limit, 429, transient 5xx, timeout, or capacity error as a code defect.
-- The workflow classifies provider errors, applies per-model/provider cooldowns, honors retry hints, tries other routes, and revisits temporary failures across autonomous cycles. Temporary per-stage exclusions reset at the start of each cycle; confirmed quota exhaustion, permanent authentication/model incompatibility, cooldown timestamps, and run-wide call budgets persist.
-- Standard live runs execute repeated autonomous cycles: implementation, independent review, conditional repair, deterministic validation, and independent QA. After a validated cycle, the workflow pushes a checkpoint to `ai/game-build` before beginning the next cycle.
-- Validated and recovery checkpoint pushes use the same bounded retry helper: up to 5 attempts with exponential backoff, a fetch to verify whether an ambiguous push already reached the remote, and a safe rebase when another run advanced the same branch. The helper never force-pushes. Authentication/permission and branch-policy failures stop immediately; conflicting or unrelated history also stops safely. The workflow runs local bare-repository regression tests before model work for a transient first-push rejection, an accepted push whose client receives an error, and concurrent branch advancement.
-- Candidate models rotate between cycles. A successful model is excluded from other roles during that same cycle so implementation, review, and QA remain independent, then becomes eligible again in later cycles unless its quota or run budget is exhausted.
-- The run continues beyond the first successful implementation/review/QA sequence. The quota-exhaustion target is **100% of currently eligible quota pools**: every pool that remains usable for this run must return an explicit daily/monthly quota-exhaustion error before quota-target completion, subject to hard safety caps.
-- The eligible-pool percentage is calculated as confirmed-exhausted pools divided by confirmed-exhausted plus still-eligible pools. Permanently ineligible routes (for example, invalid credentials, unavailable models, or requests too large for that model) are excluded from the eligible denominator; they are not counted as quota-exhausted.
-- If there are no measurable exhausted or eligible pools, report 0% and do not declare the target reached. A validation failure must first receive the configured repair attempts and be carried into a recovery cycle; it is not by itself a stop reason. If a hard budget, timeout, persistence failure, security emergency, or no-progress guard ultimately stops the run, report that exact stop reason, preserve recovery debt when possible, and state that the 100% quota target was not reached.
-- Quota pools are estimates based on current routing: Google/Groq models are counted separately; Cohere, OpenRouter, Cloudflare, and Copilot routes are grouped by provider/account. The workflow cannot query true provider balances; it only knows a pool is exhausted after receiving an explicit provider/model quota error. This is not an exact balance meter.
-- Temporary RPM/TPM limits, transient capacity/5xx/timeouts, and unclassified model/tool errors are treated as recoverable: they receive bounded cooldown/retry attempts, are deferred only for the current cycle, and can be revisited in later cycles. Input-tokens-per-minute throttles (including providers that phrase TPM as “request too large”) are rate limits, not permanent context-size failures. Explicit daily/monthly/shared quota exhaustion disables the affected scope for the rest of the run. Authentication failures, unavailable models, and genuine request/context-size failures are permanently ineligible for that run; none of these non-quota failures count as daily quota exhaustion.
-- Before sending a request, the workflow estimates prompt plus attachment size against conservative provider-specific byte budgets. Oversized model routes are skipped before a billable/API call; use another route or reduce the active context. Do not repeatedly send an unchanged oversized payload to a route that has already failed its size guard.
-- Recoverable stage failures are not terminal by themselves. If implementation cannot complete, retry eligible routes in a later cycle; if review or QA is unavailable/invalid after fallback, save an explicitly unreviewed or QA-pending recovery checkpoint and retry next cycle; if deterministic validation fails, try up to 5 repair rounds per cycle, still run QA, and carry unresolved failures into the next cycle; QA blockers receive up to 3 repair/re-check rounds per cycle. Do not call a recovery checkpoint validated or release-ready.
-- Recovery debt is written durably to `docs/AUTONOMOUS_RECOVERY.md` on `ai/game-build`, included in recovery commits, and automatically loaded by the next workflow run. The active note is a compact current-task summary (12 KB maximum); full logs/diffs belong in workflow artifacts or `docs/recovery-archive/` and must not be attached to model prompts. Recovery writers replace the active summary rather than appending logs. The next cycle/run must resolve active source debt before unrelated feature work. An agent may change `RECOVERY_STATUS: OPEN` to `RESOLVED` only after every automation-resolvable item is fixed and concrete verification/review/QA evidence is recorded. The workflow mechanically checks this exact marker. Keep Roblox Studio, multiplayer, and DataStore engine tests explicitly outstanding when the current runner cannot execute them; do not claim them passed.
-- Current per-run hard limits: 8 calls per model, 120 total model calls, 30 autonomous cycles, at most 2 hours of aggregate temporary-limit waiting, and the GitHub Actions job's 350-minute timeout. The workflow can hand off to a new run when a per-run cap or retryable implementation availability barrier is reached while eligible daily quota pools remain.
-- Cross-run continuation has no fixed successful-run count or chain-age cutoff, but zero-progress handoffs are bounded by the two-run circuit breaker above. A fresh run is queued through `workflow_dispatch` only when a documented retryable run-local limit is reached, eligible quota pools remain, and the no-progress guard permits it. The shared concurrency group ensures the child starts after the current run releases the lock. Each child checks out the latest `ai/game-build` checkpoint, retains the original task, quota state, and no-progress counter, and uses the continuation prompt rather than treating its fresh round counter as a brand-new task.
-- A fresh run resets run-local model-call counters, cooldowns, temporary retry counts, round counts, and wait budgets. Quota state is carried as per-pool Unix reset timestamps rather than a single UTC-day marker. A child run keeps a pool blocked only until its stored reset timestamp; expired markers are removed automatically. Legacy bare pool IDs from older runs are migrated using the provider-specific policy.
-- Provider reset policy currently used by the workflow:
-  - Google Gemini daily request quotas: next midnight in America/Los_Angeles, including daylight-saving changes ([official rate-limit docs](https://ai.google.dev/gemini-api/docs/rate-limits)).
-  - Groq daily request quotas: use the `x-ratelimit-reset-requests` response header when the transcript exposes it; otherwise use a conservative 24-hour cooldown from detection ([official rate-limit docs](https://console.groq.com/docs/rate-limits)).
-  - OpenRouter free-tier daily requests: midnight UTC, based on the `openrouter_free_tier_daily` limit source ([official free-model limits](https://openrouter.ai/collections/free-models), [reset behavior example](https://openrouter.ai/blog/llm-api-rate-limits/)).
-  - Cloudflare Workers AI daily Neuron allocation: 00:00 UTC ([official pricing docs](https://developers.cloudflare.com/workers-ai/platform/pricing/)).
-  - GitHub Copilot monthly allowance: 00:00 UTC on the first day of the month ([official allowance reset docs](https://docs.github.com/en/copilot/reference/copilot-billing/license-changes)).
-  - Cohere trial monthly calls: next UTC calendar-month boundary is an operational approximation; Cohere documents a monthly cap but does not specify the exact reset timezone/time in its public rate-limit FAQ ([official FAQ](https://docs.cohere.com/docs/cohere-faqs)).
-- These are reset schedules for the configured quota types, not live balance checks. If a provider changes its policy or the response does not expose a usable reset time, the workflow uses a conservative fallback and records the reset time in the run report. The quota target is calculated over the model pools configured in that run; it remains an estimate based on explicit provider errors, not a live balance query.
-- Provider reset schedules are tracked per quota pool. When a pool reports daily/monthly exhaustion, only that pool is held until its provider-specific reset time; other providers and models remain available. Expired reset markers are removed during model selection and quota accounting, allowing a still-running workflow to revisit a pool once its reset has actually passed. This does not force an already-finished workflow to wake up; automatic continuation remains tied to eligible per-run handoff conditions.
-- Reaching 100% of pools currently held until their scheduled reset remains a normal terminal condition if no eligible quota pool remains. The workflow does not stay idle inside a GitHub Actions job until the next provider reset; it records the next reset timestamps and stops, unless a per-run continuation condition is independently reached while other pools remain eligible.
-- A no-progress stop is eligible for handoff only when the implementation stage was actually blocked by per-run call caps, temporary cooldowns, or temporary provider failures. The workflow carries a consecutive no-progress-run counter across handoffs and permits at most two consecutive workflow runs without a validated implementation/review/validation/QA cycle. A validated cycle resets the counter; reaching the limit stops automatic dispatch and requires deliberate human restart or diagnosis. A successful workflow handoff with zero validated cycles is explicitly reported as HANDOFF ONLY, never as development progress. Validation, review, QA, checkpoint-persistence, authentication, setup, security, and other hard failures do not automatically trigger fresh runs.
-- Dispatch occurs only after the current recovery/validated checkpoint has persisted successfully, on the first workflow attempt only, and not after cancellation. Every child receives an explicit `is_continuation=true` marker independent of quota-state contents, so a child with an empty/expired reset-state payload still uses the continuation prompt rather than restarting the initial implementation prompt. A failed checkpoint or a failed dispatch is surfaced in the run logs; no child run should be treated as started unless GitHub accepts the dispatch.
-- Other hard stops include all usable quota pools exhausted while recovery debt remains, a required setup/toolchain failure, a security or data-integrity emergency, and GitHub infrastructure/job termination. There is no fixed cross-run count or 24-hour chain guard; each individual GitHub Actions job remains bounded by its timeout and explicit per-run budgets.
-- Never tell the user that a provider has remaining quota unless an authoritative account balance was actually queried. Configured models do not imply available quota.
-
-A single pasted task is used for the first cycle. Later cycles prioritize `docs/AUTONOMOUS_RECOVERY.md` when it exists, then continue the original task if incomplete; otherwise they choose the next highest-priority unfinished item from the live project state and roadmap. Cross-run continuation is a new workflow execution, not an unbounded single job: every handoff must follow the rules above, and the 100% target means every tracked, still-eligible pool has returned an explicit daily/monthly quota-exhaustion response.
-
-**Billing caution:** a quota-focused run makes substantially more API calls than the previous one-pass workflow. Whether an individual provider call is free depends on the connected account/project billing configuration, which the workflow cannot inspect. Confirm provider free-tier status and configure hard spending limits with providers before running. The workflow's call caps limit request count, not dollar spend.
-
-## Repository and Git boundaries
+## Branch and repository boundaries
 
 Repository: Adventurehkus/pocket-habitat
+- Gameplay source: ai/game-build
+- Workflow/configuration: main
 
-Gameplay source branch: ai/game-build  
-Workflow/configuration branch: main
-
-The workflow persists implementation changes to ai/game-build. Do not create or switch branches, commit manually, push manually, publish the Roblox experience, create releases, or access publishing credentials.
-
-Never modify or format:
-- DevPackages/_Index/
-- Vendored Wally dependencies.
-- Third-party source or generated dependency caches.
-
-Only format and lint project-owned Luau files under src/. Never run StyLua over the repository root.
-
-Do not download GitHub ZIP archives or repository bundles. Read repository text through the available GitHub file/content tools and inspect only files needed for the task.
+The workflow persists gameplay changes. Do not create or switch branches, commit/push manually, publish the Roblox experience, create releases, or access publishing credentials. Never modify DevPackages/_Index, vendored Wally dependencies, third-party source, or generated dependency caches. Format/lint only project-owned files under src; never run StyLua over the repository root.
 
 ## Testing and evidence
 
-Run the available project checks, typically:
-
-- Parse project/configuration files where relevant.
+Run the checks supported by the current environment:
 - rojo build default.project.json -o build/pocket-habitat.rbxl
 - stylua --check src
 - selene src
 - git diff --check
 - git status --short
+- TestEZ only through a compatible runner.
 
-Run TestEZ only through a compatible runner. Do not infer that specs passed because they exist or because Wally installed TestEZ.
+Record exactly what ran and whether it passed, failed, was skipped, or was unavailable. Separate static checks, executed unit/integration tests, Roblox engine tests, and manual Studio/multiplayer testing. A Rojo build only proves a model file was generated; it does not prove the game is playable or release-ready.
 
-Separate these categories in every report:
-- Static checks actually executed.
-- Unit/integration tests actually executed.
-- Roblox engine tests actually executed.
-- Manual Studio/client/multiplayer tests actually executed.
-- Tests written but not executed.
-- Checks unavailable in the environment.
+## Living documentation
 
-A successful Rojo build proves that a model file was built. It does not prove gameplay works, multiplayer isolation is safe, or the game is release-ready.
+Keep these documents accurate:
+- docs/PROJECT_STATE.md: implemented, partial, unverified, broken, known risks, and exact next task.
+- docs/ROADMAP.md: milestone state, acceptance criteria, priorities, and current focus.
+- docs/TECHNICAL_ARCHITECTURE.md: actual architecture and known gaps.
+- docs/TESTING.md: commands and real verification evidence.
+- docs/AUTONOMOUS_RECOVERY.md: compact active recovery debt.
+- IMPLEMENTATION_SUMMARY.md: concise latest meaningful implementation checkpoint.
 
-## Documentation contract
+Preserve history but label it historical. Do not leave stale current-status claims or invent test results, commits, artifacts, or completed features.
 
-Keep these documents synchronized with source truth:
-
-- AGENTS.md: concise permanent repository rules and pointers to this guide.
-- docs/AUTONOMOUS_AGENT_GUIDE.md: durable run procedure and engineering policy.
-- docs/PROJECT_STATE.md: factual current implementation, verification, risks, and exact next task.
-- docs/ROADMAP.md: evolving milestone status, acceptance criteria, priority order, and current focus.
-- docs/TECHNICAL_ARCHITECTURE.md: actual architecture, intended architecture, and known gaps.
-- docs/TESTING.md: reproducible commands, actual test status, and historical verification records.
-- Other design documents: update only when product/design intent changes.
-
-Preserve historical run records, but clearly label them historical. Do not leave stale claims in current-status sections. Never invent commit hashes, CI runs, test output, or completion status. After each meaningful implementation run, update PROJECT_STATE.md and ROADMAP.md if status or next priority changed.
-
-## Required final handoff
+## Required handoff
 
 Report:
-1. What changed and what works end-to-end.
-2. Important changed files and architectural impact.
-3. Exact checks run and their pass/fail/skip/unavailable status.
-4. What remains unverified in Roblox Studio, multiplayer, persistence, or mobile.
-5. Known risks, regressions, or incomplete integrations.
-6. Artifact path and upload status only when confirmed.
-7. The single highest-value next task, synchronized with the roadmap.
+1. What was implemented and what works end-to-end.
+2. Important files and architecture changes.
+3. Exact checks and their results.
+4. Roblox Studio, multiplayer, persistence, TestEZ, mobile, or manual gaps.
+5. Risks and unfinished work.
+6. Build artifact/upload status only when confirmed.
+7. One highest-value next task consistent with PROJECT_STATE and ROADMAP.
 
-Keep the report factual and concise. Never imply release readiness from static checks alone.
+Be concise, factual, and do not claim release readiness from static checks alone.
