@@ -2309,7 +2309,17 @@ jobs:
             echo
             echo "## Testing boundaries"
             echo
-            echo "- Automated checks executed: Rojo build, StyLua check on src/, Selene on src/."
+            echo "- Workflow preflight checks: model registry validation, continuation-policy regression tests, and the initial Rojo toolchain build."
+            if [[ -s "$VALIDATION_LOG" ]]; then
+              echo "- Deterministic validation results:"
+              while IFS= read -r validation_line; do
+                case "$validation_line" in
+                  PASS:*|FAIL:*) echo "  - $validation_line" ;;
+                esac
+              done < "$VALIDATION_LOG"
+            else
+              echo "- Deterministic validation (project Rojo build, StyLua, Selene): NOT RUN; no implementation diff reached the validation stage."
+            fi
             echo "- TestEZ, Roblox engine, multiplayer, and manual Studio testing are not claimed unless explicitly run by a separately supported test runner or human playtest."
             echo "- The .rbxl file is a build artifact only; a successful Rojo build does not prove the experience is playable in Roblox Studio."
           } > "$RUN_REPORT"
