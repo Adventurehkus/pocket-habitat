@@ -212,6 +212,9 @@
     }
   },
   "agents": {
+    "compaction": {
+      "model": "google/gemini-3.5-flash-lite"
+    },
     "build": {
       "description": "Primary Pocket Habitat implementation and repair agent. Builds integrated gameplay, fixes verified review/QA findings, and maintains project documentation.",
       "mode": "primary",
