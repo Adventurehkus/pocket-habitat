@@ -17,6 +17,17 @@ local plotPositions = {
     Vector3.new(-12, 0.2, 4),
 }
 
+local decorativeTilePositions = {
+    Vector3.new(8, 0.66, 8),
+    Vector3.new(-8, 0.66, 8),
+    Vector3.new(8, 0.66, -8),
+    Vector3.new(-8, 0.66, -8),
+    Vector3.new(16, 0.66, 0),
+    Vector3.new(-16, 0.66, 0),
+    Vector3.new(0, 0.66, 16),
+    Vector3.new(0, 0.66, -16),
+}
+
 local SEED_NODE_COLORS = {
     [Constants.RESOURCES.SEED_FLOWER] = Constants.PLANTS.flower.color,
     [Constants.RESOURCES.SEED_SUNPETAL] = Constants.PLANTS.sunpetal.color,
@@ -57,6 +68,18 @@ local function addProximityPrompt(
     prompt.RequiresLineOfSight = false
     prompt.Parent = parent
     return prompt
+end
+
+local function createDecorativeTile(folder: Folder, position: Vector3)
+    local tilePart = Instance.new("Part")
+    tilePart.Name = "DecorativeTile"
+    tilePart.Size = Vector3.new(1.5, 0.4, 1.5)
+    tilePart.Position = position
+    tilePart.Anchored = true
+    tilePart.BrickColor = BrickColor.new("Yellowish brown")
+    tilePart.Material = Enum.Material.Sandstone
+    tilePart.Parent = folder
+    return tilePart
 end
 
 local function createResourceNode(
@@ -269,6 +292,34 @@ function WorldBuilder.addGardenPlot(habitat: Folder, index: number, plotData: an
     return plotPart
 end
 
+function WorldBuilder.addDecorativeTiles(habitat: Folder, level: number)
+    if type(level) ~= "number" or level < 1 or math.floor(level) ~= level then
+        return {}
+    end
+
+    local folder = habitat:FindFirstChild("Decorations")
+    if not folder then
+        folder = Instance.new("Folder")
+        folder.Name = "Decorations"
+        folder.Parent = habitat
+    end
+
+    if level > #decorativeTilePositions then
+        level = #decorativeTilePositions
+    end
+
+    local createdTiles = {}
+    for i = 1, level do
+        if not folder:FindFirstChild("DecorativeTile_" .. tostring(i)) then
+            local baseOffset = habitat:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)
+            local tile = createDecorativeTile(folder, decorativeTilePositions[i] + baseOffset)
+            createdTiles[i] = tile
+        end
+    end
+
+    return createdTiles
+end
+
 function WorldBuilder.buildHabitat(folder: Folder, owner: Player, sessionData: any?)
     -- Get the habitat's BaseOffset once for consistent application
     local baseOffset = folder:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)
@@ -346,6 +397,14 @@ function WorldBuilder.buildHabitat(folder: Folder, owner: Player, sessionData: a
     pond.Transparency = 0.3
     pond.Shape = Enum.PartType.Cylinder
     pond.Parent = folder
+
+    -- Restore decorative tiles
+    if sessionData then
+        local tileCount = sessionData.decorativeTileCount or 0
+        if tileCount > 0 and tileCount <= level then
+            WorldBuilder.addDecorativeTiles(folder, tileCount)
+        end
+    end
 
     print("[WorldBuilder] Habitat built for: " .. owner.Name)
 end

@@ -102,6 +102,7 @@ function EconomyManager.purchaseUpgrade(player: Player, upgradeId: any): (boolea
         upgradeId ~= "plot_expansion"
         and upgradeId ~= "storage_expansion"
         and upgradeId ~= "watering_can"
+        and upgradeId ~= "decorative_tile"
     then
         return false, "Upgrade is not available yet"
     end
@@ -141,6 +142,18 @@ function EconomyManager.purchaseUpgrade(player: Player, upgradeId: any): (boolea
         if not WorldBuilder.addGardenPlot(habitat, newPlotIndex, newPlotData) then
             return false, "Unable to expand habitat"
         end
+
+        -- Add decorative tiles for the plot expansion upgrade
+        local tileCount = 1 + math.floor((nextLevel - 1) * 1.5)
+        WorldBuilder.addDecorativeTiles(habitat, tileCount)
+        data.decorativeTileCount = math.max(data.decorativeTileCount or 0, tileCount)
+    elseif upgradeId == "decorative_tile" then
+        local habitat = HabitatManager.getHabitat(player)
+        if not habitat then
+            return false, "Player habitat not found"
+        end
+        WorldBuilder.addDecorativeTiles(habitat, nextLevel)
+        data.decorativeTileCount = math.max(data.decorativeTileCount or 0, nextLevel)
     end
 
     data.bells -= cost

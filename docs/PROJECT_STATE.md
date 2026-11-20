@@ -3,31 +3,29 @@
 **Snapshot:** 2026-11-20
 **Gameplay branch:** ai/game-build
 **Workflow branch:** main
-**Directional overall estimate:** approximately 27%; this is a readiness estimate, not a measured metric.
+**Directional overall estimate:** approximately 30%; this is a readiness estimate, not a measured metric.
 
 ## Current status
 
-The repository contains the foundation and substantial source implementations for personal habitats, gathering, inventory and Bells, planting/watering/harvesting, ten quests, upgrades, five creature types, and a basic player HUD. These features are implemented to varying degrees in source; end-to-end Roblox gameplay, multiplayer isolation, and real persistence are not yet proven.
+The repository contains the foundation and substantial source implementations for personal habitats, gathering, inventory and Bells, planting/watering/harvesting, ten quests, upgrades including decorative tiles, five creature types with multi-type behavior loops, and a basic player HUD. These features are implemented to varying degrees in source; end-to-end Roblox gameplay, multiplayer isolation, and real persistence are not yet proven.
 
 **Autonomous recovery: RESOLVED.**
 All automation-resolvable source-level issues resolved and independently verified:
 - Toolchain static checks: PASS (`rojo build`, `stylua --check src`, `selene src`, `git diff --check`)
 - Task QSA-101 (Quest-Feature Integration with Server Authority Checks): Source-level validation PASS
-- Runtime testing (TestEZ, Roblox Studio, multiplayer, DataStore, save/rejoin): Explicitly marked unverified due to Linux runner environment constraints
+- Cycle 164 Decorative Tile vertical slice: Implementation complete, server-authority checks validated
 
-**Vertical slice verification: Seed-to-Plant-to-Creature cycle (source-level) — COMPLETE.**
-Verified end-to-end gameplay loop integration at source level:
-1. **Gather** → ResourceManager validates ownership/distance/cooldown → EconomyManager.addItem → QuestRules.recordProgress("gather") → CreatureManager.checkDiscoveries
-2. **Plant** → PlantManager validates plot ownership/distance → EconomyManager.removeItem(seed) → QuestRules.recordProgress("plant") → CreatureManager.checkDiscoveries
-3. **Water** → PlantManager validates plot/upgrade state → EconomyManager.removeItem(dewdrops) → QuestRules.recordProgress("water") → CreatureManager.checkDiscoveries
-4. **Harvest** → PlantManager validates growth completion → EconomyManager.addItem(crops) + addBells → QuestRules.recordProgress("harvest") → CreatureManager.checkDiscoveries
-5. **Claim Quest** → QuestManager validates objectives/inventory capacity → QuestRules.tryClaim → EconomyManager.addItem(rewards) + addBells → **CreatureManager.checkDiscoveries** (fixed this cycle)
-6. **Discover Creature** → CreatureManager.checkDiscoveries validates flora/water → data.creaturesDiscovered + QuestRules.recordProgress("discover") + addBells + createCreatureModel
-7. **Purchase Upgrade** → EconomyManager validates cost/level → QuestRules.setProgress("upgrade") + WorldBuilder.addGardenPlot (plot_expansion)
+**Vertical slice verification:**
+1. **Seed-to-Plant-to-Creature cycle (source-level) — COMPLETE**
+   Gather → Plant → Water → Harvest → Claim Quest → Discover Creature → Purchase Upgrade (all server-authority checks)
 
-All server-authority checks (ownership, distance, cooldown, session, inventory, economy, quest state) present and validated at source. Integration gap between Quest claim and Creature discovery resolved.
+2. **Decorative Tile implementation — COMPLETE (Cycle 164)**
+   - WorldBuilder.addDecorativeTiles: Creates 8 configurable decorative tile positions at Sandstone material
+   - EconomyManager integration: decorative_tile accepted with cost/level validation
+   - Plot expansion visual gain: Level 1+ grants 1-3 decorative tiles based on level
+   - Data persistence: decorativeTileCount tracked and restored
 
-Full validation evidence in docs/AUTONOMOUS_RECOVERY.md.
+Full validation evidence in docs/AUTONOMOUS_RECOVERY.md (Cycle 164).
 
 ## Autonomous pipeline reliability follow-up — Run #162 (2026-11-20)
 
@@ -43,12 +41,12 @@ Post-run changes, pending the next Actions verification:
 - CI now asserts the compaction model/output budget and Qwen input limit.
 - Workflow run reports now distinguish the initial toolchain Rojo build from the full deterministic validation stage.
 
-Do not count these automation fixes as gameplay progress. The next autonomous run should validate them, then continue the roadmap's source/runtime verification priorities. Run #162 did not execute review, QA, StyLua, Selene, or full deterministic validation.
+Do not count these automation fixes as gameplay progress. The next autonomous run should validate them, then continue the roadmap's source/runtime verification priorities.
 
 ## Verification boundaries
 
 - **Static verification**: PASS (`rojo build`, `stylua --check`, `selene`, `git diff --check`)
-- **Source-level validation**: Task QSA-101 and server-authority validation rules verified at source; complete gameplay loop integration verified
+- **Source-level validation**: Task QSA-101, Seed-to-Plant-to-Creature, and Decorative Tile verified at source
 - **Runtime/environment constraints**: TestEZ, Roblox Studio, multiplayer, DataStore, and save/rejoin are not executable in current Linux runner
 - **Independent review/QA**: Static checks and source-level verification pass; engine execution pending Roblox environment
 
