@@ -29,6 +29,22 @@ All server-authority checks (ownership, distance, cooldown, session, inventory, 
 
 Full validation evidence in docs/AUTONOMOUS_RECOVERY.md.
 
+## Autonomous pipeline reliability follow-up — Run #162 (2026-11-20)
+
+Run #162 failed before review/QA/validation and produced no gameplay diff. The failure was infrastructure/model routing rather than a Roblox source defect:
+- Google Gemma routes encountered repeated 16,000-token/minute free-tier input limits.
+- Groq GPT-OSS sessions could not generate compaction summaries within the configured 800-token output cap.
+- Groq Qwen was rejected at 7,052 input tokens against a 7,000-token/minute limit.
+- The corrected cooldown scheduler did work: 128 seconds of actual waits were recorded.
+
+Post-run changes, pending the next Actions verification:
+- Dedicated OpenCode compaction model: `google/gemini-3.5-flash-lite` (8,192 configured output tokens).
+- Groq Qwen input budget: 5,000; the other Groq output caps remain 800.
+- CI now asserts the compaction model/output budget and Qwen input limit.
+- Workflow run reports now distinguish the initial toolchain Rojo build from the full deterministic validation stage.
+
+Do not count these automation fixes as gameplay progress. The next autonomous run should validate them, then continue the roadmap's source/runtime verification priorities. Run #162 did not execute review, QA, StyLua, Selene, or full deterministic validation.
+
 ## Verification boundaries
 
 - **Static verification**: PASS (`rojo build`, `stylua --check`, `selene`, `git diff --check`)
