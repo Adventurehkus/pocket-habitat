@@ -2,20 +2,16 @@
 
 RECOVERY_STATUS: OPEN
 
-- Last updated by workflow run: 160
+- Last updated by workflow run: 163
 - Cycle: 1
 
 ## Current required action
 
-No trustworthy QA decision was available in cycle 1. Primary QA route: groq/groq/openai/gpt-oss-20b / TEMPORARY_LIMIT_BUDGET_EXHAUSTED. Fallback QA route: groq/groq/openai/gpt-oss-20b / TEMPORARY_LIMIT_BUDGET_EXHAUSTED. The implementation diff contains 0 bytes. Both QA transcripts are retained below and in the workflow artifact. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work.
+Review, QA, and deterministic validation passed for this cycle, but the persistent recovery note is not marked RECOVERY_STATUS: RESOLVED with evidence for every automation-resolvable item. Inspect the checklist, complete any remaining source-level fixes, and update the marker only when genuinely resolved. Do not delete the note to bypass this gate.
 
 ## Evidence
 
-Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 160; do not paste them into this active note.
-- opencode-review-fallback-21.log (549 bytes)
-- opencode-qa-28.log (70 bytes)
-- opencode-qa-fallback-30.log (422 bytes)
-- pocket-habitat-implementation.diff (0 bytes)
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 163; do not paste them into this active note.
 - pocket-habitat-validation.log (201 bytes)
 
 Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
