@@ -70,14 +70,14 @@ local function addProximityPrompt(
     return prompt
 end
 
-local function createDecorativeTile(folder: Folder, position: Vector3)
+local function createDecorativeTile(folder: Folder, index: number, position: Vector3)
     local tilePart = Instance.new("Part")
-    tilePart.Name = "DecorativeTile"
-    tilePart.Size = Vector3.new(1.5, 0.4, 1.5)
+    tilePart.Name = "DecorativeTile_" .. tostring(index)
+    tilePart.Size = Vector3.new(2, 0.4, 2)
     tilePart.Position = position
     tilePart.Anchored = true
-    tilePart.BrickColor = BrickColor.new("Yellowish brown")
-    tilePart.Material = Enum.Material.Sandstone
+    tilePart.BrickColor = BrickColor.new("Sandstone")
+    tilePart.Material = Enum.Material.Sand
     tilePart.Parent = folder
     return tilePart
 end
@@ -312,7 +312,7 @@ function WorldBuilder.addDecorativeTiles(habitat: Folder, level: number)
     for i = 1, level do
         if not folder:FindFirstChild("DecorativeTile_" .. tostring(i)) then
             local baseOffset = habitat:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)
-            local tile = createDecorativeTile(folder, decorativeTilePositions[i] + baseOffset)
+            local tile = createDecorativeTile(folder, i, decorativeTilePositions[i] + baseOffset)
             createdTiles[i] = tile
         end
     end
@@ -401,7 +401,7 @@ function WorldBuilder.buildHabitat(folder: Folder, owner: Player, sessionData: a
     -- Restore decorative tiles
     if sessionData then
         local tileCount = sessionData.decorativeTileCount or 0
-        if tileCount > 0 and tileCount <= level then
+        if tileCount > 0 then
             WorldBuilder.addDecorativeTiles(folder, tileCount)
         end
     end
