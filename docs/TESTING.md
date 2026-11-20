@@ -34,6 +34,30 @@
 - **DataStore save/rejoin, lease contention/renewal, failure handling, and shutdown:** NOT RUN; requires Roblox runtime and persistence layer.
 - **Mobile/device input and performance:** NOT RUN; requires target deployment platform.
 
+## Latest autonomous pipeline diagnostic — Run #162 (2026-11-20)
+
+**Result: FAILED — zero validated development cycles; no gameplay source diff was produced.**
+
+Checks that actually ran:
+- Toolchain installation and initial Rojo build: PASS.
+- OpenCode model-registry validation: PASS.
+- Continuation-policy regression tests: PASS.
+- The cooldown scheduler fix was exercised: the pipeline recorded 128 seconds of actual waits across 32 classified temporary-limit events.
+
+Implementation-stage blockers from the uploaded run artifact:
+- Google Gemma 4 31B and 26B repeatedly hit free-tier input-token-per-minute limits (16,000 tokens/minute).
+- Groq GPT-OSS 120B and 20B failed while OpenCode generated compaction summaries; the session models' configured output ceiling was 800 tokens.
+- Groq Qwen 3.8 27B was rejected at 7,052 input tokens against Groq's 7,000-token-per-minute limit, so it was correctly skipped for that run.
+- Two implementation cycles produced no diff. Review, QA, and deterministic source validation were therefore NOT RUN.
+
+**Post-run pipeline fixes (not yet exercised by a subsequent Actions run):**
+- Added `agents.compaction.model = google/gemini-3.5-flash-lite` as the dedicated summary route (configured output limit: 8,192).
+- Reduced only Groq Qwen's configured input budget from 6,000 to 5,000 to leave room for tool/system overhead under the observed 7,000 ITPM ceiling. Groq output caps remain 800.
+- Added CI assertions for the compaction model/output budget and Qwen input headroom.
+- The main workflow's run report now distinguishes the initial Rojo toolchain build from the full deterministic validation stage; it will list StyLua/Selene only when they actually run.
+
+These configuration changes are pipeline reliability work, not gameplay development. The next run must validate these changes before any new gameplay progress is counted.
+
 ## Standard deterministic checks
 
 1. Validate project JSON and relevant manifests.
