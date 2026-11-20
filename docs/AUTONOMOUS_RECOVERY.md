@@ -3,17 +3,19 @@
 RECOVERY_STATUS: OPEN
 
 - Last updated by workflow run: 158
-- Cycle: 1
+- Cycle: 2
 
 ## Current required action
 
-No trustworthy independent review decision was available in cycle 1 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+No trustworthy QA decision was available in cycle 2. Primary QA route: groq/groq/openai/gpt-oss-20b / TEMPORARY_LIMIT_BUDGET_EXHAUSTED. Fallback QA route: unknown/unknown / EXHAUSTED. The implementation diff contains 2539 bytes. Both QA transcripts are retained below and in the workflow artifact. The diff has passed independent code review but remains QA-unverified. Obtain valid independent QA and resolve any blockers before normal validated checkpointing or unrelated feature work.
 
 ## Evidence
 
 Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 158; do not paste them into this active note.
-- opencode-review-16.log (903 bytes)
-- pocket-habitat-implementation.diff (2165 bytes)
+- opencode-review-42.log (3966 bytes)
+- opencode-qa-46.log (422 bytes)
+- pocket-habitat-implementation.diff (2539 bytes)
+- pocket-habitat-validation.log (201 bytes)
 
 Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 
