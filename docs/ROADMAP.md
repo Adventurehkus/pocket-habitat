@@ -9,12 +9,12 @@ Status labels:
 - **Blocked:** a known issue prevents the path from working.
 - **Planned:** not implemented.
 
-## Current snapshot — 2026-11-19
+## Current snapshot — 2026-11-20
 
 **Estimated overall readiness: approximately 27% (directional).**
 **Recovery status: RESOLVED (Run #152).**
-**Vertical slice validation: Task QSA-101 passed source-level checks (Run #153).**
-All automation-resolvable source-level issues fixed or confirmed non-actionable. Rojo build, stylua, selene, and git diff checks pass. Task QSA-101 (Quest-Feature Integration with Server Authority Checks) achieved source-level pass in Run #153. Runtime verification (TestEZ, Roblox Studio, multiplayer, DataStore, save/rejoin) blocked by environment constraints. Full evidence in docs/AUTONOMOUS_RECOVERY.md and docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md.
+**Vertical slice validation: Task QSA-101 passed source-level checks (Run #153). Seed-to-Plant-to-Creature lifecycle vertical slice verified at source level (this cycle).**
+All automation-resolvable source-level issues fixed or confirmed non-actionable. Rojo build, stylua, selene, and git diff checks pass. Task QSA-101 (Quest-Feature Integration with Server Authority Checks) achieved source-level pass in Run #153. Complete gameplay loop integration (gather → plant → water → harvest → claim quest → discover creature → purchase upgrade) verified with all server-authority checks. Quest claim → Creature discovery integration gap resolved. Runtime verification (TestEZ, Roblox Studio, multiplayer, DataStore, save/rejoin) blocked by environment constraints. Full evidence in docs/AUTONOMOUS_RECOVERY.md and docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md.
 
 ## Milestone 0 — Foundation
 **Status: COMPLETE.**
@@ -24,7 +24,8 @@ All automation-resolvable source-level issues fixed or confirmed non-actionable.
 
 **Progress indicator for Milestone 1:**
 - Task QSA-101 (Quest-Feature Integration with Server Authority Checks): Pass (Run #153)
-- Next: Verify all core manager modules (ResourceManager, PlantManager, QuestManager, CreatureManager, DataStoreManager) have comprehensive server-authority checks
+- Seed-to-Plant-to-Creature lifecycle vertical slice: Source-level verified (this cycle)
+- All core manager modules (ResourceManager, PlantManager, QuestManager, CreatureManager, DataStoreManager, EconomyManager, HabitatManager) have comprehensive server-authority checks
 
 Acceptance:
 - [ ] Server starts without runtime errors.
@@ -56,9 +57,9 @@ Acceptance:
 ## Current priority
 
 1. **Recovery status**: RESOLVED — All automation-resolvable source checks (Rojo, stylua, selene, git diff) pass; critical findings investigated and confirmed clean. Task QSA-101 vertical slice achieved source-level pass in Run #153.
-2. **Verify Quest feature integration validation**: Review TASK_QUEST_SERVER_AUTHORITY.md acceptance criteria; confirm QUEST_MANAGER_CLAIM_QUEST and REMOTEEVENTS.FULFILL_QUEST remote handlers implement all server-authority checks (ownership, interval, resource prerequisites, economy validation, creature discovery state, DataStore persistence).
-3. **Surface next feature vertical slice**: Review core manager modules (ResourceManager, PlantManager, QuestManager, CreatureManager, DataStoreManager) to identify next integrated vertical slice (e.g., seed-to-plant lifecycle verification, creature behavior implementation, EconomyManager integration).
-4. **Implement integrated vertical slice with server authority checks**: Validate input constraints (ownership, distance, cooldowns), validate state changes (inventory, economy, quests, plot), and prove persistence (DataStore save/rejoin).
-5. **Execute vertical slice in next available runtime**: Use only local validations available in this environment; document all environment constraints explicitly (TestEZ/Roblox Studio unavailable in Linux runner).
+2. **Quest feature integration**: COMPLETE at source level — QUEST_MANAGER_CLAIM_QUEST handler implements all server-authority checks (ownership, interval, resource prerequisites, economy validation, creature discovery state, DataStore persistence). Quest→Creature discovery integration gap fixed (QuestManager now calls CreatureManager.checkDiscoveries after reward grant).
+3. **Seed-to-Plant-to-Creature lifecycle vertical slice**: COMPLETE at source level — Full gameplay loop integration verified with server-authority checks across all managers.
+4. **Next vertical slice candidate**: Creature behavior implementation (server-scoped AI loops, habitat-bound movement, multiplayer isolation) or EconomyManager upgrade effects (decorative_tile visual implementation).
+5. **Runtime verification**: Blocked by environment — TestEZ, Roblox Studio, multiplayer, DataStore persistence require Roblox-compatible runner.
 
 Do not count recovery checkpoint resolution or source-level vertical slice validation as development progress. A validated cycle requires implementation, independent review, deterministic validation, independent QA, and checkpoint persistence.

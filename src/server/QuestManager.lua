@@ -5,6 +5,7 @@ local Constants = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild(
 local QuestRules = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("QuestRules"))
 local RemoteEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("RemoteEvents"))
 local DataStoreManager = require(script.Parent:WaitForChild("DataStoreManager"))
+local CreatureManager = require(script.Parent:WaitForChild("CreatureManager"))
 
 local QuestManager = {}
 
@@ -31,6 +32,11 @@ function QuestManager.init()
         if not claimed then
             return false, claimError or "Quest claim failed"
         end
+
+        -- Quest rewards (especially seeds) may satisfy creature discovery requirements.
+        -- Trigger discovery check so new creatures spawn immediately rather than waiting
+        -- for the player's next gameplay action.
+        CreatureManager.checkDiscoveries(player)
 
         RemoteEvents.SyncData:FireClient(player, data)
         RemoteEvents.Notification:FireClient(
