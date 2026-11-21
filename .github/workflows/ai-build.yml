@@ -55,7 +55,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 350
+    timeout-minutes: 360
 
     steps:
       - name: Checkout AI build branch
@@ -2286,6 +2286,7 @@ jobs:
           refresh_quota_counts
           AUTO_CONTINUE=false
           AUTO_CONTINUE_REASON="The stop condition is not an eligible run-local limit."
+          QUOTA_RETRY_AT=0
           if (( AUTONOMOUS_ROUNDS_COMPLETED == 0 )); then
             NEXT_NO_PROGRESS_RUNS=$((CONSECUTIVE_NO_PROGRESS_RUNS + 1))
           else
@@ -2329,9 +2330,38 @@ jobs:
             fi
           fi
 
+          # If every known quota pool is exhausted while an unresolved recovery
+          # task remains, do not abandon it at the quota boundary. Queue a bounded
+          # continuation for the earliest provider reset. This is deliberately
+          # limited to recovery debt and the existing no-progress circuit breaker.
+          if [[ "$AUTO_CONTINUE" != "true" && "$QUOTA_TARGET_REACHED" == "true" && "$RECOVERY_CONTEXT_ACTIVE" == "true" ]] &&
+             (( NEXT_NO_PROGRESS_RUNS < MAX_CONSECUTIVE_NO_PROGRESS_RUNS )); then
+            NOW_FOR_QUOTA_WAIT="$(date -u +%s)"
+            EARLIEST_QUOTA_RESET=0
+            for reset_at in "${QUOTA_POOL_RESET_AT[@]}"; do
+              [[ "$reset_at" =~ ^[0-9]+$ ]] || continue
+              if (( reset_at > NOW_FOR_QUOTA_WAIT )) &&
+                 { (( EARLIEST_QUOTA_RESET == 0 )) || (( reset_at < EARLIEST_QUOTA_RESET )); }; then
+                EARLIEST_QUOTA_RESET="$reset_at"
+              fi
+            done
+
+            if (( EARLIEST_QUOTA_RESET > NOW_FOR_QUOTA_WAIT )); then
+              QUOTA_WAIT_SECONDS=$((EARLIEST_QUOTA_RESET - NOW_FOR_QUOTA_WAIT))
+              # Leave time for artifact upload, the dispatch request, and job
+              # cleanup inside the six-hour GitHub-hosted runner limit.
+              if (( QUOTA_WAIT_SECONDS <= 350 * 60 )); then
+                AUTO_CONTINUE=true
+                QUOTA_RETRY_AT="$EARLIEST_QUOTA_RESET"
+                AUTO_CONTINUE_REASON="all quota pools are exhausted; resume unresolved recovery after the earliest provider reset"
+                echo "::notice::All quota pools are exhausted. A continuation will wait until $(date -u -d "@$QUOTA_RETRY_AT" +%Y-%m-%dT%H:%M:%SZ) before retrying."
+              fi
+            fi
+          fi
+
           # A retryable run-local limit is a completed handoff, not a terminal
           # pipeline failure. The follow-up dispatch step below must still
-          # succeed; a failed or skipped persistence/dispatch remains a failure.
+          # succeed; a failed persistence/dispatch remains a failure.
           if [[ "$AUTO_CONTINUE" == "true" && "$PIPELINE_EXIT" -ne 0 ]]; then
             PIPELINE_EXIT=0
             echo "::notice::This run is handing off to a fresh continuation. The full development task is not complete yet."
@@ -2432,6 +2462,7 @@ jobs:
           echo "development_result=$DEVELOPMENT_RESULT" >> "$GITHUB_OUTPUT"
           echo "no_progress_runs_next=$NEXT_NO_PROGRESS_RUNS" >> "$GITHUB_OUTPUT"
           echo "quota_pool_resets=$QUOTA_POOL_RESETS_NEXT" >> "$GITHUB_OUTPUT"
+          echo "quota_retry_at=$QUOTA_RETRY_AT" >> "$GITHUB_OUTPUT"
           echo "quota_day=$QUOTA_STATE_DAY" >> "$GITHUB_OUTPUT"
           echo "exhausted_quota_pools=" >> "$GITHUB_OUTPUT"
 
@@ -2481,17 +2512,26 @@ jobs:
 
       - name: Dispatch fresh continuation run
         id: dispatch
-        if: always() && !cancelled() && github.run_attempt == 1 && steps.pipeline.outputs.auto_continue == 'true' && steps.persist.outcome == 'success'
+        if: always() && !cancelled() && github.run_attempt == 1 && steps.pipeline.outputs.auto_continue == 'true' && (steps.persist.outcome == 'success' || steps.persist.outcome == 'skipped')
         env:
           GH_TOKEN: ${{ github.token }}
           TASK: ${{ inputs.task }}
           IS_CONTINUATION: "true"
           QUOTA_POOL_RESETS: ${{ steps.pipeline.outputs.quota_pool_resets }}
+          QUOTA_RETRY_AT: ${{ steps.pipeline.outputs.quota_retry_at }}
           NO_PROGRESS_RUNS_NEXT: ${{ steps.pipeline.outputs.no_progress_runs_next }}
         shell: bash
         run: |
           set -euo pipefail
           : "${GH_TOKEN:?GitHub token is unavailable; cannot dispatch continuation}"
+          if [[ "${QUOTA_RETRY_AT:-0}" =~ ^[0-9]+$ ]] && (( QUOTA_RETRY_AT > 0 )); then
+            NOW_EPOCH="$(date -u +%s)"
+            WAIT_SECONDS=$((QUOTA_RETRY_AT - NOW_EPOCH))
+            if (( WAIT_SECONDS > 0 )); then
+              echo "::notice::Waiting ${WAIT_SECONDS}s for the next quota reset before dispatching recovery."
+              sleep "$WAIT_SECONDS"
+            fi
+          fi
           gh workflow run ai-build.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref main \
