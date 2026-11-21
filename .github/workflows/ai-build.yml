@@ -2317,12 +2317,12 @@ jobs:
             esac
             echo "::notice::Queueing a fresh run to resume from the latest persisted checkpoint: $AUTO_CONTINUE_REASON."
           else
-            if (( AUTONOMOUS_ROUNDS_COMPLETED == 0 && NEXT_NO_PROGRESS_RUNS >= MAX_CONSECUTIVE_NO_PROGRESS_RUNS )); then
+            if [[ "$QUOTA_TARGET_REACHED" == "true" && "$RECOVERY_CONTEXT_ACTIVE" == "true" ]]; then
+              AUTO_CONTINUE_REASON="all quota pools are exhausted; unresolved recovery will resume after the next provider reset"
+            elif (( AUTONOMOUS_ROUNDS_COMPLETED == 0 && NEXT_NO_PROGRESS_RUNS >= MAX_CONSECUTIVE_NO_PROGRESS_RUNS )); then
               AUTO_CONTINUE_REASON="stopped after ${NEXT_NO_PROGRESS_RUNS} consecutive workflow runs without a validated development cycle; manual intervention is required"
               PIPELINE_EXIT=1
               echo "::error::No-progress circuit breaker opened. No further automatic continuation will be dispatched until a validated cycle or a deliberate manual restart."
-            elif [[ "$QUOTA_TARGET_REACHED" == "true" && "$RECOVERY_CONTEXT_ACTIVE" == "true" ]]; then
-              AUTO_CONTINUE_REASON="all quota pools are exhausted; unresolved recovery will resume after the next provider reset"
             elif [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
               AUTO_CONTINUE_REASON="100% of currently eligible quota pools reached; no continuation needed"
             elif [[ "$ELIGIBLE_QUOTA_POOL_COUNT" -eq 0 ]]; then
