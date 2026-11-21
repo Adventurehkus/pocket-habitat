@@ -2353,12 +2353,12 @@ jobs:
             esac
             echo "::notice::Queueing a fresh run to resume from the latest persisted checkpoint: $AUTO_CONTINUE_REASON."
           else
-            if (( AUTONOMOUS_ROUNDS_COMPLETED == 0 && NEXT_NO_PROGRESS_RUNS >= MAX_CONSECUTIVE_NO_PROGRESS_RUNS )); then
+            if [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
+              AUTO_CONTINUE_REASON="100% of eligible quota pools exhausted; scheduled reset watcher will resume after every non-monthly pool resets"
+            elif (( AUTONOMOUS_ROUNDS_COMPLETED == 0 && NEXT_NO_PROGRESS_RUNS >= MAX_CONSECUTIVE_NO_PROGRESS_RUNS )); then
               AUTO_CONTINUE_REASON="stopped after ${NEXT_NO_PROGRESS_RUNS} consecutive workflow runs without a validated development cycle; manual intervention is required"
               PIPELINE_EXIT=1
               echo "::error::No-progress circuit breaker opened. No further automatic continuation will be dispatched until a validated cycle or a deliberate manual restart."
-            elif [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
-              AUTO_CONTINUE_REASON="100% of currently eligible quota pools reached; no continuation needed"
             elif [[ "$ELIGIBLE_QUOTA_POOL_COUNT" -eq 0 ]]; then
               AUTO_CONTINUE_REASON="no eligible quota pools remain"
             elif [[ "$AUTONOMOUS_STOP_REASON" == "no_implementation_progress" && "$IMPLEMENTATION_RETRYABLE_RUN_LIMIT" != "true" ]]; then
