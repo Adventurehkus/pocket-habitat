@@ -9,11 +9,8 @@
 
 The repository contains the foundation and substantial source implementations for personal habitats, gathering, inventory and Bells, planting/watering/harvesting, ten quests, upgrades including decorative tiles, five creature types with multi-type behavior loops, and a basic player HUD. These features are implemented to varying degrees in source; end-to-end Roblox gameplay, multiplayer isolation, and real persistence are not yet proven.
 
-**Autonomous recovery: RESOLVED.**
-All automation-resolvable source-level issues resolved and independently verified:
-- Toolchain static checks: PASS (`rojo build`, `stylua --check src`, `selene src`, `git diff --check`)
-- Task QSA-101 (Quest-Feature Integration with Server Authority Checks): Source-level validation PASS
-- Cycle 164 Decorative Tile vertical slice: Implementation complete, server-authority checks validated
+**Historical source recovery: RESOLVED at cycle 164. Active autonomous recovery: OPEN (workflow run #169, cycle 2).**
+The accumulated cycle-2 source diff is preserved but has not received a trustworthy independent review. Do not treat it as approved or begin unrelated feature work until the complete diff receives a valid independent review. Run #170 made no source changes because all 13 configured quota pools were held until their provider reset; the remaining Gemini 3.5 Flash Lite attempt then confirmed its daily input-token quota was exhausted. The initial Rojo preflight passed in run #170, but full deterministic validation, review, and QA did not run.
 
 **Vertical slice verification:**
 1. **Seed-to-Plant-to-Creature cycle (source-level) — COMPLETE**
