@@ -2321,6 +2321,8 @@ jobs:
               AUTO_CONTINUE_REASON="stopped after ${NEXT_NO_PROGRESS_RUNS} consecutive workflow runs without a validated development cycle; manual intervention is required"
               PIPELINE_EXIT=1
               echo "::error::No-progress circuit breaker opened. No further automatic continuation will be dispatched until a validated cycle or a deliberate manual restart."
+            elif [[ "$QUOTA_TARGET_REACHED" == "true" && "$RECOVERY_CONTEXT_ACTIVE" == "true" ]]; then
+              AUTO_CONTINUE_REASON="all quota pools are exhausted; unresolved recovery will resume after the next provider reset"
             elif [[ "$QUOTA_TARGET_REACHED" == "true" ]]; then
               AUTO_CONTINUE_REASON="100% of currently eligible quota pools reached; no continuation needed"
             elif [[ "$ELIGIBLE_QUOTA_POOL_COUNT" -eq 0 ]]; then
@@ -2330,32 +2332,23 @@ jobs:
             fi
           fi
 
-          # If every known quota pool is exhausted while an unresolved recovery
-          # task remains, do not abandon it at the quota boundary. Queue a bounded
-          # continuation for the earliest provider reset. This is deliberately
-          # limited to recovery debt and the existing no-progress circuit breaker.
-          if [[ "$AUTO_CONTINUE" != "true" && "$QUOTA_TARGET_REACHED" == "true" && "$RECOVERY_CONTEXT_ACTIVE" == "true" ]] &&
-             (( NEXT_NO_PROGRESS_RUNS < MAX_CONSECUTIVE_NO_PROGRESS_RUNS )); then
+          # When all quota pools are exhausted, unresolved recovery must wait
+          # for a provider reset rather than consume the no-progress circuit
+          # breaker. Split long waits into five-hour chunks: GitHub-hosted jobs
+          # have a six-hour ceiling, and the remaining reset may be many hours
+          # or days away. Each quota-only handoff resets the no-progress counter;
+          # real implementation failures after a reset still count normally.
+          if [[ "$AUTO_CONTINUE" != "true" && "$QUOTA_TARGET_REACHED" == "true" && "$RECOVERY_CONTEXT_ACTIVE" == "true" ]]; then
             NOW_FOR_QUOTA_WAIT="$(date -u +%s)"
-            EARLIEST_QUOTA_RESET=0
-            for reset_at in "${QUOTA_POOL_RESET_AT[@]}"; do
-              [[ "$reset_at" =~ ^[0-9]+$ ]] || continue
-              if (( reset_at > NOW_FOR_QUOTA_WAIT )) &&
-                 { (( EARLIEST_QUOTA_RESET == 0 )) || (( reset_at < EARLIEST_QUOTA_RESET )); }; then
-                EARLIEST_QUOTA_RESET="$reset_at"
-              fi
-            done
-
-            if (( EARLIEST_QUOTA_RESET > NOW_FOR_QUOTA_WAIT )); then
-              QUOTA_WAIT_SECONDS=$((EARLIEST_QUOTA_RESET - NOW_FOR_QUOTA_WAIT))
-              # Leave time for artifact upload, the dispatch request, and job
-              # cleanup inside the six-hour GitHub-hosted runner limit.
-              if (( QUOTA_WAIT_SECONDS <= 350 * 60 )); then
-                AUTO_CONTINUE=true
-                QUOTA_RETRY_AT="$EARLIEST_QUOTA_RESET"
-                AUTO_CONTINUE_REASON="all quota pools are exhausted; resume unresolved recovery after the earliest provider reset"
-                echo "::notice::All quota pools are exhausted. A continuation will wait until $(date -u -d "@$QUOTA_RETRY_AT" +%Y-%m-%dT%H:%M:%SZ) before retrying."
-              fi
+            QUOTA_RETRY_AT="$(quota_recovery_retry_epoch QUOTA_POOL_RESET_AT "$NOW_FOR_QUOTA_WAIT" 18000)"
+            if [[ "$QUOTA_RETRY_AT" =~ ^[0-9]+$ ]] && (( QUOTA_RETRY_AT > NOW_FOR_QUOTA_WAIT )); then
+              AUTO_CONTINUE=true
+              NEXT_NO_PROGRESS_RUNS=0
+              QUOTA_WAIT_SECONDS=$((QUOTA_RETRY_AT - NOW_FOR_QUOTA_WAIT))
+              AUTO_CONTINUE_REASON="all quota pools are exhausted; resume unresolved recovery at the next bounded provider-reset checkpoint"
+              echo "::notice::All quota pools are exhausted. A continuation will wait ${QUOTA_WAIT_SECONDS}s until $(date -u -d "@$QUOTA_RETRY_AT" +%Y-%m-%dT%H:%M:%SZ), then re-check provider resets."
+            else
+              echo "::warning::All quota pools are exhausted but no future provider reset is recorded; automatic recovery cannot safely schedule a retry."
             fi
           fi
 
