@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+  "model": "google/gemini-3.5-flash-lite",
   "providers": {
     "google": {
       "models": {
@@ -213,7 +213,7 @@
   },
   "agents": {
     "compaction": {
-      "model": "google/gemini-3.5-flash-lite"
+      "model": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
     },
     "build": {
       "description": "Primary Pocket Habitat implementation and repair agent. Builds integrated gameplay, fixes verified review/QA findings, and maintains project documentation.",
