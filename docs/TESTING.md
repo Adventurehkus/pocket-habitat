@@ -58,6 +58,25 @@ Implementation-stage blockers from the uploaded run artifact:
 
 These configuration changes are pipeline reliability work, not gameplay development. The next run must validate these changes before any new gameplay progress is counted.
 
+## Latest autonomous pipeline diagnostic — Runs #166–167 (2026-11-20 local / 2026-11-21 UTC)
+
+**Result: FAILED — zero validated development cycles and no gameplay diff.** Run #167 used the latest workflow commit and passed its preflight checks, but implementation could not complete.
+
+Evidence from both run artifacts:
+- Toolchain installation and initial Rojo build: PASS.
+- OpenCode model-registry and continuation-policy checks: PASS.
+- Google Gemma 4 31B/26B repeatedly hit the 16,000 input-tokens-per-minute free-tier limit. These were temporary rate limits, not confirmed daily-quota exhaustion.
+- The Groq Qwen attempt returned only `Permission denied on the service.` The workflow launched OpenCode through `env -i` with only the selected stage provider's key, while `agents.compaction.model` was Google Gemini. A Groq session therefore lacked the Google credential required by its separately configured compaction route. The classifier also treated this ambiguous message as a provider-wide authentication failure, incorrectly excluding every Groq model.
+- Run #167 recorded 16 model calls, 185 seconds of cooldown waits, two eligible quota pools remaining, three permanently ineligible pools, and zero explicit quota-exhaustion events. It reached the five-run no-progress circuit-breaker limit.
+- Review, QA, and full deterministic validation (project Rojo build, StyLua, Selene) were NOT RUN because no implementation diff reached those stages.
+
+**Workflow fix committed to `main`: `95deaf2c4cb4117cd885342a5e49bc9a301369ad`.**
+- Each isolated OpenCode process now receives the key for its selected provider and, when different, only the additional key required by the configured compaction provider.
+- Added regression checks for credential mapping across all configured providers without printing test or real credential values.
+- The generic `Permission denied on the service.` response now quarantines only the selected model instead of disabling its entire provider. Explicit invalid-key/401/403 errors remain provider-level authentication failures.
+
+This fix is structurally tested locally and in the workflow's embedded regression checks; **a new Actions run is still required to verify live provider behavior**. Pipeline reliability changes are not gameplay progress.
+
 ## Standard deterministic checks
 
 1. Validate project JSON and relevant manifests.
