@@ -43,6 +43,14 @@ Post-run changes, pending the next Actions verification:
 
 Do not count these automation fixes as gameplay progress. The next autonomous run should validate them, then continue the roadmap's source/runtime verification priorities.
 
+## Autonomous pipeline diagnostic — Runs #166–167 (2026-11-20/21)
+
+Runs #166 and #167 produced no validated gameplay cycle. Run #167 used workflow commit `507630a4a4302c6c164ab46ea5c2d42e608819f9`; toolchain, model-registry, and continuation-policy preflight checks passed, but implementation-stage requests failed.
+
+The main issue was workflow environment isolation: OpenCode sessions received only the selected model provider's API key, while the separately configured compaction model used Google Gemini. Groq sessions therefore lacked the Google key needed for compaction. The generic service-permission response was then misclassified as a Groq-wide authentication failure. Google Gemma routes also repeatedly encountered temporary 16,000 input-tokens-per-minute limits. Run #167 had 0 explicit daily-quota-exhaustion events, 16 model calls, 185 seconds of cooldown waits, and no source diff. Review, QA, and full deterministic validation did not run.
+
+Workflow fix committed to `main`: `95deaf2c4cb4117cd885342a5e49bc9a301369ad`. It passes the configured compaction provider's credential into isolated model sessions, adds credential-mapping regression checks, and prevents an ambiguous service-permission message from disabling an entire provider. The helper passed a local Bash syntax and behavior test. A fresh Actions run is still required to verify live API behavior. Do not count this infrastructure fix as gameplay progress.
+
 ## Verification boundaries
 
 - **Static verification**: PASS (`rojo build`, `stylua --check`, `selene`, `git diff --check`)
