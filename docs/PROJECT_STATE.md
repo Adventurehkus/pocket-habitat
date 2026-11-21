@@ -61,3 +61,4 @@ Workflow fix committed to `main`: `95deaf2c4cb4117cd885342a5e49bc9a301369ad`. A 
 - Verify runtime behavior in Roblox Studio when a compatible runner is available.
 - Ensure TestEZ test suite executes successfully in Roblox Studio.
 - Validate DataStore persistence and multiplayer isolation in a live server environment.
+- **Progression Integrity**: Unit test suite for `QuestRules.tryClaim` implemented in `src/shared/Tests/QuestRules.spec.lua`.

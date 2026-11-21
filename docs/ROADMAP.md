@@ -58,7 +58,7 @@ Acceptance:
 ## Current priority
 
 1. **Recovery status**: RESOLVED — All automation-resolvable source checks (Rojo, stylua, selene, git diff) pass; critical findings investigated and confirmed clean. Task QSA-101 vertical slice achieved source-level pass in Run #153.
-2. **Quest feature integration**: COMPLETE at source level — QUEST_MANAGER_CLAIM_QUEST handler implements all server-authority checks (ownership, interval, resource prerequisites, economy validation, creature discovery state, DataStore persistence). Quest→Creature discovery integration gap fixed (QuestManager now calls CreatureManager.checkDiscoveries after reward grant).
+2. **Quest feature integration**: COMPLETE at source level — QUEST_MANAGER_CLAIM_QUEST handler implements all server-authority checks (ownership, interval, resource prerequisites, economy validation, creature discovery state, DataStore persistence). Quest→Creature discovery integration gap fixed (QuestManager now calls CreatureManager.checkDiscoveries after reward grant). Unit tests added for `QuestRules.tryClaim`.
 3. **Seed-to-Plant-to-Creature lifecycle vertical slice**: COMPLETE at source level — Full gameplay loop integration verified with server-authority checks across all managers.
 4. **Decorative Tile upgrade**: COMPLETE at source level.
    - WorldBuilder.addDecorativeTiles creates 8 configurable Sandstone decorative tiles with proper habitat scoping and restoration.
