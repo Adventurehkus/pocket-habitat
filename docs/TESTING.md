@@ -71,6 +71,8 @@ Evidence from both run artifacts:
 - Review, QA, and full deterministic validation (project Rojo build, StyLua, Selene) were NOT RUN because no implementation diff reached those stages.
 
 **Workflow fix committed to `main`: `95deaf2c4cb4117cd885342a5e49bc9a301369ad`.**
+**Follow-up compaction-route adjustment:** the dedicated compaction model is now `openrouter/nvidia/nemotron-3-ultra-550b-a55b:free`, configured at 8,192 output tokens. This avoids depending on the Google Gemini 3.5 Flash Lite quota pool that the previous run carried as held until its reset. The isolated-session credential helper supplies the OpenRouter key when it differs from the primary stage provider. The model is listed by OpenRouter as a free text model with a 1M-token context window and support for tool calls; the repository intentionally applies a lower 8,192-token output cap. <https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b:free>
+
 - Each isolated OpenCode process now receives the key for its selected provider and, when different, only the additional key required by the configured compaction provider.
 - Added regression checks for credential mapping across all configured providers without printing test or real credential values.
 - The generic `Permission denied on the service.` response now quarantines only the selected model instead of disabling its entire provider. Explicit invalid-key/401/403 errors remain provider-level authentication failures.
