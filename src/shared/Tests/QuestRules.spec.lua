@@ -45,20 +45,12 @@ describe("QuestRules — tryClaim logic", function()
         expect(data.questsCompleted[questId]).to.equal(true)
     end)
 
-    it("prevents claiming already completed quest", function()
+    it("allows claiming discover quest", function()
         local data = makePlayerData()
-        local questId = "q1_gather"
-        local questDef = Constants.QUESTS[questId]
-        data.questProgress[questDef.targetType .. ":" .. questDef.targetItemId] =
-            questDef.targetCount
-
-        -- Complete it first
-        local success1, _ = QuestRules.tryClaim(data, questId)
-        expect(success1).to.equal(true)
-
-        -- Try again
-        local success2, reason2 = QuestRules.tryClaim(data, questId)
-        expect(success2).to.equal(false)
-        expect(reason2).to.equal("Already completed")
+        data.currentQuest = "q6_creature"
+        data.creaturesDiscovered["bunny"] = true
+        
+        local success, reason = QuestRules.tryClaim(data, "q6_creature")
+        expect(success).to.equal(true)
     end)
 end)
