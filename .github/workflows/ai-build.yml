@@ -280,6 +280,88 @@ jobs:
             esac
           }
 
+          # OpenCode is launched with env -i so each session receives only the
+          # credentials required by its primary provider and its configured
+          # compaction model. Compaction can call a different provider from the
+          # stage model, so omitting this second key causes misleading 403 errors
+          # that the router can otherwise attribute to the primary provider.
+          append_provider_credentials() {
+            local -n args_ref="$1"
+            local target_provider="$2"
+
+            case "$target_provider" in
+              google)
+                [[ -n "${GOOGLE_GENERATIVE_AI_API_KEY:-}" ]] || return 1
+                args_ref+=("GOOGLE_GENERATIVE_AI_API_KEY=$GOOGLE_GENERATIVE_AI_API_KEY")
+                ;;
+              groq)
+                [[ -n "${GROQ_API_KEY:-}" ]] || return 1
+                args_ref+=("GROQ_API_KEY=$GROQ_API_KEY")
+                ;;
+              openrouter)
+                [[ -n "${OPENROUTER_API_KEY:-}" ]] || return 1
+                args_ref+=("OPENROUTER_API_KEY=$OPENROUTER_API_KEY")
+                ;;
+              cohere)
+                [[ -n "${COHERE_API_KEY:-}" ]] || return 1
+                args_ref+=("COHERE_API_KEY=$COHERE_API_KEY")
+                ;;
+              cloudflare-workers-ai)
+                [[ -n "${CLOUDFLARE_ACCOUNT_ID:-}" && -n "${CLOUDFLARE_API_TOKEN:-}" ]] || return 1
+                args_ref+=("CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID" "CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN")
+                ;;
+              github-copilot)
+                [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]] || return 1
+                args_ref+=("COPILOT_GITHUB_TOKEN=$COPILOT_GITHUB_TOKEN")
+                ;;
+              *)
+                return 1
+                ;;
+            esac
+          }
+
+          COMPACTION_MODEL="$(jq -r '.agents.compaction.model // empty' opencode.json)"
+          COMPACTION_PROVIDER="$(provider_for_model "$COMPACTION_MODEL")"
+          if [[ "$COMPACTION_PROVIDER" == "unknown" ]]; then
+            COMPACTION_MODEL=""
+            COMPACTION_PROVIDER=""
+          fi
+
+          # Test every credential mapping using dummy values; never print them.
+          (
+            GOOGLE_GENERATIVE_AI_API_KEY="test-google"
+            GROQ_API_KEY="test-groq"
+            OPENROUTER_API_KEY="test-openrouter"
+            COHERE_API_KEY="test-cohere"
+            CLOUDFLARE_ACCOUNT_ID="test-account"
+            CLOUDFLARE_API_TOKEN="test-cloudflare"
+            COPILOT_GITHUB_TOKEN="test-copilot"
+            declare -a credential_test_args=()
+            append_provider_credentials credential_test_args google || exit 1
+            [[ "${credential_test_args[0]%%=*}" == "GOOGLE_GENERATIVE_AI_API_KEY" ]] || exit 1
+            credential_test_args=()
+            append_provider_credentials credential_test_args groq || exit 1
+            [[ "${credential_test_args[0]%%=*}" == "GROQ_API_KEY" ]] || exit 1
+            credential_test_args=()
+            append_provider_credentials credential_test_args openrouter || exit 1
+            [[ "${credential_test_args[0]%%=*}" == "OPENROUTER_API_KEY" ]] || exit 1
+            credential_test_args=()
+            append_provider_credentials credential_test_args cohere || exit 1
+            [[ "${credential_test_args[0]%%=*}" == "COHERE_API_KEY" ]] || exit 1
+            credential_test_args=()
+            append_provider_credentials credential_test_args cloudflare-workers-ai || exit 1
+            [[ "${#credential_test_args[@]}" -eq 2 ]] || exit 1
+            credential_test_args=()
+            append_provider_credentials credential_test_args github-copilot || exit 1
+            [[ "${credential_test_args[0]%%=*}" == "COPILOT_GITHUB_TOKEN" ]] || exit 1
+            credential_test_args=()
+            if append_provider_credentials credential_test_args missing-provider; then exit 1; fi
+          ) || {
+            echo "::error::Provider credential-isolation regression tests failed."
+            exit 1
+          }
+          echo "Provider credential-isolation tests passed for all configured providers."
+
           # Recompute active cooldowns after a complete model pass. A slow
           # provider response can outlast the first deadline observed in that
           # pass; retaining that stale minimum would suppress every later wait.
@@ -589,7 +671,16 @@ jobs:
               return 0
             fi
 
-            if grep -Eiq 'unauthorized|invalid.{0,20}api.?key|API key.{0,20}invalid|invalid_api_key|authentication failed|HTTP 401|HTTP 403|forbidden.{0,20}api|provider.{0,20}not configured|permission denied' "$log_file"; then
+            # This generic service-denial wording can originate from an
+            # auxiliary OpenCode route (not necessarily the stage provider).
+            # Quarantine only the selected model instead of disabling every
+            # model under the primary provider.
+            if grep -Eiq 'permission denied on the service' "$log_file"; then
+              echo "MODEL_UNAVAILABLE"
+              return 0
+            fi
+
+            if grep -Eiq 'unauthorized|invalid.{0,20}api.?key|API key.{0,20}invalid|invalid_api_key|authentication failed|HTTP 401|HTTP 403|forbidden.{0,20}api|provider.{0,20}not configured' "$log_file"; then
               echo "AUTH_FAILURE"
               return 0
             fi
@@ -767,6 +858,7 @@ jobs:
           assert_failure_class "openrouter" 'HTTP 429 rate limit exceeded.' "PROVIDER_RATE_LIMIT"
           assert_failure_class "google" 'This model is currently experiencing high demand. Try again later.' "TEMP_CAPACITY"
           assert_failure_class "google" 'Invalid API key: authentication failed.' "AUTH_FAILURE"
+          assert_failure_class "groq" 'Error: Permission denied on the service.' "MODEL_UNAVAILABLE"
           rm -f "$classifier_test_file"
           echo "Model failure classifier regression tests passed."
 
@@ -1101,16 +1193,20 @@ jobs:
                 echo "Total model calls: $TOTAL_MODEL_CALLS/$MAX_TOTAL_MODEL_CALLS"
 
                 command_args=(env -i "PATH=$PATH" "HOME=$HOME" "NO_COLOR=1" "GITHUB_WORKSPACE=$GITHUB_WORKSPACE" "RUNNER_TEMP=$RUNNER_TEMP")
-                case "$provider" in
-                  google) command_args+=("GOOGLE_GENERATIVE_AI_API_KEY=$GOOGLE_GENERATIVE_AI_API_KEY") ;;
-                  groq) command_args+=("GROQ_API_KEY=$GROQ_API_KEY") ;;
-                  openrouter) command_args+=("OPENROUTER_API_KEY=$OPENROUTER_API_KEY") ;;
-                  cohere) command_args+=("COHERE_API_KEY=$COHERE_API_KEY") ;;
-                  cloudflare-workers-ai)
-                    command_args+=("CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN" "CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID")
-                    ;;
-                  github-copilot) command_args+=("COPILOT_GITHUB_TOKEN=$COPILOT_GITHUB_TOKEN") ;;
-                esac
+                if ! append_provider_credentials command_args "$provider"; then
+                  echo "::error::No credentials are available for selected provider $provider."
+                  record_attempt "$stage" "$provider" "$model" "$retry_count" "PROVIDER_DISABLED" "required provider credential missing from isolated environment"
+                  PROVIDER_BLOCKED["$provider"]="required credential missing"
+                  PROVIDER_PERMANENTLY_INELIGIBLE["$provider"]="required credential missing"
+                  continue
+                fi
+                if [[ -n "$COMPACTION_PROVIDER" && "$COMPACTION_PROVIDER" != "$provider" ]]; then
+                  if append_provider_credentials command_args "$COMPACTION_PROVIDER"; then
+                    echo "Also supplying the configured $COMPACTION_PROVIDER credential for OpenCode compaction model $COMPACTION_MODEL."
+                  else
+                    echo "::warning::The configured compaction model $COMPACTION_MODEL has no available provider credential in this run."
+                  fi
+                fi
 
                 if [[ "$provider" == "github-copilot" ]]; then
                   copilot_prompt="$prompt"
