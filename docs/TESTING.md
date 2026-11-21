@@ -7,7 +7,7 @@
 - A test file is not a passed test.
 - A workflow handoff or recovery checkpoint is not a validated development cycle.
 
-## Latest execution — Autonomous Agent Run (2026-11-20)
+## Last validated gameplay execution — Autonomous Agent Run (2026-11-20)
 
 ### Static validation (Pass)
 - **Toolchain installation and Rojo build:** `rojo build default.project.json -o build/pocket-habitat.rbxl` — PASS (Valid model artifact generated).
