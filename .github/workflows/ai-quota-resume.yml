@@ -1,0 +1,114 @@
+name: Pocket Habitat Quota Resume
+
+on:
+  # Poll away from the top of the hour. GitHub may delay scheduled events
+  # during high load, so this is a best-effort prompt restart after reset.
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: pocket-habitat-quota-resume
+  cancel-in-progress: false
+
+jobs:
+  resume-after-daily-resets:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out workflow configuration
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Test daily-quota resume gate
+        shell: bash
+        run: bash .github/scripts/test-quota-resume-gate.sh
+
+      - name: Dispatch one fresh autonomous run after every daily quota reset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${GH_TOKEN:?GITHUB_TOKEN is unavailable}"
+          : "${GH_REPOSITORY:?Repository context is unavailable}"
+
+          latest_run_json="$(gh run list \
+            --repo "$GH_REPOSITORY" \
+            --workflow ai-build.yml \
+            --limit 1 \
+            --json databaseId,number,status,createdAt)"
+          latest_run="$(jq -c '.[0] // empty' <<< "$latest_run_json")"
+          if [[ -z "$latest_run" ]]; then
+            echo "::notice::No autonomous builder run exists yet; nothing to resume."
+            exit 0
+          fi
+
+          run_id="$(jq -r '.databaseId' <<< "$latest_run")"
+          run_number="$(jq -r '.number' <<< "$latest_run")"
+          run_status="$(jq -r '.status' <<< "$latest_run")"
+          if [[ "$run_status" != "completed" ]]; then
+            echo "::notice::Latest autonomous run #$run_number is $run_status; refusing to dispatch a duplicate."
+            exit 0
+          fi
+
+          artifact_name="pocket-habitat-pipeline-$run_number"
+          report_dir="$RUNNER_TEMP/pocket-habitat-latest-report"
+          mkdir -p "$report_dir"
+          if ! gh run download "$run_id" \
+            --repo "$GH_REPOSITORY" \
+            --name "$artifact_name" \
+            --dir "$report_dir"; then
+            echo "::warning::The latest run has no downloadable pipeline report; no automatic restart was dispatched."
+            exit 0
+          fi
+
+          report_file="$(find "$report_dir" -type f -name 'pocket-habitat-agent-report.md' -print -quit)"
+          if [[ -z "$report_file" ]]; then
+            echo "::warning::The pipeline artifact did not contain its machine-readable agent report."
+            exit 0
+          fi
+
+          now_epoch="$(date -u +%s)"
+          gate_output="$(bash .github/scripts/quota-resume-gate.sh "$report_file" "$now_epoch")"
+          printf '%s\n' "$gate_output"
+
+          ready="$(sed -n 's/^READY=//p' <<< "$gate_output")"
+          if [[ "$ready" != "true" ]]; then
+            reason="$(sed -n 's/^REASON=//p' <<< "$gate_output")"
+            reset_utc="$(sed -n 's/^LATEST_DAILY_RESET_UTC=//p' <<< "$gate_output")"
+            echo "::notice::No restart for run #$run_number: $reason; latest non-monthly reset is ${reset_utc:-unknown}."
+            exit 0
+          fi
+
+          reset_state="$(sed -n 's/^- Provider-aware quota reset state: //p' "$report_file" | tail -n 1)"
+          monthly_state="$(sed -n 's/^MONTHLY_QUOTA_POOLS=//p' <<< "$gate_output")"
+          task_file=".github/prompts/POCKET_HABITAT_EVERGREEN_HANDOFF.md"
+          task="$(cat "$task_file")"
+          if [[ -z "$reset_state" || "$reset_state" == "none" || -z "$task" ]]; then
+            echo "::error::Quota gate opened but the prompt or provider reset state is missing."
+            exit 1
+          fi
+
+          latest_reset="$(sed -n 's/^LATEST_DAILY_RESET_UTC=//p' <<< "$gate_output")"
+          echo "::notice::All $(
+            sed -n 's/^DAILY_POOL_COUNT=//p' <<< "$gate_output"
+          ) non-monthly quota pools reset by $latest_reset. Monthly pools remain carried as unavailable."
+          echo "::notice::Starting a fresh run with the saved evergreen handoff and a reset no-progress counter."
+
+          gh workflow run ai-build.yml \
+            --repo "$GH_REPOSITORY" \
+            --ref main \
+            --raw-field "task=$task" \
+            --raw-field "is_continuation=true" \
+            --raw-field "quota_pool_resets=$reset_state" \
+            --raw-field "monthly_quota_pools=$monthly_state" \
+            --raw-field "consecutive_no_progress_runs=0"
+
+          echo "::notice::GitHub accepted the fresh Pocket Habitat run dispatch."
