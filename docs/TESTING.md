@@ -14,7 +14,8 @@
 - **StyLua format check:** `stylua --check src` — PASS (0 errors, 0 warnings).
 - **Selene linter:** `selene src` — PASS (0 errors, 0 warnings, 0 parse errors).
 - **Diff hygiene:** `git diff --check` — PASS (Clean working tree, no trailing whitespace or uncommitted conflicts).
-- **Recovery Status:** RESOLVED (All automation-resolvable source-level issues fixed and verified).
+- **Historical recovery status:** Cycle 164 source-level issues were resolved and verified.
+- **Current autonomous recovery status:** OPEN (run #169, cycle 2). The accumulated diff still requires a trustworthy independent review; run #170 made no changes because all configured quota pools were exhausted.
 
 ### Source-level vertical slice verification (Pass)
 - **Seed-to-Plant-to-Creature lifecycle integration:** Verified complete gameplay loop at source level:
