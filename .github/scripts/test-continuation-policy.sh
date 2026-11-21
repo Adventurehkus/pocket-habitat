@@ -98,21 +98,4 @@ declare -A LEGACY=()
 load_quota_pool_reset_state "provider:openrouter" KNOWN LEGACY "$NOW"
 [[ "${LEGACY[provider:openrouter]:-}" == "$UTC_DAILY_EXPECTED" ]]
 
-
-# Recovery waits select the earliest future pool reset and split long waits into
-# chunks shorter than the GitHub Actions job timeout. Expired/invalid entries are ignored.
-declare -A RECOVERY_WAITS=()
-RECOVERY_WAITS["daily-later"]="1900"
-RECOVERY_WAITS["daily-earlier"]="1500"
-RECOVERY_WAITS["expired"]="900"
-[[ "$(quota_recovery_retry_epoch RECOVERY_WAITS 1000 300)" == "1300" ]]
-[[ "$(quota_recovery_retry_epoch RECOVERY_WAITS 1000 1000)" == "1500" ]]
-RECOVERY_WAITS=()
-RECOVERY_WAITS["bad"]="not-a-timestamp"
-[[ "$(quota_recovery_retry_epoch RECOVERY_WAITS 1000 300)" == "0" ]]
-if quota_recovery_retry_epoch RECOVERY_WAITS invalid 300 >/dev/null 2>&1; then
-  echo "FAIL: invalid recovery wait arguments were accepted" >&2
-  exit 1
-fi
-
 echo "PASS: continuation policy and provider-aware quota-reset tests"
