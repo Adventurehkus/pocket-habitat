@@ -49,8 +49,8 @@ describe("QuestRules — tryClaim logic", function()
         local data = makePlayerData()
         data.currentQuest = "q6_creature"
         data.creaturesDiscovered["bunny"] = true
-        
-        local success, reason = QuestRules.tryClaim(data, "q6_creature")
+
+        local success = QuestRules.tryClaim(data, "q6_creature")
         expect(success).to.equal(true)
     end)
 end)
