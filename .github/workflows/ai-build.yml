@@ -2330,7 +2330,7 @@ jobs:
           done
           MONTHLY_QUOTA_POOLS_NEXT=""
           if (( ${#MONTHLY_QUOTA_POOL_ENTRIES[@]} > 0 )); then
-            MONTHLY_QUOTA_POOLS_NEXT="$(printf '%s\\n' "${MONTHLY_QUOTA_POOL_ENTRIES[@]}" | sort -u | paste -sd, -)"
+            MONTHLY_QUOTA_POOLS_NEXT="$(printf '%s\n' "${MONTHLY_QUOTA_POOL_ENTRIES[@]}" | sort -u | paste -sd, -)"
           fi
           if should_auto_continue_after_run \
             "$AUTONOMOUS_STOP_REASON" \
