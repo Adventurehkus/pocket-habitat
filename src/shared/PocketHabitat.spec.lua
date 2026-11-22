@@ -1300,4 +1300,122 @@ return function()
             end
         end)
     end)
+
+    describe("Quest-to-Reward Progression — Integrated Vertical Slice", function()
+        local _Constants = require(script.Parent.Parent.Constants)
+        local _ResourceRules = require(script.Parent.Parent.ResourceRules)
+        local _QuestRules = require(script.Parent.Parent.QuestRules)
+
+        local NOW_TEST = 10_000
+        local WOOD = _Constants.RESOURCES.WOOD
+        local SEED_BERRY = _Constants.RESOURCES.SEED_BERRY
+        local CROP_BERRY = _Constants.RESOURCES.CROP_BERRY
+        local CROP_SUNPETAL = _Constants.RESOURCES.CROP_SUNPETAL
+
+        local function makePlayerSession()
+            return {
+                bells = 50,
+                inventory = {
+                    [WOOD] = 3,
+                    [SEED_BERRY] = 1,
+                    [CROP_BERRY] = 0,
+                    [CROP_SUNPETAL] = 0,
+                },
+                plots = {
+                    [1] = { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 },
+                },
+                questProgress = {},
+                creaturesDiscovered = {},
+                questsCompleted = {},
+                resourceCooldowns = {},
+                upgrades = {},
+            }
+        end
+
+        local function makeQuestData(currentQuest: string): any
+            local completed = {}
+            for _, questId in ipairs(_Constants.QUEST_ORDER) do
+                if questId == currentQuest then
+                    break
+                end
+                completed[questId] = true
+            end
+            return {
+                bells = 50,
+                inventory = {
+                    [WOOD] = 3,
+                    [SEED_BERRY] = 1,
+                    [CROP_BERRY] = 0,
+                    [CROP_SUNPETAL] = 0,
+                },
+                plots = {
+                    [1] = { seedId = nil, plantedTime = 0, waterCount = 0, stage = 0 },
+                },
+                questProgress = {},
+                creaturesDiscovered = {},
+                questsCompleted = completed,
+                currentQuest = currentQuest,
+                resourceCooldowns = {},
+                upgrades = {},
+            }
+        end
+
+        it("q1_wood — sequences through gathering, funding, and claim", function()
+            local data = makePlayerSession()
+            local now = NOW_TEST
+            local treeCooldown = now + (10 * 60)
+
+            _ResourceRules.tryGrantReward(
+                data.resourceCooldowns,
+                "tree_1",
+                now,
+                treeCooldown,
+                function()
+                    data.inventory[WOOD] = (data.inventory[WOOD] or 0) + 1
+                    return true
+                end
+            )
+
+            expect(data.inventory[WOOD]).to.equal(4)
+            _QuestRules.recordProgress(data.questProgress, "gather", WOOD, 1)
+
+            local success, reason = _QuestRules.tryClaim(data, "q1_wood")
+            expect(success).to.equal(true)
+            expect(reason).to.equal(nil)
+            expect(data.questsCompleted.q1_wood).to.equal(true)
+            expect(data.currentQuest).to.equal("q2_stone")
+            expect(data.bells).to.equal(70)
+        end)
+
+        it("q6_creature — validates discovery mechanics and item rewards", function()
+            local data = makeQuestData("q6_creature")
+
+            local success = _QuestRules.tryClaim(data, "q6_creature")
+            expect(success).to.equal(false)
+
+            data.creaturesDiscovered.bunny = true
+            data.questProgress["discover:bunny"] = 1
+
+            success = _QuestRules.tryClaim(data, "q6_creature")
+            expect(success).to.equal(true)
+            expect(data.questsCompleted.q6_creature).to.equal(true)
+            expect(data.currentQuest).to.equal("q7_sunpetal")
+        end)
+
+        it("prevents duplicate claims and maintains consistency", function()
+            local data = makeQuestData("q1_wood")
+            data.questProgress["gather:wood"] = 3
+
+            local success1, _ = _QuestRules.tryClaim(data, "q1_wood")
+            expect(success1).to.equal(true)
+            expect(data.questsCompleted.q1_wood).to.be.ok()
+            expect(data.currentQuest).to.equal("q2_stone")
+
+            data.currentQuest = "q1_wood"
+            local success2, reason2 = _QuestRules.tryClaim(data, "q1_wood")
+            expect(success2).to.equal(false)
+            expect(reason2).to.equal("Already completed")
+            expect(data.bells).to.equal(70)
+        end)
+    end)
 end

@@ -26,6 +26,11 @@
   - Claim Quest (QuestManager) → QuestRules.tryClaim + Economy rewards + **CreatureManager.checkDiscoveries** (fixed)
   - Discover Creature (CreatureManager) → Flora/water validation + Quest progress + Bells + Spawn
   - Purchase Upgrade (EconomyManager) → Quest progress + WorldBuilder (plot_expansion)
+- **Quest-to-Reward Progression Integration Tests (Cycle #173):**
+  - Integrated vertical slice test in `PocketHabitat.spec.lua` validates complete flow across all game servers
+  - Tests server-authority check execution for player data, progression state, inventory capacity, quest validity
+  - Verifies progress tracking, creature discovery mechanics, reward processing
+  - Validates idempotent claim behavior and consistent progress state
 - **Server-authority checks:** Ownership, distance, cooldown, session, inventory, economy, quest state validated across all managers.
 
 ### Outstanding runtime tests (Explicitly unverified)

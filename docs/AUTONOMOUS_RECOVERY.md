@@ -2,17 +2,18 @@
 
 RECOVERY_STATUS: OPEN
 
-- Last updated by workflow run: 172
-- Cycle: 4
+- Last updated by workflow run: 174
+- Cycle: 1
 
 ## Current required action
 
-No trustworthy independent review decision was available in cycle 4 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
+QA blocker repair or independent re-check could not complete. Inspect the attached reports and resolve the blocker before treating this work as complete.
 
 ## Evidence
 
-Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 172; do not paste them into this active note.
-- pocket-habitat-implementation.diff (616 bytes)
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 174; do not paste them into this active note.
+- opencode-qa-24.log (2149 bytes)
+- pocket-habitat-validation.log (1568 bytes)
 
 Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 

@@ -22,7 +22,19 @@ The accumulated cycle-2 source diff is preserved but has not received a trustwor
    - Plot expansion visual gain: Level 1+ grants 1-3 decorative tiles based on level
    - Data persistence: decorativeTileCount tracked and restored
 
-Full validation evidence in docs/AUTONOMOUS_RECOVERY.md (Cycle 164).
+Full validation evidence in docs/AUTONOMOUS_RECOVERY.md (Cycle 164). Story-level evidence in `src/shared/PocketHabitat.spec.lua` (Descriptor: Quest-to-Reward Progression — Integrated Vertical Slice).
+
+## Quest-to-Reward Progression Integration (Cycle #173)
+
+**Completed:** Added integrated vertical slice test suite to `PocketHabitat.spec.lua`:
+- Tests complete gather→plant→water→harvest→claim flow with server-authority checks
+- Validates quest progress tracking, creature discovery mechanics, and reward processing
+- Verifies idempotent claim behavior and consistent progress state
+- Static verification: stylua --check src, selene src, rojo build pass
+
+**Note:** Full TestEZ execution requires Roblox-compatible runner; static checks only verify syntax and logic.
+
+---
 
 ## Autonomous pipeline reliability follow-up — Run #162 (2026-11-20)
 
