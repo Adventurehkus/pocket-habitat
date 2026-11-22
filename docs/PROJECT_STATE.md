@@ -9,8 +9,8 @@
 
 The repository contains the foundation and substantial source implementations for personal habitats, gathering, inventory and Bells, planting/watering/harvesting, ten quests, upgrades including decorative tiles, five creature types with multi-type behavior loops, and a basic player HUD. These features are implemented to varying degrees in source; end-to-end Roblox gameplay, multiplayer isolation, and real persistence are not yet proven.
 
-**Historical source recovery: RESOLVED at cycle 164. Active autonomous recovery: OPEN (workflow run #169, cycle 2).**
-The accumulated cycle-2 source diff is preserved but has not received a trustworthy independent review. Do not treat it as approved or begin unrelated feature work until the complete diff receives a valid independent review. Run #170 made no source changes because all 13 configured quota pools were held until their provider reset; the remaining Gemini 3.5 Flash Lite attempt then confirmed its daily input-token quota was exhausted. The initial Rojo preflight passed in run #170, but full deterministic validation, review, and QA did not run.
+**Historical source recovery: RESOLVED at cycle 164. Active autonomous recovery: RESOLVED.**
+The accumulated cycle-2 source diff from run 175 has been independently reviewed and validated at the source level. Static verification PASS (`stylua`, `selene`, `rojo`). Comprehensive unit tests for `QuestRules` and `PlantRules` verify the server-authority logic.
 
 **Vertical slice verification:**
 1. **Seed-to-Plant-to-Creature cycle (source-level) — COMPLETE**
