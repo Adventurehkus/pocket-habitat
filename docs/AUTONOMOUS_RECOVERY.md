@@ -1,21 +1,19 @@
 # Pocket Habitat — Active Recovery Summary
 
-RECOVERY_STATUS: RESOLVED
+RECOVERY_STATUS: OPEN
 
-- Last updated by autonomous run: 2026-11-22
-- Cycle: Multi-cycle run continuation
+- Last updated by workflow run: 174
+- Cycle: 3
 
 ## Current required action
 
-None. Source-level validation, static analysis, and integrated vertical slice test suite successfully completed and independently verified.
+No trustworthy independent review decision was available in cycle 3 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
 
 ## Evidence
 
-- **Toolchain installation and Rojo build:** `rojo build default.project.json -o build/pocket-habitat.rbxl` — PASS (0 errors, valid model artifact generated).
-- **StyLua format check:** `stylua --check src` — PASS (0 errors, 0 warnings).
-- **Selene linter:** `selene src` — PASS (0 errors, 0 warnings, 0 parse errors).
-- **Diff hygiene:** `git diff --check` — PASS (Clean working tree).
-- **Source-level vertical slice verification:** Quest-to-Reward Progression integration tests in `src/shared/PocketHabitat.spec.lua` validate complete gather → plant → water → harvest → claim quest → discover creature → purchase upgrade lifecycle with server-authority checks.
-- **Runtime constraints:** TestEZ, Roblox Studio, multiplayer, and DataStore persistence remain explicitly unverified due to headless Linux runner limitations.
+Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 174; do not paste them into this active note.
+- pocket-habitat-implementation.diff (3552 bytes)
+
+Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 
 Archive: docs/recovery-archive/AUTONOMOUS_RECOVERY_2026-11-15_PRE_COMPACTION.md
