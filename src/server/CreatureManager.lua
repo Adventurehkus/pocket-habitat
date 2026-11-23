@@ -517,7 +517,9 @@ end
 local function handleCreatureInteraction(
     player: Player,
     creatureId: string,
-    creatureModel: Model
+    creatureModel: Model,
+    actionType: string,
+    foodId: string?
 ): (boolean, string)
     if typeof(player) ~= "Instance" or not player:IsA("Player") then
         return false, "Invalid player"
@@ -621,13 +623,48 @@ local function handleCreatureInteraction(
         return true, "Success"
     end
 
+    -- Handle creature feeding interaction
+    local function doFeedInteraction(foodId: string)
+        if not EconomyManager.removeItem(player, foodId, 1) then
+            return false, "No food to feed!"
+        end
+
+        -- Reward: small progress towards creature affection/quests
+        if not QuestRules.recordProgress(data.questProgress, "feed", def.id, 1) then
+            warn("Failed to record creature feed progress for user " .. tostring(player.UserId))
+        end
+
+        local message = "Fed " .. def.name .. " some " .. foodId .. "!"
+        RemoteEvents.SyncData:FireClient(player, data)
+        RemoteEvents.Notification:FireClient(player, message)
+
+        return true, "Success"
+    end
+
     -- Execute interaction with server-authority validation
+    if actionType == "feed" and foodId then
+        return doFeedInteraction(foodId)
+    end
     return doPetInteraction()
 end
 
 function CreatureManager.init()
-    -- Set up creature interaction handler
-    RemoteEvents.InteractCreature.OnServerInvoke = handleCreatureInteraction
+    -- Set up creature interaction handlers
+    RemoteEvents.InteractCreature.OnServerInvoke = function(
+        player: Player,
+        creatureId: string,
+        creatureModel: Model
+    )
+        return handleCreatureInteraction(player, creatureId, creatureModel, "pet")
+    end
+    RemoteEvents.FeedCreature.OnServerInvoke = function(
+        player: Player,
+        creatureId: string,
+        creatureModel: Model,
+        foodId: string
+    )
+        return handleCreatureInteraction(player, creatureId, creatureModel, "feed", foodId)
+    end
 end
 
 return CreatureManager
