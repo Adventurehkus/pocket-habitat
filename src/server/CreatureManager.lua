@@ -587,7 +587,7 @@ local function handleCreatureInteraction(
     end
 
     -- Handle pet interaction
-    local function doPetInteraction(player: Player)
+    local function doPetInteraction()
         -- Reward: small amount of creature affection/progress for quest tracking
         -- Creature discovery is tracked separately via checkDiscoveries
         if not QuestRules.recordProgress(data.questProgress, "discover", def.creatureId, 1) then
@@ -622,7 +622,7 @@ local function handleCreatureInteraction(
     end
 
     -- Execute interaction with server-authority validation
-    return executeInteract(player)
+    return doPetInteraction()
 end
 
 function CreatureManager.init()

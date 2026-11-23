@@ -3,7 +3,7 @@
 RECOVERY_STATUS: OPEN
 
 - Last updated by workflow run: 177
-- Cycle: 2
+- Cycle: 3
 
 ## Current required action
 
@@ -12,7 +12,7 @@ The independent reviewer found actionable defects, but no repair model completed
 ## Evidence
 
 Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 177; do not paste them into this active note.
-- opencode-review-23.log (2363 bytes)
+- opencode-review-33.log (6143 bytes)
 
 Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 
