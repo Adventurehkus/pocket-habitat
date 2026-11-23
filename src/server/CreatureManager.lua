@@ -629,12 +629,25 @@ local function handleCreatureInteraction(
             return false, "No food to feed!"
         end
 
+        local isFavorite = (def.favoriteFood == feedFoodId)
+        local reward = isFavorite and 20 or 5
+        EconomyManager.addBells(player, reward)
+
         -- Reward: small progress towards creature affection/quests
         if not QuestRules.recordProgress(data.questProgress, "feed", def.id, 1) then
             warn("Failed to record creature feed progress for user " .. tostring(player.UserId))
         end
 
-        local message = "Fed " .. def.name .. " some " .. feedFoodId .. "!"
+        local message = "Fed "
+            .. def.name
+            .. " some "
+            .. feedFoodId
+            .. "! You earned "
+            .. tostring(reward)
+            .. " bells."
+        if isFavorite then
+            message = "Fed " .. def.name .. " their favorite treat! " .. message
+        end
         RemoteEvents.SyncData:FireClient(player, data)
         RemoteEvents.Notification:FireClient(player, message)
 
