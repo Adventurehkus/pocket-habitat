@@ -624,8 +624,8 @@ local function handleCreatureInteraction(
     end
 
     -- Handle creature feeding interaction
-    local function doFeedInteraction(foodId: string)
-        if not EconomyManager.removeItem(player, foodId, 1) then
+    local function doFeedInteraction(feedFoodId: string)
+        if not EconomyManager.removeItem(player, feedFoodId, 1) then
             return false, "No food to feed!"
         end
 
@@ -634,7 +634,7 @@ local function handleCreatureInteraction(
             warn("Failed to record creature feed progress for user " .. tostring(player.UserId))
         end
 
-        local message = "Fed " .. def.name .. " some " .. foodId .. "!"
+        local message = "Fed " .. def.name .. " some " .. feedFoodId .. "!"
         RemoteEvents.SyncData:FireClient(player, data)
         RemoteEvents.Notification:FireClient(player, message)
 
