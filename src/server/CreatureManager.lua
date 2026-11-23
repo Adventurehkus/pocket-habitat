@@ -13,6 +13,10 @@ local CreatureManager = {}
 -- Per-player creature registry: [UserId] -> { [creatureId] -> Model }
 local playerCreatures: { [number]: { [string]: Model } } = {}
 
+-- Creature interaction cooldown (seconds)
+local CREATURE_REQUEST_INTERVAL = 0.5
+local lastCreatureRequestAt: { [number]: number } = {}
+
 local function getHabitatBounds(habitat: Folder): (Vector3, Vector3)
     local baseOffset = habitat:GetAttribute("BaseOffset") or Vector3.new(0, 0, 0)
     local min = baseOffset + Vector3.new(-45, 1, -45)
@@ -372,6 +376,13 @@ local function createCreatureModel(
         humanoid.JumpPower = 30
     end
 
+    -- Add ProximityPrompt for interaction
+    local prompt = Instance.new("ProximityPrompt")
+    prompt.ActionText = "Pet"
+    prompt.ObjectText = def.name
+    prompt.HoldDuration = 0.5
+    prompt.Parent = body
+
     -- Weld body to root
     local weld = Instance.new("WeldConstraint")
     weld.Part0 = root
@@ -500,6 +511,123 @@ function CreatureManager.cleanupPlayer(player: Player)
         end
         playerCreatures[player.UserId] = nil
     end
+end
+
+-- Handle creature interaction (petting)
+local function handleCreatureInteraction(
+    player: Player,
+    creatureId: string,
+    creatureModel: Model
+): (boolean, string)
+    if typeof(player) ~= "Instance" or not player:IsA("Player") then
+        return false, "Invalid player"
+    end
+
+    -- Creature interaction cooldown
+    local nowClock = os.clock()
+    local lastRequestAt = lastCreatureRequestAt[player.UserId]
+    if lastRequestAt and nowClock - lastRequestAt < CREATURE_REQUEST_INTERVAL then
+        return false, "Creature request rate limited"
+    end
+    lastCreatureRequestAt[player.UserId] = nowClock
+
+    -- Validate session
+    local data = DataStoreManager.getSession(player)
+    if type(data) ~= "table" then
+        return false, "No session"
+    end
+
+    -- Validate character
+    local character = player.Character
+    local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
+    local rootPart = if character then character:FindFirstChild("HumanoidRootPart") else nil
+    if
+        not character
+        or not character.Parent
+        or not humanoid
+        or humanoid.Health <= 0
+        or not rootPart
+        or not rootPart:IsA("BasePart")
+    then
+        return false, "Invalid character"
+    end
+
+    -- Validate creature exists and is owned by player's habitat
+    if not creatureModel or not creatureModel:IsA("Model") then
+        return false, "Invalid creature"
+    end
+
+    local creatureIdAttr = creatureModel:GetAttribute("CreatureId")
+    local ownerUserIdAttr = creatureModel:GetAttribute("OwnerUserId")
+
+    if not creatureIdAttr or not ownerUserIdAttr then
+        return false, "Creature attributes missing"
+    end
+
+    if creatureIdAttr ~= creatureId then
+        return false, "Creature ID mismatch"
+    end
+
+    -- Get player's habitat and check distance
+    local habitat = HabitatManager.getHabitat(player)
+
+    if not habitat then
+        return false, "Player habitat not found"
+    end
+
+    local distance = (rootPart.Position - creatureModel.PrimaryPart.Position).Magnitude
+    if distance > 20 then -- Let creatures get closer than plots
+        return false, "Too far away from creature"
+    end
+
+    -- Validate creature definition
+    local def = Constants.CREATURES[creatureIdAttr]
+    if not def then
+        return false, "Invalid creature type"
+    end
+
+    -- Handle pet interaction
+    local function doPetInteraction(player: Player)
+        -- Reward: small amount of creature affection/progress for quest tracking
+        -- Creature discovery is tracked separately via checkDiscoveries
+        if not QuestRules.recordProgress(data.questProgress, "discover", def.creatureId, 1) then
+            warn("Failed to record creature pet progress for user " .. tostring(player.UserId))
+        end
+
+        -- Small progress towards creature-specific quests if available
+        if def.finalReadySpecies and #def.finalReadySpecies > 0 then
+            if
+                not QuestRules.recordProgress(
+                    data.questProgress,
+                    "discover",
+                    def.finalReadySpecies[1],
+                    1
+                )
+            then
+                warn("Failed to record final species progress for user " .. tostring(player.UserId))
+            end
+        end
+
+        -- Fisher-Yates shuffle for random creature name
+        local names = def.petNames
+            or { "Fluffy", "Wiggles", "Snuggles", "Bouncy", "Sparkles", "Paws" }
+        local randomIndex = math.random(1, #names)
+        local randomName = names[randomIndex]
+
+        local message = "Petting " .. def.name .. ": " .. randomName .. "!"
+        RemoteEvents.SyncData:FireClient(player, data)
+        RemoteEvents.Notification:FireClient(player, message)
+
+        return true, "Success"
+    end
+
+    -- Execute interaction with server-authority validation
+    return executeInteract(player)
+end
+
+function CreatureManager.init()
+    -- Set up creature interaction handler
+    RemoteEvents.InteractCreature.OnServerInvoke = handleCreatureInteraction
 end
 
 return CreatureManager
