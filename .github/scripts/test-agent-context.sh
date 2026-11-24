@@ -49,7 +49,7 @@ if grep -Fq 'ARCHIVE_SENTINEL' "$TEMP_DIR/context.md"; then
 fi
 
 context_bytes="$(wc -c < "$TEMP_DIR/context.md")"
-if (( context_bytes > 11500 )); then
+if (( context_bytes > 8000 )); then
   echo "FAIL: compact context exceeded budget ($context_bytes bytes)." >&2
   exit 1
 fi
@@ -63,7 +63,7 @@ CONTEXT_RUN_NUMBER='999' \
 CONTEXT_CYCLE='3' \
   bash "$BUILDER" "$TEMP_DIR/repo" "$TEMP_DIR/long-task-context.md" >/dev/null
 long_task_bytes="$(awk '/## Current task/{active=1;next}/## Working tree/{active=0}active{total+=length($0)+1}END{print total+0}' "$TEMP_DIR/long-task-context.md")"
-if (( long_task_bytes > 1402 )); then
+if (( long_task_bytes > 902 )); then
   echo "FAIL: long task exceeded its 1,400-byte prompt budget ($long_task_bytes bytes)." >&2
   exit 1
 fi
