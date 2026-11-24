@@ -179,7 +179,7 @@ jobs:
           AGENT_CONTEXT_FILE="$RUNNER_TEMP/pocket-habitat-agent-context.md"
           PRODUCT_DIFF_FILE="$RUNNER_TEMP/pocket-habitat-product.diff"
           RECOVERY_CONTEXT_MAX_BYTES=12000
-          AGENT_CONTEXT_MAX_BYTES=11500
+          AGENT_CONTEXT_MAX_BYTES=8000
           if [[ -f "$RECOVERY_CONTEXT_FILE" ]]; then
             RECOVERY_CONTEXT_BYTES="$(wc -c < "$RECOVERY_CONTEXT_FILE")"
             if (( RECOVERY_CONTEXT_BYTES > RECOVERY_CONTEXT_MAX_BYTES )); then
@@ -2077,7 +2077,7 @@ jobs:
           echo "Configured models: ${#MODEL_CHAIN[@]}"
           echo "Preferred models: implementation=${IMPLEMENT_PREFERRED_MODEL:-fallback-chain}, review=${REVIEW_PREFERRED_MODEL:-fallback-chain}, repair=${REPAIR_PREFERRED_MODEL:-fallback-chain}, qa=${QA_PREFERRED_MODEL:-fallback-chain}"
           echo "Run-wide temporary failure caps: model=$MAX_MODEL_RUN_TEMP_FAILURES; provider=$MAX_PROVIDER_RUN_TEMP_FAILURES"
-          echo "Compact agent context budget: 11500 bytes per stage"
+          echo "Compact agent context budget: 8000 bytes per stage"
           echo "Quota pools tracked: ${#QUOTA_POOL_KEYS[@]} (100% eligible-pool exhaustion target)"
           echo "Autonomous policy: recover from source/validation/QA errors across cycles; only hard safety, trust, persistence, or global-budget limits may stop the run."
           echo "Per-model call cap: $MAX_MODEL_CALLS_PER_MODEL; total call cap: $MAX_TOTAL_MODEL_CALLS; round cap: $MAX_AUTONOMOUS_ROUNDS"
