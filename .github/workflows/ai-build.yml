@@ -1948,30 +1948,30 @@ jobs:
             git -C "$gate_repo" init -q
             git -C "$gate_repo" config user.name "Pocket Habitat Workflow Test"
             git -C "$gate_repo" config user.email "workflow-test@example.invalid"
-            printf '%s\\n' 'return {}' > "$gate_repo/src/server/ServerMain.server.lua"
-            printf '%s\\n' '{}' > "$gate_repo/default.project.json"
-            printf '%s\\n' 'return true' > "$gate_repo/src/shared/PocketHabitat.spec.lua"
-            printf '%s\\n' 'return true' > "$gate_repo/src/shared/Tests/Creature.spec.lua"
+            printf '%s\n' 'return {}' > "$gate_repo/src/server/ServerMain.server.lua"
+            printf '%s\n' '{}' > "$gate_repo/default.project.json"
+            printf '%s\n' 'return true' > "$gate_repo/src/shared/PocketHabitat.spec.lua"
+            printf '%s\n' 'return true' > "$gate_repo/src/shared/Tests/Creature.spec.lua"
             git -C "$gate_repo" add .
             git -C "$gate_repo" commit -qm "progress gate test baseline"
             (
               cd "$gate_repo"
-              printf '%s\\n' 'Documentation only.' > src/server/Fixes_Documentation.md
-              printf '%s\\n' '-- test-only change' >> src/shared/PocketHabitat.spec.lua
-              printf '%s\\n' '-- TestEZ-only change' >> src/shared/Tests/Creature.spec.lua
+              printf '%s\n' 'Documentation only.' > src/server/Fixes_Documentation.md
+              printf '%s\n' '-- test-only change' >> src/shared/PocketHabitat.spec.lua
+              printf '%s\n' '-- TestEZ-only change' >> src/shared/Tests/Creature.spec.lua
               git add -N -- .
               if has_runtime_product_changes; then
                 echo "::error::Gameplay progress gate accepted documentation/TestEZ-only changes."
                 exit 1
               fi
-              printf '%s\\n' '-- runtime gameplay change' >> src/server/ServerMain.server.lua
+              printf '%s\n' '-- runtime gameplay change' >> src/server/ServerMain.server.lua
               if ! has_runtime_product_changes; then
                 echo "::error::Gameplay progress gate rejected a runtime Luau change."
                 exit 1
               fi
               git add .
               git commit -qm "runtime gameplay change"
-              printf '%s\\n' '{"name":"updated mapping"}' > default.project.json
+              printf '%s\n' '{"name":"updated mapping"}' > default.project.json
               if ! has_runtime_product_changes; then
                 echo "::error::Gameplay progress gate rejected a Rojo project-mapping change."
                 exit 1
