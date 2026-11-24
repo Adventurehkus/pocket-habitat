@@ -1045,7 +1045,7 @@ jobs:
             exit 1
           fi
           (
-            MODEL_CHAIN=("google/basic" "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free" "groq/basic")
+            MODEL_CHAIN=("google/basic" "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free" "groq/basic" "cohere/north-mini-code")
             IMPLEMENT_PREFERRED_MODEL="google/basic"
             REVIEW_PREFERRED_MODEL="openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
             REPAIR_PREFERRED_MODEL="groq/basic"
