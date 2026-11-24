@@ -1057,6 +1057,9 @@ jobs:
             REPAIR_MODELS=()
             prioritize_models REPAIR_MODELS
             [[ "${REPAIR_MODELS[0]:-}" == "$REPAIR_PREFERRED_MODEL" ]]
+            QA_MODELS=()
+            prioritize_models QA_MODELS google openrouter
+            [[ "${QA_MODELS[0]:-}" == "$QA_PREFERRED_MODEL" ]]
           ) || {
             echo "::error::Stage-specific preferred model routing regression test failed."
             exit 1
