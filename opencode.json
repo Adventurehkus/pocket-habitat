@@ -241,7 +241,23 @@
           "resource": "*",
           "effect": "deny"
         }
-      ]
+      ],
+      "model": "google/gemini-4-hydrogen"
+    },
+    "reviewer": {
+      "description": "Independent read-only reviewer. Prioritize architecture, correctness, server authority, persistence, and multiplayer safety.",
+      "mode": "primary",
+      "model": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+    },
+    "repair": {
+      "description": "Repair verified implementation, review, QA, and deterministic validation findings. Prefer efficient coding and targeted edits.",
+      "mode": "primary",
+      "model": "google/gemini-3.5-flash-lite"
+    },
+    "qa": {
+      "description": "Independent read-only QA. Verify gameplay paths, progression, data safety, and validation evidence without editing code.",
+      "mode": "primary",
+      "model": "google/gemini-3.1-flash-lite"
     }
   },
   "compaction": {
