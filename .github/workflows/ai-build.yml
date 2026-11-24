@@ -2748,6 +2748,7 @@ jobs:
             ${{ runner.temp }}/pocket-habitat-agent-report.md
             ${{ runner.temp }}/pocket-habitat-model-usage.tsv
             ${{ runner.temp }}/pocket-habitat-validation.log
+            ${{ runner.temp }}/pocket-habitat-agent-context.md
             docs/AUTONOMOUS_RECOVERY.md
             ${{ runner.temp }}/opencode-*.log
           if-no-files-found: warn
