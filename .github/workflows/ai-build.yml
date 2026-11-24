@@ -1061,6 +1061,34 @@ jobs:
             exit 1
           }
 
+          (
+            MAX_MODEL_RUN_TEMP_FAILURES=2
+            MAX_PROVIDER_RUN_TEMP_FAILURES=2
+            declare -A MODEL_RUN_TEMP_FAILURES=()
+            declare -A PROVIDER_RUN_TEMP_FAILURES=()
+            declare -A MODEL_RUN_DEFERRED=()
+            declare -A PROVIDER_RUN_DEFERRED=()
+            model="google/gemini-example"
+            provider="google"
+            for attempt in 1 2; do
+              MODEL_RUN_TEMP_FAILURES["$model"]=$((${MODEL_RUN_TEMP_FAILURES[$model]:-0} + 1))
+              if [[ "${MODEL_RUN_TEMP_FAILURES[$model]}" -ge "$MAX_MODEL_RUN_TEMP_FAILURES" ]]; then
+                MODEL_RUN_DEFERRED["$model"]="rate limited"
+              fi
+            done
+            PROVIDER_RUN_TEMP_FAILURES["$provider"]=1
+            PROVIDER_RUN_TEMP_FAILURES["$provider"]=$((${PROVIDER_RUN_TEMP_FAILURES[$provider]} + 1))
+            if [[ "${PROVIDER_RUN_TEMP_FAILURES[$provider]}" -ge "$MAX_PROVIDER_RUN_TEMP_FAILURES" ]]; then
+              PROVIDER_RUN_DEFERRED["$provider"]="provider rate limited"
+            fi
+            # These are reset at each development cycle; run-wide quarantine is not.
+            unset MODEL_STAGE_TEMP_FAILURES
+            declare -A MODEL_STAGE_TEMP_FAILURES=()
+            [[ -n "${MODEL_RUN_DEFERRED[$model]:-}" && -n "${PROVIDER_RUN_DEFERRED[$provider]:-}" ]]
+          ) || {
+            echo "::error::Run-wide model/provider rate-limit quarantine regression test failed."
+            exit 1
+          }
           test_quota_models=(
             "google/gemini-a" "google/gemini-b"
             "groq/model-a" "groq/model-b"
