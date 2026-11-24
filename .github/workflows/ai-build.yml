@@ -102,6 +102,7 @@ jobs:
           jq -e '.compaction.auto == true and .compaction.keep.tokens == 2000 and .compaction.buffer == "15%" and .providers.google.models["gemma-4-31b-it"].limit.context == 32768 and .providers.google.models["gemma-4-31b-it"].limit.input == 12000 and .providers.google.models["gemma-4-26b-a4b-it"].limit.input == 12000 and .providers.groq.models["qwen/qwen3.8-27b"].limit.context == 32768 and .providers.groq.models["qwen/qwen3.8-27b"].limit.input == 5000 and .providers.groq.models["openai/gpt-oss-120b"].limit.input == 6000 and .providers.groq.models["openai/gpt-oss-20b"].limit.input == 6000' opencode.json >/dev/null
           jq -e '.providers.groq.models["qwen/qwen3.8-27b"].limit.output == 800 and .providers.groq.models["openai/gpt-oss-120b"].limit.output == 800 and .providers.groq.models["openai/gpt-oss-20b"].limit.output == 800' opencode.json >/dev/null
           jq -e '.agents.compaction.model == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free" and .providers.openrouter.models["nvidia/nemotron-3-ultra-550b-a55b:free"].limit.output >= 8192' opencode.json >/dev/null
+          jq -e '.agents.build.model == "google/gemini-4-hydrogen" and .agents.reviewer.model == "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free" and .agents.repair.model == "google/gemini-3.5-flash-lite" and .agents.qa.model == "google/gemini-3.1-flash-lite"' opencode.json >/dev/null
           echo "Dedicated compaction model is configured with enough output headroom to summarize Groq sessions."
           echo "OpenCode context budgets are valid; Groq Qwen leaves input headroom and all Groq output caps remain below observed TPM/OTPM ceilings."
 
@@ -480,6 +481,14 @@ jobs:
               "openrouter/nvidia/nemotron-3.5-super-vl:free"
             )
           fi
+
+          # Stage preferences are ordering hints, not hard requirements. If a
+          # preferred route is unavailable or rate-limited, the rest of the chain
+          # remains eligible as fallback.
+          IMPLEMENT_PREFERRED_MODEL="$(jq -r '.agents.build.model // .model // empty' opencode.json)"
+          REVIEW_PREFERRED_MODEL="$(jq -r '.agents.reviewer.model // empty' opencode.json)"
+          REPAIR_PREFERRED_MODEL="$(jq -r '.agents.repair.model // .agents.build.model // empty' opencode.json)"
+          QA_PREFERRED_MODEL="$(jq -r '.agents.qa.model // empty' opencode.json)"
 
           # Copilot Free exposes an Auto model through its CLI adapter.
           if [[ -n "${COPILOT_GITHUB_TOKEN:-}" ]] && command -v copilot >/dev/null 2>&1; then
@@ -978,17 +987,25 @@ jobs:
             array_ref=("${rotated[@]}")
           }
 
-          # Keep models from already-used providers later in the list, but
-          # round-robin within both preferred and deferred groups.
+          # Prefer capable models for implementation/review and efficient
+          # models for repair/QA. Provider diversity still retains fallbacks.
           prioritize_models() {
             local -n output_ref="$1"
             local role_name="$1"
             shift
             local -a avoid_providers=("$@")
+            local -a role_first=()
             local -a preferred=()
             local -a deferred=()
-            local model provider avoid
+            local model provider avoid role_preferred_model=""
             local last_model="${ROLE_LAST_MODEL[$role_name]:-}"
+
+            case "$role_name" in
+              IMPLEMENT_MODELS) role_preferred_model="$IMPLEMENT_PREFERRED_MODEL" ;;
+              REVIEW_MODELS|REVIEW_FALLBACK_MODELS) role_preferred_model="$REVIEW_PREFERRED_MODEL" ;;
+              REPAIR_MODELS|VALIDATION_REPAIR_MODELS|FINAL_REPAIR_MODELS) role_preferred_model="$REPAIR_PREFERRED_MODEL" ;;
+              QA_MODELS|QA_FALLBACK_MODELS|QA_RECHECK_MODELS) role_preferred_model="$QA_PREFERRED_MODEL" ;;
+            esac
 
             for model in "${MODEL_CHAIN[@]}"; do
               provider="$(provider_for_model "$model")"
@@ -1004,6 +1021,8 @@ jobs:
               done
               if [[ "$avoid" == "true" ]]; then
                 deferred+=("$model")
+              elif [[ -n "$role_preferred_model" && "$model" == "$role_preferred_model" ]]; then
+                role_first+=("$model")
               else
                 preferred+=("$model")
               fi
@@ -1013,7 +1032,7 @@ jobs:
               rotate_array_after preferred "$last_model"
               rotate_array_after deferred "$last_model"
             fi
-            output_ref=("${preferred[@]}" "${deferred[@]}")
+            output_ref=("${role_first[@]}" "${preferred[@]}" "${deferred[@]}")
           }
 
           # Local-only regression fixtures for quota-scope accounting and model rotation.
@@ -1023,6 +1042,22 @@ jobs:
             echo "::error::Model round-robin rotation regression test failed."
             exit 1
           fi
+          (
+            MODEL_CHAIN=("google/basic" "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free" "groq/basic")
+            IMPLEMENT_PREFERRED_MODEL="google/basic"
+            REVIEW_PREFERRED_MODEL="openrouter/nvidia/nemotron-3-ultra-550b-a55b:free"
+            REPAIR_PREFERRED_MODEL="groq/basic"
+            QA_PREFERRED_MODEL="google/basic"
+            ROLE_LAST_MODEL=()
+            preferred_test=()
+            prioritize_models preferred_test REVIEW_MODELS
+            [[ "${preferred_test[0]:-}" == "$REVIEW_PREFERRED_MODEL" ]]
+            prioritize_models preferred_test REPAIR_MODELS
+            [[ "${preferred_test[0]:-}" == "$REPAIR_PREFERRED_MODEL" ]]
+          ) || {
+            echo "::error::Stage-specific preferred model routing regression test failed."
+            exit 1
+          }
 
           test_quota_models=(
             "google/gemini-a" "google/gemini-b"
