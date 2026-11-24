@@ -1110,6 +1110,7 @@ jobs:
             local attempt_key cooldown_until provider_cooldown earliest_cooldown now wait_seconds
             local remaining_stage remaining_total failure_class stage_deadline
             local stage_calls stage_temp_events temp_failure_count pool_key role_name reset_at reset_label
+            local run_temp_failure_count provider_temp_failure_count defer_route
             local stage_run_cap_skips stage_cooldown_skips
             local request_bytes input_budget attachment_bytes
             local -a stage_attachments=()
@@ -1349,13 +1350,29 @@ jobs:
                   MODEL_RATE_LIMIT|PROVIDER_RATE_LIMIT|TEMP_CAPACITY|UNKNOWN)
                     stage_temp_events=$((stage_temp_events + 1))
                     TEMP_LIMIT_EVENTS=$((TEMP_LIMIT_EVENTS + 1))
-                    temp_failure_count=$((${MODEL_STAGE_TEMP_FAILURES[$attempt_key]:-0} + 1))
+                    temp_failure_count=$(("${MODEL_STAGE_TEMP_FAILURES[$attempt_key]:-0}" + 1))
                     MODEL_STAGE_TEMP_FAILURES["$attempt_key"]="$temp_failure_count"
-                    if [[ "$temp_failure_count" -ge "$MAX_MODEL_TEMP_ATTEMPTS" ]]; then
-                      MODEL_STAGE_EXHAUSTED["$attempt_key"]="temporary retry count reached"
-                      record_attempt "$stage" "$provider" "$model" "$retry_count" "RETRY_DEFERRED" "$failure_class; per-cycle retry cap reached; route becomes eligible again in a later cycle"
-                      echo "::warning::$model remains unavailable after $temp_failure_count $failure_class failures in $stage; deferring it only until the next autonomous cycle."
+                    defer_route=false
+                    if [[ "$failure_class" == "PROVIDER_RATE_LIMIT" ]]; then
+                      provider_temp_failure_count=$(("${PROVIDER_RUN_TEMP_FAILURES[$provider]:-0}" + 1))
+                      PROVIDER_RUN_TEMP_FAILURES["$provider"]="$provider_temp_failure_count"
+                      if [[ "$provider_temp_failure_count" -ge "$MAX_PROVIDER_RUN_TEMP_FAILURES" ]]; then
+                        PROVIDER_RUN_DEFERRED["$provider"]="$failure_class repeated $provider_temp_failure_count times in this workflow run"
+                        defer_route=true
+                        record_attempt "$stage" "$provider" "$model" "$retry_count" "PROVIDER_RUN_DEFERRED" "$failure_class repeated $provider_temp_failure_count times; skip provider for the rest of this workflow run"
+                        echo "::warning::$provider reached its run-wide temporary-limit cap; its remaining models are skipped for this run."
+                      fi
                     else
+                      run_temp_failure_count=$(("${MODEL_RUN_TEMP_FAILURES[$model]:-0}" + 1))
+                      MODEL_RUN_TEMP_FAILURES["$model"]="$run_temp_failure_count"
+                      if [[ "$run_temp_failure_count" -ge "$MAX_MODEL_RUN_TEMP_FAILURES" || "$temp_failure_count" -ge "$MAX_MODEL_TEMP_ATTEMPTS" ]]; then
+                        MODEL_RUN_DEFERRED["$model"]="$failure_class repeated $run_temp_failure_count times in this workflow run"
+                        defer_route=true
+                        record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_RUN_DEFERRED" "$failure_class repeated $run_temp_failure_count times; skip model for the rest of this workflow run"
+                        echo "::warning::$model reached its run-wide temporary-limit cap; it will not be retried in later cycles of this run."
+                      fi
+                    fi
+                    if [[ "$defer_route" != "true" ]]; then
                       delay="$(retry_delay_seconds "$log_file" "$temp_failure_count" "$failure_class")"
                       MODEL_COOLDOWN_UNTIL["$model"]=$((now + delay))
                       if [[ "$failure_class" == "PROVIDER_RATE_LIMIT" ]]; then
@@ -1366,7 +1383,7 @@ jobs:
                         earliest_cooldown="$cooldown_until"
                       fi
                       record_attempt "$stage" "$provider" "$model" "$retry_count" "COOLDOWN" "$failure_class; retry scheduled in ${delay}s"
-                      echo "::notice::$provider/$model is temporarily limited ($failure_class). Cooling down for ${delay}s; other routes will run and later cycles will revisit it."
+                      echo "::notice::$provider/$model is temporarily limited ($failure_class). Cooling down; other routes remain eligible."
                     fi
                     ;;
                   *)
