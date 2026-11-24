@@ -62,6 +62,8 @@ Trace the complete path: client input and presentation; remote invocation; serve
 GitHub Actions owns provider/model routing, retries, cooldowns, implementation, independent review, repair, QA, deterministic validation, and persistence.
 
 - Use configured routes. Do not hard-code model lists, call provider APIs directly, create nested agents, or manually reproduce pipeline stages.
+- `opencode.json` defines stage model preferences for implementation, independent review, repair, and QA. Preferences only order candidates; the full configured fallback chain remains available when a preferred route is missing, limited, or already used for provider diversity.
+- Run-wide temporary-limit counters quarantine a model after repeated model-level 429/capacity failures and quarantine a provider after repeated provider-wide rate limits. Quarantined routes are skipped for the remainder of that workflow run; other eligible providers continue. Explicit daily/monthly quota exhaustion remains tracked by the provider-aware reset watcher.
 - Do not change secrets, credentials, provider routing, or workflow configuration unless the current user task authorizes the change.
 - A transient RPM/TPM limit, 429, 5xx, timeout, or capacity issue is not a gameplay defect. Do not claim remaining quota unless an authoritative balance was checked.
 - The workflow cannot read live provider balances. It only marks quota exhausted after an explicit provider/model quota error.
