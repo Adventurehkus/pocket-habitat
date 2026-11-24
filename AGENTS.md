@@ -3,7 +3,7 @@
 Build a polished, low-poly Roblox habitat game about collecting resources, growing plants, discovering creatures, completing quests, and upgrading personal habitats.
 
 ## Required startup
-Read docs/AUTONOMOUS_AGENT_GUIDE.md, docs/PROJECT_STATE.md, docs/ROADMAP.md, and docs/TESTING.md at the start of every run. Read only the sections of docs/TECHNICAL_ARCHITECTURE.md and other large design documents that are relevant to the selected task. Find headings and use narrow line-range reads; do not load the entire architecture document into every model context.
+Start with the attached compact Pocket Habitat agent context when the workflow provides it. Use that brief to orient; then inspect only the relevant, current sections of PROJECT_STATE.md, ROADMAP.md, and TESTING.md and the narrow source/architecture ranges needed for the task. Do not reread entire guides, historical reports, or full logs on every stage.
 
 ## Permanent engineering rules
 - Use Luau and the pinned Rojo/Rokit/Wally toolchain.
@@ -14,6 +14,7 @@ Read docs/AUTONOMOUS_AGENT_GUIDE.md, docs/PROJECT_STATE.md, docs/ROADMAP.md, and
 - Keep prompts lean: inspect only relevant source and documentation, avoid repeated/full-file reads, and summarize logs/diffs. Reduce context when a provider reports request-size or input-token limits.
 - Keep docs/AUTONOMOUS_RECOVERY.md compact (under 12 KB). Store full logs and diffs in workflow artifacts or docs/recovery-archive, not the active recovery note.
 - A handoff/recovery checkpoint is not validated progress. A validated cycle requires implementation, independent review, deterministic validation, independent QA, and successful persistence.
+- Documentation-only, recovery-note-only, and test-only edits do not count as gameplay progress; prioritize an integrated runtime Luau improvement.
 - Treat temporary model/provider limits as recoverable workflow conditions, not gameplay defects. Do not bypass review, QA, tests, or bounded safety guards.
 - The workflow handles model routing, retries, cooldowns, review/QA orchestration, validation, and persistence. Do not call provider APIs directly, create nested agents, hard-code model lists, or change credentials, provider configuration, or workflow files unless the user explicitly asks for that work.
 - Never modify or reformat DevPackages/_Index, vendored Wally dependencies, third-party code, or generated caches.
