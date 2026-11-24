@@ -177,6 +177,7 @@ jobs:
           DIFF_FILE="$RUNNER_TEMP/pocket-habitat-implementation.diff"
           RECOVERY_CONTEXT_FILE="$GITHUB_WORKSPACE/docs/AUTONOMOUS_RECOVERY.md"
           AGENT_CONTEXT_FILE="$RUNNER_TEMP/pocket-habitat-agent-context.md"
+          PRODUCT_DIFF_FILE="$RUNNER_TEMP/pocket-habitat-product.diff"
           RECOVERY_CONTEXT_MAX_BYTES=12000
           AGENT_CONTEXT_MAX_BYTES=11500
           if [[ -f "$RECOVERY_CONTEXT_FILE" ]]; then
@@ -1963,6 +1964,8 @@ jobs:
           REVIEW_PROMPT="You are an independent, read-only Pocket Habitat reviewer. Start with the attached compact project context and inspect the current runtime gameplay diff plus only relevant source and call-site ranges. Do not reread whole project guides, architecture files, historical reports, or full logs. Do not edit, run shell commands, or delegate. Review startup wiring, required module APIs, remote ownership, server authority, player-data safety, multiplayer isolation, economy/progression, persistence, and regressions. Documentation-only or test-only changes are not gameplay progress. Verify all findings in source. Start with exactly one line: REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. YES requires a confirmed actionable defect. Return concise severity, file/function, evidence, player impact, correction, and remaining runtime checks. Do not claim unrun tests."
 
           echo "Configured models: ${#MODEL_CHAIN[@]}"
+          echo "Preferred models: implementation=${IMPLEMENT_PREFERRED_MODEL:-fallback-chain}, review=${REVIEW_PREFERRED_MODEL:-fallback-chain}, repair=${REPAIR_PREFERRED_MODEL:-fallback-chain}, qa=${QA_PREFERRED_MODEL:-fallback-chain}"
+          echo "Run-wide temporary failure caps: model=$MAX_MODEL_RUN_TEMP_FAILURES; provider=$MAX_PROVIDER_RUN_TEMP_FAILURES"
           echo "Compact agent context budget: 11500 bytes per stage"
           echo "Quota pools tracked: ${#QUOTA_POOL_KEYS[@]} (100% eligible-pool exhaustion target)"
           echo "Autonomous policy: recover from source/validation/QA errors across cycles; only hard safety, trust, persistence, or global-budget limits may stop the run."
@@ -2533,10 +2536,13 @@ jobs:
             echo "- Validation recovery cycles: ${VALIDATION_RECOVERY_CYCLES}"
             echo "- Unresolved recovery context at stop: ${RECOVERY_CONTEXT_ACTIVE}"
             echo "- Models at per-run call cap: ${#MODEL_RUN_CAP_REACHED[@]}"
+            echo "- Models deferred after repeated temporary limits: ${#MODEL_RUN_DEFERRED[@]}"
+            echo "- Providers deferred after repeated temporary limits: ${#PROVIDER_RUN_DEFERRED[@]}"
+            echo "- Documentation-only/no-runtime-code cycles skipped: ${DOCUMENTATION_ONLY_CYCLES}"
             echo "- Stop reason: ${AUTONOMOUS_STOP_REASON}"
             echo "- Automatic temporary-limit wait: ${TOTAL_TEMP_WAIT_SECONDS}s across ${TEMP_LIMIT_EVENTS} classified events"
             echo "- Quota exhaustion events: ${QUOTA_EXHAUSTION_EVENTS}"
-            echo "- Per-model call cap: ${MAX_MODEL_CALLS_PER_MODEL}; per-stage temporary-failure cap: ${MAX_MODEL_TEMP_ATTEMPTS}"
+            echo "- Per-model call cap: ${MAX_MODEL_CALLS_PER_MODEL}; per-stage temporary-failure cap: ${MAX_MODEL_TEMP_ATTEMPTS}; run-wide model/provider temporary-failure caps: ${MAX_MODEL_RUN_TEMP_FAILURES}/${MAX_PROVIDER_RUN_TEMP_FAILURES}"
             echo "- Per-stage wait budget: ${STAGE_TEMP_WAIT_BUDGET_SECONDS}s; workflow-wide wait budget: ${TOTAL_TEMP_WAIT_BUDGET_SECONDS}s"
             echo
             echo "| Latest stage | Result | Model | Provider |"
