@@ -107,7 +107,10 @@ jobs:
 
       - name: Test automatic continuation policy
         shell: bash
-        run: bash .github/scripts/test-continuation-policy.sh
+        run: |
+          set -euo pipefail
+          bash .github/scripts/test-continuation-policy.sh
+          bash .github/scripts/test-agent-context.sh
 
       - name: Install OpenCode
         shell: bash
@@ -172,7 +175,9 @@ jobs:
           VALIDATION_LOG="$RUNNER_TEMP/pocket-habitat-validation.log"
           DIFF_FILE="$RUNNER_TEMP/pocket-habitat-implementation.diff"
           RECOVERY_CONTEXT_FILE="$GITHUB_WORKSPACE/docs/AUTONOMOUS_RECOVERY.md"
+          AGENT_CONTEXT_FILE="$RUNNER_TEMP/pocket-habitat-agent-context.md"
           RECOVERY_CONTEXT_MAX_BYTES=12000
+          AGENT_CONTEXT_MAX_BYTES=11500
           if [[ -f "$RECOVERY_CONTEXT_FILE" ]]; then
             RECOVERY_CONTEXT_BYTES="$(wc -c < "$RECOVERY_CONTEXT_FILE")"
             if (( RECOVERY_CONTEXT_BYTES > RECOVERY_CONTEXT_MAX_BYTES )); then
@@ -1099,7 +1104,16 @@ jobs:
             local stage_calls stage_temp_events temp_failure_count pool_key role_name reset_at reset_label
             local stage_run_cap_skips stage_cooldown_skips
             local request_bytes input_budget attachment_bytes
+            local -a stage_attachments=()
             local -a command_args=()
+
+            if ! refresh_agent_context; then
+              echo "::error::Could not generate bounded project context for stage $stage."
+              STAGE_STATUS["$stage"]="CONTEXT_GENERATION_FAILED"
+              return 1
+            fi
+            stage_attachments=("${STAGE_FILES[@]}")
+            stage_attachments+=("$AGENT_CONTEXT_FILE")
 
             STAGE_STATUS["$stage"]="EXHAUSTED"
             STAGE_MODEL["$stage"]=""
@@ -1143,7 +1157,7 @@ jobs:
                 # route. Copilot receives file paths except validation-repair,
                 # where validation output is embedded into the prompt.
                 request_bytes="$(printf '%s' "$prompt" | wc -c)"
-                for attachment in "${STAGE_FILES[@]}"; do
+                for attachment in "${stage_attachments[@]}"; do
                   if [[ -f "$attachment" ]] && { [[ "$provider" != "github-copilot" ]] || [[ "$stage" == "validation-repair" ]]; }; then
                     attachment_bytes="$(wc -c < "$attachment")"
                     request_bytes=$((request_bytes + attachment_bytes))
@@ -1233,7 +1247,7 @@ jobs:
 
                 if [[ "$provider" == "github-copilot" ]]; then
                   copilot_prompt="$prompt"
-                  for attachment in "${STAGE_FILES[@]}"; do
+                  for attachment in "${stage_attachments[@]}"; do
                     if [[ -f "$attachment" ]]; then
                       if [[ "$stage" == "validation-repair" ]]; then
                         copilot_prompt+=$'\n\nBEGIN COMPLETE DETERMINISTIC VALIDATION OUTPUT\n'
@@ -1258,7 +1272,7 @@ jobs:
                     --model "$model" --agent "$agent"
                     --title "Pocket Habitat $stage run $GITHUB_RUN_NUMBER cycle $ACTIVE_ROUND"
                   )
-                  for attachment in "${STAGE_FILES[@]}"; do
+                  for attachment in "${stage_attachments[@]}"; do
                     if [[ -f "$attachment" ]]; then
                       command_args+=(--file "$attachment")
                     fi
@@ -1784,6 +1798,19 @@ jobs:
             git diff --no-ext-diff --binary HEAD -- . ':(exclude)DevPackages/**' > "$DIFF_FILE"
           }
 
+          refresh_agent_context() {
+            CONTEXT_TASK="$TASK" \
+            CONTEXT_RUN_NUMBER="$GITHUB_RUN_NUMBER" \
+            CONTEXT_CYCLE="${ACTIVE_ROUND:-not-started}" \
+              bash .github/scripts/build-agent-context.sh "$GITHUB_WORKSPACE" "$AGENT_CONTEXT_FILE"
+            local context_bytes
+            context_bytes="$(wc -c < "$AGENT_CONTEXT_FILE")"
+            if (( context_bytes > AGENT_CONTEXT_MAX_BYTES )); then
+              echo "::error::Generated agent context exceeded its configured byte budget ($context_bytes bytes)."
+              return 1
+            fi
+          }
+
           run_validation() {
             local result=0
             : > "$VALIDATION_LOG"
@@ -1853,6 +1880,7 @@ jobs:
           REVIEW_PROMPT="You are an independent, read-only reviewer for Pocket Habitat. Review the current cycle's implementation diff against the repository's actual code and architecture. Do not edit files, run shell commands, or ask another agent to make changes. Verify every suspected issue against the source before reporting it. Trace startup initialization, required modules, every changed module API and its call sites, remote/event ownership, player-data loss or cross-player leakage, economy/inventory duplication, broken gameplay interactions, persistence failure handling, runtime errors, and regressions. Explicitly verify that every called module function exists in its required module and that new lifecycle wiring is reachable. Ignore style-only opinions unless they cause a real problem. Start with exactly one line: REVIEW_FINDINGS: YES or REVIEW_FINDINGS: NO. Use YES only if at least one actionable defect is confirmed in source. Return a concise Markdown report with severity (CRITICAL/HIGH/MEDIUM/LOW), file and line, evidence, impact, and a specific suggested correction. If no actionable findings exist, use REVIEW_FINDINGS: NO and explain any remaining runtime checks. Do not claim a test was run unless the attached evidence shows it."
 
           echo "Configured models: ${#MODEL_CHAIN[@]}"
+          echo "Compact agent context budget: 11500 bytes per stage"
           echo "Quota pools tracked: ${#QUOTA_POOL_KEYS[@]} (100% eligible-pool exhaustion target)"
           echo "Autonomous policy: recover from source/validation/QA errors across cycles; only hard safety, trust, persistence, or global-budget limits may stop the run."
           echo "Per-model call cap: $MAX_MODEL_CALLS_PER_MODEL; total call cap: $MAX_TOTAL_MODEL_CALLS; round cap: $MAX_AUTONOMOUS_ROUNDS"
