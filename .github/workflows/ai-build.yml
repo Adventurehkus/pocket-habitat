@@ -263,7 +263,7 @@ jobs:
           # Each workflow execution has bounded local call, round, and wait budgets.
           # Eligible work can continue in fresh workflow executions without a
           # fixed cross-run count or wall-clock cutoff.
-          MAX_MODEL_TEMP_ATTEMPTS=2
+          MAX_MODEL_TEMP_ATTEMPTS=4
           MAX_MODEL_RUN_TEMP_FAILURES=2
           MAX_PROVIDER_RUN_TEMP_FAILURES=2
           MAX_STAGE_MODEL_CALLS=50
@@ -1419,25 +1419,39 @@ jobs:
                     temp_failure_count=$(("${MODEL_STAGE_TEMP_FAILURES[$attempt_key]:-0}" + 1))
                     MODEL_STAGE_TEMP_FAILURES["$attempt_key"]="$temp_failure_count"
                     defer_route=false
-                    if [[ "$failure_class" == "PROVIDER_RATE_LIMIT" ]]; then
-                      provider_temp_failure_count=$(("${PROVIDER_RUN_TEMP_FAILURES[$provider]:-0}" + 1))
-                      PROVIDER_RUN_TEMP_FAILURES["$provider"]="$provider_temp_failure_count"
-                      if [[ "$provider_temp_failure_count" -ge "$MAX_PROVIDER_RUN_TEMP_FAILURES" ]]; then
-                        PROVIDER_RUN_DEFERRED["$provider"]="$failure_class repeated $provider_temp_failure_count times in this workflow run"
-                        defer_route=true
-                        record_attempt "$stage" "$provider" "$model" "$retry_count" "PROVIDER_RUN_DEFERRED" "$failure_class repeated $provider_temp_failure_count times; skip provider for the rest of this workflow run"
-                        echo "::warning::$provider reached its run-wide temporary-limit cap; its remaining models are skipped for this run."
-                      fi
-                    else
-                      run_temp_failure_count=$(("${MODEL_RUN_TEMP_FAILURES[$model]:-0}" + 1))
-                      MODEL_RUN_TEMP_FAILURES["$model"]="$run_temp_failure_count"
-                      if [[ "$run_temp_failure_count" -ge "$MAX_MODEL_RUN_TEMP_FAILURES" || "$temp_failure_count" -ge "$MAX_MODEL_TEMP_ATTEMPTS" ]]; then
-                        MODEL_RUN_DEFERRED["$model"]="$failure_class repeated $run_temp_failure_count times in this workflow run"
-                        defer_route=true
-                        record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_RUN_DEFERRED" "$failure_class repeated $run_temp_failure_count times; skip model for the rest of this workflow run"
-                        echo "::warning::$model reached its run-wide temporary-limit cap; it will not be retried in later cycles of this run."
-                      fi
-                    fi
+                    case "$failure_class" in
+                      PROVIDER_RATE_LIMIT)
+                        provider_temp_failure_count=$(("${PROVIDER_RUN_TEMP_FAILURES[$provider]:-0}" + 1))
+                        PROVIDER_RUN_TEMP_FAILURES["$provider"]="$provider_temp_failure_count"
+                        if [[ "$provider_temp_failure_count" -ge "$MAX_PROVIDER_RUN_TEMP_FAILURES" ]]; then
+                          PROVIDER_RUN_DEFERRED["$provider"]="$failure_class repeated $provider_temp_failure_count times in this workflow run"
+                          defer_route=true
+                          record_attempt "$stage" "$provider" "$model" "$retry_count" "PROVIDER_RUN_DEFERRED" "$failure_class repeated $provider_temp_failure_count times; skip provider for the rest of this workflow run"
+                          echo "::warning::$provider reached its run-wide temporary-limit cap; its remaining models are skipped for this run."
+                        fi
+                        ;;
+                      MODEL_RATE_LIMIT|TEMP_CAPACITY)
+                        run_temp_failure_count=$(("${MODEL_RUN_TEMP_FAILURES[$model]:-0}" + 1))
+                        MODEL_RUN_TEMP_FAILURES["$model"]="$run_temp_failure_count"
+                        if [[ "$run_temp_failure_count" -ge "$MAX_MODEL_RUN_TEMP_FAILURES" ]]; then
+                          MODEL_RUN_DEFERRED["$model"]="$failure_class repeated $run_temp_failure_count times in this workflow run"
+                          defer_route=true
+                          record_attempt "$stage" "$provider" "$model" "$retry_count" "MODEL_RUN_DEFERRED" "$failure_class repeated $run_temp_failure_count times; skip model for the rest of this workflow run"
+                          echo "::warning::$model reached its run-wide temporary-limit cap; it will not be retried in later cycles of this run."
+                        fi
+                        ;;
+                      UNKNOWN)
+                        # Unknown failures retain the conservative per-stage
+                        # cooldown/retry policy; do not mistake them for the
+                        # same confirmed rate limit across the whole run.
+                        if [[ "$temp_failure_count" -ge "$MAX_MODEL_TEMP_ATTEMPTS" ]]; then
+                          MODEL_STAGE_EXHAUSTED["$attempt_key"]="unclassified temporary failure retry cap reached"
+                          defer_route=true
+                          record_attempt "$stage" "$provider" "$model" "$retry_count" "RETRY_DEFERRED" "UNKNOWN; per-stage retry cap reached; eligible again in a later cycle"
+                          echo "::warning::$model reached its per-stage unknown-failure retry cap; it may be revisited in a later cycle."
+                        fi
+                        ;;
+                    esac
                     if [[ "$defer_route" != "true" ]]; then
                       delay="$(retry_delay_seconds "$log_file" "$temp_failure_count" "$failure_class")"
                       MODEL_COOLDOWN_UNTIL["$model"]=$((now + delay))
