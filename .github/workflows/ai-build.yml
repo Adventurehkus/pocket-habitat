@@ -1051,11 +1051,12 @@ jobs:
             REPAIR_PREFERRED_MODEL="groq/basic"
             QA_PREFERRED_MODEL="google/basic"
             ROLE_LAST_MODEL=()
-            preferred_test=()
-            prioritize_models preferred_test REVIEW_MODELS
-            [[ "${preferred_test[0]:-}" == "$REVIEW_PREFERRED_MODEL" ]]
-            prioritize_models preferred_test REPAIR_MODELS
-            [[ "${preferred_test[0]:-}" == "$REPAIR_PREFERRED_MODEL" ]]
+            REVIEW_MODELS=()
+            prioritize_models REVIEW_MODELS
+            [[ "${REVIEW_MODELS[0]:-}" == "$REVIEW_PREFERRED_MODEL" ]]
+            REPAIR_MODELS=()
+            prioritize_models REPAIR_MODELS
+            [[ "${REPAIR_MODELS[0]:-}" == "$REPAIR_PREFERRED_MODEL" ]]
           ) || {
             echo "::error::Stage-specific preferred model routing regression test failed."
             exit 1
