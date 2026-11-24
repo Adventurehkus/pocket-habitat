@@ -19,8 +19,8 @@ Never copy an old run number, commit, completion claim, or model list forward wi
 ## Start every run — keep context bounded
 
 1. Check the current branch, HEAD, and working tree. Preserve existing valid changes.
-2. Read AGENTS.md, this guide, docs/PROJECT_STATE.md, docs/ROADMAP.md, and docs/TESTING.md.
-3. Do NOT load the entire docs/TECHNICAL_ARCHITECTURE.md by default. Find its headings with a targeted search, then read only the section(s) relevant to the selected task using narrow line ranges. Do the same for large design documents.
+2. Start with the attached compact Pocket Habitat agent context when supplied. It summarizes the current task, state, roadmap, recovery debt, and latest verification evidence.
+3. Use the context brief as a navigation index, then inspect only the relevant current sections of PROJECT_STATE.md, ROADMAP.md, TESTING.md, and AGENTS.md. Do NOT load the entire docs/TECHNICAL_ARCHITECTURE.md by default; locate headings and read only relevant narrow line ranges.
 4. Inspect only the source modules, remote call sites, data structures, and tests needed for the selected vertical slice. Search first; read focused ranges.
 5. Compare source with the current state and roadmap. Correct stale status rather than repeating it.
 
@@ -39,6 +39,8 @@ For a specific user request, implement that objective and necessary dependencies
 6. Additional content and release preparation.
 
 Prefer one complete, integrated vertical slice over broad disconnected scaffolding. A feature is not complete merely because a module, remote, constant, model, attribute, test, or UI element exists.
+
+A meaningful development cycle must change project-owned runtime gameplay code or the runtime project mapping. Documentation-only, recovery-note-only, and test-only changes may support implementation but do not count as gameplay progress.
 
 ## Implementation and Roblox correctness
 
@@ -64,6 +66,7 @@ GitHub Actions owns provider/model routing, retries, cooldowns, implementation, 
 - A transient RPM/TPM limit, 429, 5xx, timeout, or capacity issue is not a gameplay defect. Do not claim remaining quota unless an authoritative balance was checked.
 - The workflow cannot read live provider balances. It only marks quota exhausted after an explicit provider/model quota error.
 - Keep prompts and tool outputs lean. If a provider rejects a request as too large or exceeds input tokens per minute, inspect the prompt/context size and remove irrelevant document/source output before retrying. Do not weaken review, QA, or deterministic checks to make a run green.
+- The workflow applies run-wide temporary-limit caps; after repeated model/provider 429s, continue with other eligible routes rather than repeatedly retrying the same limited route.
 - A successful handoff or recovery checkpoint is not validated development progress. Only implementation + independent review + deterministic validation + independent QA + successful checkpoint persistence counts as a validated cycle.
 - Keep docs/AUTONOMOUS_RECOVERY.md as a compact current-task note (maximum 12 KB). Preserve full logs/diffs in workflow artifacts or docs/recovery-archive; never paste full transcripts into the active note.
 - Resolve active source-level recovery debt before unrelated features. Mark RECOVERY_STATUS: RESOLVED only when every automation-resolvable item is fixed and concrete evidence is recorded. Keep Roblox Studio, multiplayer, DataStore, TestEZ, and device checks marked unverified when they were not executed.
