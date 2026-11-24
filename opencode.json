@@ -257,7 +257,7 @@
     "qa": {
       "description": "Independent read-only QA. Verify gameplay paths, progression, data safety, and validation evidence without editing code.",
       "mode": "primary",
-      "model": "google/gemini-3.1-flash-lite"
+      "model": "cohere/north-mini-code"
     }
   },
   "compaction": {
