@@ -1097,18 +1097,18 @@ jobs:
             unknown_model="google/unknown-example"
             for attempt in 1 2 3 4; do
               MODEL_STAGE_TEMP_FAILURES["implementation|$unknown_model"]=$attempt
-              if [[ "${MODEL_STAGE_TEMP_FAILURES[implementation|$unknown_model]}" -ge "$MAX_MODEL_TEMP_ATTEMPTS" ]]; then
+              if [[ "${MODEL_STAGE_TEMP_FAILURES["implementation|$unknown_model"]}" -ge "$MAX_MODEL_TEMP_ATTEMPTS" ]]; then
                 MODEL_STAGE_EXHAUSTED["implementation|$unknown_model"]="unknown failure retry cap"
               fi
             done
-            [[ -n "${MODEL_STAGE_EXHAUSTED[implementation|$unknown_model]:-}" ]]
+            [[ -n "${MODEL_STAGE_EXHAUSTED["implementation|$unknown_model"]:-}" ]]
             [[ -z "${MODEL_RUN_DEFERRED[$unknown_model]:-}" ]]
 
             # Run-wide quarantine is not reset when stage-local counters reset.
             unset MODEL_STAGE_TEMP_FAILURES
             declare -A MODEL_STAGE_TEMP_FAILURES=()
             [[ -n "${MODEL_RUN_DEFERRED[$model]:-}" && -n "${PROVIDER_RUN_DEFERRED[$provider]:-}" ]]
-          )          ) || {
+          ) || {
             echo "::error::Run-wide model/provider rate-limit quarantine regression test failed."
             exit 1
           }
