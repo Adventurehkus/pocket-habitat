@@ -22,16 +22,18 @@ The current checked-out source and Git history take precedence over information 
 
 ## 3. REQUIRED READING — BEFORE IMPLEMENTATION
 
-Read these files at the beginning of every run:
+Start with the attached compact Pocket Habitat project-context brief when the workflow supplies it. Use it as a navigation index for the current task, state, roadmap, recovery debt, and verification evidence.
+
+Then inspect only the relevant current sections of:
 
 1. `AGENTS.md`
 2. `docs/AUTONOMOUS_AGENT_GUIDE.md`
 3. `docs/PROJECT_STATE.md`
 4. `docs/ROADMAP.md`
-5. `docs/TECHNICAL_ARCHITECTURE.md`
-6. `docs/TESTING.md`
+5. `docs/TESTING.md`
+6. Relevant headings in `docs/TECHNICAL_ARCHITECTURE.md`
 
-Then inspect the relevant design documents, actual source modules, dependencies, remote call sites, data structures, and tests for the task.
+Do not reload entire guides, architecture files, historical reports, or full logs on every run. Search headings first, then read narrow line ranges and the source/call sites needed for the selected task. Keep the context brief and stage attachments within the workflow's configured input budget.
 
 Do not assume a feature exists merely because it appears in a previous handoff or documentation entry. Verify it in the current source.
 
@@ -53,6 +55,8 @@ Use this general priority order, adjusting it to the evidence in the repository:
 6. Additional content and optional features.
 
 Choose one coherent, achievable vertical slice. Do not scatter unfinished scaffolding across unrelated systems.
+
+A meaningful development cycle must include a project-owned runtime gameplay-code or runtime project-mapping change. Documentation-only, recovery-note-only, and test-only edits may support implementation but do not count as gameplay progress; do not stop after producing a handoff when an integrated runtime improvement is still achievable.
 
 **Never ask the user to rewrite this handoff just because a milestone was completed.** Update the living project documents so the next run can determine the next task automatically.
 
