@@ -55,3 +55,17 @@ if (( context_bytes > 11500 )); then
 fi
 
 echo "PASS: compact context includes current state, task, roadmap, recovery, and testing without archives ($context_bytes bytes)"
+
+# Large user task text is bounded instead of being replayed as an oversized prompt.
+LONG_TASK="$(printf '%12000s' ' ' | tr ' ' 'x')"
+CONTEXT_TASK="$LONG_TASK" \
+CONTEXT_RUN_NUMBER='999' \
+CONTEXT_CYCLE='3' \
+  bash "$BUILDER" "$TEMP_DIR/repo" "$TEMP_DIR/long-task-context.md" >/dev/null
+long_task_bytes="$(awk '/## Current task/{active=1;next}/## Working tree/{active=0}active{total+=length($0)+1}END{print total+0}' "$TEMP_DIR/long-task-context.md")"
+if (( long_task_bytes > 1402 )); then
+  echo "FAIL: long task exceeded its 1,400-byte prompt budget ($long_task_bytes bytes)." >&2
+  exit 1
+fi
+echo "PASS: long user task text clipped to $long_task_bytes bytes in compact context"
+
