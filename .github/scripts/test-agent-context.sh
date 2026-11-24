@@ -28,7 +28,7 @@ Fix the creature interaction review blocker.
 DOC
 cat > "$TEMP_DIR/repo/docs/TESTING.md" <<'DOC'
 # Testing
-## Last validated gameplay execution
+## Last validated gameplay execution — Run 123
 Rojo, StyLua, Selene passed in the latest source validation.
 DOC
 printf 'ARCHIVE_SENTINEL\n' > "$TEMP_DIR/repo/docs/old-archive.md"
