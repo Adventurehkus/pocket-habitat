@@ -44,8 +44,9 @@ extract_section() {
   printf -- '- Branch: %s\n' "$(git -C "$repo_root" branch --show-current 2>/dev/null || echo unknown)"
   printf -- '- HEAD: %s\n' "$(git -C "$repo_root" rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo
-  echo '## Current task'
-  printf '%s' "${CONTEXT_TASK:-Continue the highest-priority unfinished Pocket Habitat task.}"
+  echo '## Current task (bounded to 1,400 bytes)'
+  printf '%s' "${CONTEXT_TASK:-Continue the highest-priority unfinished Pocket Habitat task.}" > "$section_file"
+  head -c 1400 "$section_file"
   echo
   echo
   echo '## Working tree (first 20 entries)'
