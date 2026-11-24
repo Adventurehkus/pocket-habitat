@@ -236,6 +236,7 @@ jobs:
           AUTONOMOUS_ROUNDS_COMPLETED=0
           AUTONOMOUS_RECOVERY_CYCLES=0
           VALIDATION_RECOVERY_CYCLES=0
+          DOCUMENTATION_ONLY_CYCLES=0
           RECOVERY_CONTEXT_ACTIVE=false
           SAFE_TO_PERSIST=false
           if [[ -f "$RECOVERY_CONTEXT_FILE" ]] && ! grep -Eq '^RECOVERY_STATUS:[[:space:]]*RESOLVED[[:space:]]*$' "$RECOVERY_CONTEXT_FILE"; then
@@ -1859,6 +1860,27 @@ jobs:
             git diff --no-ext-diff --binary HEAD -- . ':(exclude)DevPackages/**' > "$DIFF_FILE"
           }
 
+          refresh_product_diff() {
+            git diff --no-ext-diff --binary HEAD -- src default.project.json > "$PRODUCT_DIFF_FILE"
+          }
+
+          has_runtime_product_changes() {
+            local changed_path
+            local changed_paths
+            changed_paths="$(git diff --name-only HEAD -- src default.project.json)"
+            while IFS= read -r changed_path; do
+              [[ -n "$changed_path" ]] || continue
+              case "$changed_path" in
+                default.project.json) return 0 ;;
+                src/*.lua)
+                  [[ "$changed_path" == *"/Tests/"* || "$changed_path" == *.spec.lua ]] && continue
+                  return 0
+                  ;;
+              esac
+            done <<< "$changed_paths"
+            return 1
+          }
+
           refresh_agent_context() {
             CONTEXT_TASK="$TASK" \
             CONTEXT_RUN_NUMBER="$GITHUB_RUN_NUMBER" \
@@ -1988,7 +2010,8 @@ jobs:
             echo "::group::Autonomous development cycle $round"
             echo "Cycle $round begins. Quota pools held until reset: $QUOTA_POOL_COOLDOWN_COUNT; eligible pools: $ELIGIBLE_QUOTA_POOL_COUNT."
             refresh_diff
-            before_diff_hash="$(sha256sum "$DIFF_FILE" | awk '{print $1}')"
+            refresh_product_diff
+            before_product_diff_hash="$(sha256sum "$PRODUCT_DIFF_FILE" | awk '{print $1}')"
 
             if [[ "$round" -eq 1 && "$RECOVERY_CONTEXT_ACTIVE" != "true" && "$IS_CONTINUATION_RUN" != "true" ]]; then
               CURRENT_IMPLEMENT_PROMPT="$IMPLEMENT_PROMPT"
@@ -2029,28 +2052,30 @@ jobs:
             fi
 
             refresh_diff
-            after_diff_hash="$(sha256sum "$DIFF_FILE" | awk '{print $1}')"
-            if [[ "$before_diff_hash" == "$after_diff_hash" ]]; then
+            refresh_product_diff
+            after_product_diff_hash="$(sha256sum "$PRODUCT_DIFF_FILE" | awk '{print $1}')"
+            if [[ "$before_product_diff_hash" == "$after_product_diff_hash" ]] || ! has_runtime_product_changes; then
               NO_PROGRESS_ROUNDS=$((NO_PROGRESS_ROUNDS + 1))
-              echo "::warning::Implementation cycle $round produced no repository diff ($NO_PROGRESS_ROUNDS consecutive no-progress cycles)."
-              if [[ "$IMPLEMENT_RESULT" -ne 0 ]]; then
+              DOCUMENTATION_ONLY_CYCLES=$((DOCUMENTATION_ONLY_CYCLES + 1))
+              echo "::warning::Cycle $round made no runtime gameplay-source change. Documentation-only and test-only edits are not counted as a completed implementation cycle ($NO_PROGRESS_ROUNDS consecutive no-progress cycles)."
+              if [[ "$NO_PROGRESS_ROUNDS" -ge "$MAX_CONSECUTIVE_NO_PROGRESS_ROUNDS" ]]; then
+                write_recovery_context "The implementation stage made no runtime gameplay-source change for $NO_PROGRESS_ROUNDS consecutive cycles. Documentation-only, test-only, and recovery-note edits are preserved as context but are not validated gameplay progress. Resume with one integrated change to a project-owned runtime Luau module or project mapping, then obtain independent review, deterministic validation, and QA." "$DIFF_FILE"
                 if ! persist_recovery_checkpoint; then
                   PIPELINE_EXIT=1
                   AUTONOMOUS_STOP_REASON="recovery_checkpoint_persistence_failed"
-                  echo "::error::Unable to persist the retry/recovery instruction for the next cycle."
-                  echo "::endgroup::"
-                  break
-                fi
-                if [[ "$NO_PROGRESS_ROUNDS" -ge "$MAX_CONSECUTIVE_NO_PROGRESS_ROUNDS" ]]; then
+                  echo "::error::Unable to preserve the no-progress recovery handoff."
+                else
+                  AUTONOMOUS_RECOVERY_CYCLES=$((AUTONOMOUS_RECOVERY_CYCLES + 1))
                   PIPELINE_EXIT=1
                   AUTONOMOUS_STOP_REASON="no_implementation_progress"
-                  echo "::error::No implementation route produced safe changes in $NO_PROGRESS_ROUNDS consecutive cycles. Stopping under the no-capable-agent safety exception."
-                  echo "::endgroup::"
-                  break
+                  echo "::error::Stopping after repeated cycles without runtime gameplay-source progress. The documentation-only diff is saved as a recovery handoff, not a validated development checkpoint."
                 fi
                 echo "::endgroup::"
-                continue
+                break
               fi
+              echo "::notice::Keeping documentation changes available as context, but deferring independent review, QA, and validated-checkpoint accounting until runtime gameplay source changes."
+              echo "::endgroup::"
+              continue
             else
               NO_PROGRESS_ROUNDS=0
             fi
