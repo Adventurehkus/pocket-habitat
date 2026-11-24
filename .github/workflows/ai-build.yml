@@ -1065,28 +1065,50 @@ jobs:
           (
             MAX_MODEL_RUN_TEMP_FAILURES=2
             MAX_PROVIDER_RUN_TEMP_FAILURES=2
+            MAX_MODEL_TEMP_ATTEMPTS=4
             declare -A MODEL_RUN_TEMP_FAILURES=()
             declare -A PROVIDER_RUN_TEMP_FAILURES=()
             declare -A MODEL_RUN_DEFERRED=()
             declare -A PROVIDER_RUN_DEFERRED=()
+            declare -A MODEL_STAGE_TEMP_FAILURES=()
+            declare -A MODEL_STAGE_EXHAUSTED=()
+
+            # Confirmed model rate limits quarantine only that model after two failures.
             model="google/gemini-example"
-            provider="google"
             for attempt in 1 2; do
-              MODEL_RUN_TEMP_FAILURES["$model"]=$((${MODEL_RUN_TEMP_FAILURES[$model]:-0} + 1))
+              MODEL_RUN_TEMP_FAILURES["$model"]=$(("${MODEL_RUN_TEMP_FAILURES[$model]:-0}" + 1))
               if [[ "${MODEL_RUN_TEMP_FAILURES[$model]}" -ge "$MAX_MODEL_RUN_TEMP_FAILURES" ]]; then
-                MODEL_RUN_DEFERRED["$model"]="rate limited"
+                MODEL_RUN_DEFERRED["$model"]="MODEL_RATE_LIMIT repeated"
               fi
             done
+            [[ -n "${MODEL_RUN_DEFERRED[$model]:-}" ]]
+
+            # Provider-wide 429s quarantine all models from that provider.
+            provider="openrouter"
             PROVIDER_RUN_TEMP_FAILURES["$provider"]=1
-            PROVIDER_RUN_TEMP_FAILURES["$provider"]=$((${PROVIDER_RUN_TEMP_FAILURES[$provider]} + 1))
+            PROVIDER_RUN_TEMP_FAILURES["$provider"]=$(("${PROVIDER_RUN_TEMP_FAILURES[$provider]}" + 1))
             if [[ "${PROVIDER_RUN_TEMP_FAILURES[$provider]}" -ge "$MAX_PROVIDER_RUN_TEMP_FAILURES" ]]; then
-              PROVIDER_RUN_DEFERRED["$provider"]="provider rate limited"
+              PROVIDER_RUN_DEFERRED["$provider"]="PROVIDER_RATE_LIMIT repeated"
             fi
-            # These are reset at each development cycle; run-wide quarantine is not.
+            [[ -n "${PROVIDER_RUN_DEFERRED[$provider]:-}" ]]
+
+            # Unknown failures retain the per-stage retry cap rather than being
+            # misclassified as a confirmed repeated rate limit across the run.
+            unknown_model="google/unknown-example"
+            for attempt in 1 2 3 4; do
+              MODEL_STAGE_TEMP_FAILURES["implementation|$unknown_model"]=$attempt
+              if [[ "${MODEL_STAGE_TEMP_FAILURES[implementation|$unknown_model]}" -ge "$MAX_MODEL_TEMP_ATTEMPTS" ]]; then
+                MODEL_STAGE_EXHAUSTED["implementation|$unknown_model"]="unknown failure retry cap"
+              fi
+            done
+            [[ -n "${MODEL_STAGE_EXHAUSTED[implementation|$unknown_model]:-}" ]]
+            [[ -z "${MODEL_RUN_DEFERRED[$unknown_model]:-}" ]]
+
+            # Run-wide quarantine is not reset when stage-local counters reset.
             unset MODEL_STAGE_TEMP_FAILURES
             declare -A MODEL_STAGE_TEMP_FAILURES=()
             [[ -n "${MODEL_RUN_DEFERRED[$model]:-}" && -n "${PROVIDER_RUN_DEFERRED[$provider]:-}" ]]
-          ) || {
+          )          ) || {
             echo "::error::Run-wide model/provider rate-limit quarantine regression test failed."
             exit 1
           }
@@ -1163,9 +1185,9 @@ jobs:
           echo "Autonomous router regression tests passed: round-robin, shared/model pool grouping, 100% quota target, ineligible routes, and empty-denominator handling."
 
           # run_stage <stage> <agent> <prompt> <candidate-model...>
-          # Temporary limits cool down the affected model/provider, allow other
-          # routes to run, and then automatically revisit the original prompt.
-          # Daily/shared quota exhaustion and permanent errors are not retried.
+          # Temporary limits cool down eligible routes while other providers run.
+          # Repeated confirmed model/provider rate limits are quarantined for the
+          # remainder of this workflow run; daily/monthly quota uses reset state.
           run_stage() {
             local stage="$1"
             local agent="$2"
@@ -1942,6 +1964,7 @@ jobs:
           # design notes, and TestEZ specs must not count as implementation;
           # project-owned runtime Luau and the Rojo project mapping must count.
           (
+            set -euo pipefail
             gate_repo="$(mktemp -d "$RUNNER_TEMP/pocket-habitat-progress-gate.XXXXXX")"
             trap 'rm -rf "$gate_repo"' EXIT
             mkdir -p "$gate_repo/src/server" "$gate_repo/src/shared/Tests"
@@ -2138,7 +2161,7 @@ jobs:
                 break
               fi
               if [[ "$RECOVERY_CONTEXT_ACTIVE" != "true" ]]; then
-                write_recovery_context "No configured implementation route completed cycle $round. Revisit temporarily limited routes after cooldown, try every still-eligible model, and inspect the route-attempt log. Do not abandon the original task."
+                write_recovery_context "No configured implementation route completed cycle $round. Continue with every still-eligible fallback route; routes quarantined after repeated confirmed rate limits remain skipped for this workflow run. Inspect the route-attempt log and preserve the original task."
               fi
             fi
 
