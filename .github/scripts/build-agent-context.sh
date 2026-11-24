@@ -46,7 +46,7 @@ extract_section() {
   echo
   echo '## Current task (bounded to 900 bytes)'
   printf '%s' "${CONTEXT_TASK:-Continue the highest-priority unfinished Pocket Habitat task.}" > "$section_file"
-  head -c 1400 "$section_file"
+  head -c 900 "$section_file"
   echo
   echo
   echo '## Working tree (first 20 entries)'
