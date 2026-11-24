@@ -212,6 +212,10 @@ jobs:
           declare -A MODEL_STAGE_TEMP_FAILURES=()
           declare -A MODEL_STAGE_EXHAUSTED=()
           declare -A MODEL_STAGE_OVERSIZE=()
+          declare -A MODEL_RUN_TEMP_FAILURES=()
+          declare -A PROVIDER_RUN_TEMP_FAILURES=()
+          declare -A MODEL_RUN_DEFERRED=()
+          declare -A PROVIDER_RUN_DEFERRED=()
           declare -A MODEL_COOLDOWN_UNTIL=()
           declare -A PROVIDER_COOLDOWN_UNTIL=()
           declare -A QUOTA_POOL_RESET_AT=()
@@ -256,7 +260,9 @@ jobs:
           # Each workflow execution has bounded local call, round, and wait budgets.
           # Eligible work can continue in fresh workflow executions without a
           # fixed cross-run count or wall-clock cutoff.
-          MAX_MODEL_TEMP_ATTEMPTS=4
+          MAX_MODEL_TEMP_ATTEMPTS=2
+          MAX_MODEL_RUN_TEMP_FAILURES=2
+          MAX_PROVIDER_RUN_TEMP_FAILURES=2
           MAX_STAGE_MODEL_CALLS=50
           MAX_MODEL_CALLS_PER_MODEL=8
           MAX_TOTAL_MODEL_CALLS=120
@@ -391,7 +397,9 @@ jobs:
               if [[ -n "${MODEL_ATTEMPTED[$model]:-}" ||
                     -n "${MODEL_STAGE_EXHAUSTED[$attempt_key]:-}" ||
                     -n "${MODEL_BLOCKED[$model]:-}" ||
-                    -n "${PROVIDER_BLOCKED[$provider]:-}" ]]; then
+                    -n "${PROVIDER_BLOCKED[$provider]:-}" ||
+                    -n "${MODEL_RUN_DEFERRED[$model]:-}" ||
+                    -n "${PROVIDER_RUN_DEFERRED[$provider]:-}" ]]; then
                 continue
               fi
               if [[ "${MODEL_RUN_CALLS[$model]:-0}" -ge "$MAX_MODEL_CALLS_PER_MODEL" ]]; then
@@ -1177,7 +1185,8 @@ jobs:
                 if [[ -n "${MODEL_ATTEMPTED[$model]:-}" ]]; then
                   continue
                 fi
-                if [[ -n "${MODEL_BLOCKED[$model]:-}" || -n "${PROVIDER_BLOCKED[$provider]:-}" ]]; then
+                if [[ -n "${MODEL_BLOCKED[$model]:-}" || -n "${PROVIDER_BLOCKED[$provider]:-}" ||
+                      -n "${MODEL_RUN_DEFERRED[$model]:-}" || -n "${PROVIDER_RUN_DEFERRED[$provider]:-}" ]]; then
                   continue
                 fi
                 pool_key="$(quota_pool_for_model "$model")"
@@ -1913,10 +1922,8 @@ jobs:
               break
             fi
 
-            # Reset per-cycle route/stage exclusions so temporary-limited models
-            # can be revisited after cooldown in later cycles. Daily quota blocks,
-            # permanent ineligibility, cooldown timestamps, and run-wide budgets
-            # remain intact. MAX_MODEL_TEMP_ATTEMPTS is therefore per stage/cycle.
+            # Reset only stage-local exclusions. Run-wide temporary-failure
+            # counters and deferred routes deliberately persist across cycles.
             unset MODEL_ATTEMPTED MODEL_STAGE_EXHAUSTED MODEL_STAGE_TEMP_FAILURES
             declare -A MODEL_ATTEMPTED=()
             declare -A MODEL_STAGE_EXHAUSTED=()
