@@ -44,27 +44,27 @@ extract_section() {
   printf -- '- Branch: %s\n' "$(git -C "$repo_root" branch --show-current 2>/dev/null || echo unknown)"
   printf -- '- HEAD: %s\n' "$(git -C "$repo_root" rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo
-  echo '## Current task (bounded to 1,400 bytes)'
+  echo '## Current task (bounded to 900 bytes)'
   printf '%s' "${CONTEXT_TASK:-Continue the highest-priority unfinished Pocket Habitat task.}" > "$section_file"
   head -c 1400 "$section_file"
   echo
   echo
   echo '## Working tree (first 20 entries)'
   git -C "$repo_root" status --short 2>/dev/null | sed -n '1,20p' || true
-  extract_section "$repo_root/docs/PROJECT_STATE.md" '## Current status' 'Project state' 2600
-  extract_section "$repo_root/docs/PROJECT_STATE.md" '## Next task' 'Documented next task' 1400
-  extract_section "$repo_root/docs/ROADMAP.md" '## Current priority' 'Roadmap priorities' 2200
+  extract_section "$repo_root/docs/PROJECT_STATE.md" '## Current status' 'Project state' 1700
+  extract_section "$repo_root/docs/PROJECT_STATE.md" '## Next task' 'Documented next task' 600
+  extract_section "$repo_root/docs/ROADMAP.md" '## Current priority' 'Roadmap priorities' 1400
   {
     echo
     echo '## Active recovery note'
     if [[ -f "$repo_root/docs/AUTONOMOUS_RECOVERY.md" ]]; then
-      head -c 2200 "$repo_root/docs/AUTONOMOUS_RECOVERY.md"
+      head -c 1200 "$repo_root/docs/AUTONOMOUS_RECOVERY.md"
     else
       echo 'No active recovery note is present.'
     fi
     echo
   }
-  extract_section "$repo_root/docs/TESTING.md" '## Last validated gameplay execution' 'Latest testing evidence' 1800
+  extract_section "$repo_root/docs/TESTING.md" '## Last validated gameplay execution' 'Latest testing evidence' 1000
   echo
   echo '## Context discipline'
   echo '- Do not reread whole project guides, architecture files, or historical run reports. Search headings, then read only relevant line ranges.'
@@ -74,8 +74,8 @@ extract_section() {
 } > "$output_file"
 
 context_bytes="$(wc -c < "$output_file")"
-if (( context_bytes > 11500 )); then
-  echo "ERROR=agent_context_exceeds_budget:$context_bytes" >&2
+if (( context_bytes > 8000 )); then
+  echo "ERROR=agent_context_exceeds_8000_byte_budget:$context_bytes" >&2
   exit 1
 fi
 
