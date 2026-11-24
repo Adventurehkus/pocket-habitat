@@ -18,7 +18,7 @@ extract_section() {
     printf '\n## %s\n\n' "$title"
     if [[ -f "$file" ]]; then
       awk -v heading="$heading" '
-        $0 == heading { active = 1; next }
+        index($0, heading) == 1 { active = 1; next }
         active && /^#{1,2} / { exit }
         active { print }
       ' "$file" > "$section_file"
