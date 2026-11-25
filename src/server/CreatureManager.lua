@@ -603,7 +603,7 @@ local function handleCreatureInteraction(
     end
 
     -- Record quest progress for interaction type
-    local questAction = if actionType == "feed" then "feed" else "discover"
+    local questAction = if actionType == "feed" then "feed" else "care"
     if not QuestRules.recordProgress(data.questProgress, questAction, def.id, 1) then
         warn(
             "Failed to record creature "
