@@ -264,7 +264,10 @@ jobs:
           # Eligible work can continue in fresh workflow executions without a
           # fixed cross-run count or wall-clock cutoff.
           MAX_MODEL_TEMP_ATTEMPTS=4
-          MAX_MODEL_RUN_TEMP_FAILURES=2
+          # Give a model-level RPM/TPM throttle the full stage retry window.
+          # Provider-wide limits remain at two failures because every route at
+          # that provider shares the same account-level bottleneck.
+          MAX_MODEL_RUN_TEMP_FAILURES=4
           MAX_PROVIDER_RUN_TEMP_FAILURES=2
           MAX_STAGE_MODEL_CALLS=50
           MAX_MODEL_CALLS_PER_MODEL=8
@@ -1066,7 +1069,7 @@ jobs:
           }
 
           (
-            MAX_MODEL_RUN_TEMP_FAILURES=2
+            MAX_MODEL_RUN_TEMP_FAILURES=4
             MAX_PROVIDER_RUN_TEMP_FAILURES=2
             MAX_MODEL_TEMP_ATTEMPTS=4
             declare -A MODEL_RUN_TEMP_FAILURES=()
@@ -1076,17 +1079,23 @@ jobs:
             declare -A MODEL_STAGE_TEMP_FAILURES=()
             declare -A MODEL_STAGE_EXHAUSTED=()
 
-            # Confirmed model rate limits quarantine only that model after two failures.
+            # Model-level TPM/RPM limits must retain the route through the full
+            # four-attempt stage budget so each provider Retry-After is honored.
             model="google/gemini-example"
-            for attempt in 1 2; do
+            for attempt in 1 2 3; do
               MODEL_RUN_TEMP_FAILURES["$model"]=$(("${MODEL_RUN_TEMP_FAILURES[$model]:-0}" + 1))
               if [[ "${MODEL_RUN_TEMP_FAILURES[$model]}" -ge "$MAX_MODEL_RUN_TEMP_FAILURES" ]]; then
                 MODEL_RUN_DEFERRED["$model"]="MODEL_RATE_LIMIT repeated"
               fi
             done
+            [[ -z "${MODEL_RUN_DEFERRED[$model]:-}" ]]
+            MODEL_RUN_TEMP_FAILURES["$model"]=$(("${MODEL_RUN_TEMP_FAILURES[$model]:-0}" + 1))
+            if [[ "${MODEL_RUN_TEMP_FAILURES[$model]}" -ge "$MAX_MODEL_RUN_TEMP_FAILURES" ]]; then
+              MODEL_RUN_DEFERRED["$model"]="MODEL_RATE_LIMIT repeated"
+            fi
             [[ -n "${MODEL_RUN_DEFERRED[$model]:-}" ]]
 
-            # Provider-wide 429s quarantine all models from that provider.
+            # Provider-wide 429s still quarantine the shared provider after two failures.
             provider="openrouter"
             PROVIDER_RUN_TEMP_FAILURES["$provider"]=1
             PROVIDER_RUN_TEMP_FAILURES["$provider"]=$(("${PROVIDER_RUN_TEMP_FAILURES[$provider]}" + 1))
