@@ -627,8 +627,8 @@ local function handleCreatureInteraction(
         end
     end
 
-    -- Handle friendship level up rewards
-    if result.friendshipLevelUp and result.friendshipRewards then
+    -- Handle friendship level up rewards (or bonus rewards)
+    if result.friendshipRewards then
         local rewards = result.friendshipRewards
         if rewards.bells and rewards.bells > 0 then
             EconomyManager.addBells(player, rewards.bells)
@@ -670,11 +670,13 @@ local function handleCreatureInteraction(
     -- Add friendship progress info to message
     if result.friendshipProgress then
         message = message .. " (Friendship Level " .. tostring(result.friendshipProgress) .. ")"
-        if result.friendshipLevelUp and result.friendshipRewards then
-            message = message
-                .. " 🎉 Level Up! +"
-                .. tostring(result.friendshipRewards.bells)
-                .. " Bells"
+        if result.friendshipRewards then
+            if result.friendshipLevelUp then
+                message = message
+                    .. " 🎉 Level Up! +"
+                    .. tostring(result.friendshipRewards.bells)
+                    .. " Bells"
+            end
             if result.friendshipRewards.items then
                 for itemId, amount in pairs(result.friendshipRewards.items) do
                     message = message .. ", " .. tostring(amount) .. "x " .. itemId

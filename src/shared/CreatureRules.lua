@@ -253,6 +253,19 @@ local function validateFeeding(
 
     local newLevel, leveledUp, rewards = addFriendshipXP(playerData, creatureId, feedXP, now)
 
+    -- If max level friendship and favorite food, add bonus rare item (e.g., Moonflower seed)
+    if isFavorite and newLevel >= Constants.CREATURE_FRIENDSHIP.MAX_LEVEL then
+        if not rewards then
+            rewards = { bells = 0, items = {} }
+        end
+        if not rewards.items then
+            rewards.items = {}
+        end
+        rewards.items[Constants.RESOURCES.SEED_MOONFLOWER] = (
+            rewards.items[Constants.RESOURCES.SEED_MOONFLOWER] or 0
+        ) + 1
+    end
+
     return {
         success = true,
         creature = creatureDef,
