@@ -193,12 +193,7 @@ describe("CreatureRules — friendship progression system", function()
         data.creatures.bunny.totalInteractions = 0
         data.inventory["crop_berry"] = 10
 
-        CreatureRules.validateInteraction(
-            data,
-            "bunny",
-            "feed",
-            os.time() * 1000 + 1000
-        )
+        CreatureRules.validateInteraction(data, "bunny", "feed", os.time() * 1000 + 1000)
         local feedXP = data.creatures.bunny.friendshipXP
 
         expect(feedXP).to.be.greaterThan(petXP)
@@ -211,8 +206,7 @@ describe("CreatureRules — friendship progression system", function()
         -- Feed with non-favorite food (dewdrop) - but bunny's favorite is crop_berry
         -- Actually test with favorite food vs... well, feed only works with favorite food
         -- So this test verifies the favorite food bonus is included
-        local feedResult =
-            CreatureRules.validateInteraction(data, "bunny", "feed", os.time() * 1000)
+        CreatureRules.validateInteraction(data, "bunny", "feed", os.time() * 1000)
         local feedXP = data.creatures.bunny.friendshipXP
 
         -- Expected: FEED_XP + FAVORITE_FOOD_BONUS_XP = 15 + 10 = 25
