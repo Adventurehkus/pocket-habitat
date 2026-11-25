@@ -1539,24 +1539,33 @@ return function()
             -- Test pet interaction XP
             local petResult = _CreatureRules.validateInteraction(data, "bunny", "care", NOW_TEST)
             expect(petResult.success).to.equal(true)
-            expect(data.creatures.bunny.friendshipXP).to.equal(_Constants.CREATURE_FRIENDSHIP.PET_XP)
+            expect(data.creatures.bunny.friendshipXP).to.equal(
+                _Constants.CREATURE_FRIENDSHIP.PET_XP
+            )
 
             -- Test feed interaction XP (with favorite food bonus)
-            local feedResult = _CreatureRules.validateInteraction(data, "bunny", "feed", NOW_TEST + 600_001)
+            local feedResult =
+                _CreatureRules.validateInteraction(data, "bunny", "feed", NOW_TEST + 600_001)
             expect(feedResult.success).to.equal(true)
-            local expectedFeedXP = _Constants.CREATURE_FRIENDSHIP.FEED_XP + _Constants.CREATURE_FRIENDSHIP.FAVORITE_FOOD_BONUS_XP
-            expect(data.creatures.bunny.friendshipXP).to.equal(_Constants.CREATURE_FRIENDSHIP.PET_XP + expectedFeedXP)
+            local expectedFeedXP = _Constants.CREATURE_FRIENDSHIP.FEED_XP
+                + _Constants.CREATURE_FRIENDSHIP.FAVORITE_FOOD_BONUS_XP
+            expect(data.creatures.bunny.friendshipXP).to.equal(
+                _Constants.CREATURE_FRIENDSHIP.PET_XP + expectedFeedXP
+            )
 
             -- Test friendship level up rewards
             data.creatures.bunny.friendshipLevel = 1
             data.creatures.bunny.friendshipXP = _Constants.CREATURE_FRIENDSHIP.XP_PER_LEVEL
             data.creatures.bunny.totalInteractions = 10
 
-            local levelUpResult = _CreatureRules.validateInteraction(data, "bunny", "care", NOW_TEST + 1_200_001)
+            local levelUpResult =
+                _CreatureRules.validateInteraction(data, "bunny", "care", NOW_TEST + 1_200_001)
             expect(levelUpResult.success).to.equal(true)
             expect(levelUpResult.friendshipLevelUp).to.equal(true)
             expect(levelUpResult.friendshipRewards).to.be.ok()
-            expect(levelUpResult.friendshipRewards.bells).to.equal(_Constants.CREATURE_FRIENDSHIP.REWARDS[2].bells)
+            expect(levelUpResult.friendshipRewards.bells).to.equal(
+                _Constants.CREATURE_FRIENDSHIP.REWARDS[2].bells
+            )
         end)
     end)
 end

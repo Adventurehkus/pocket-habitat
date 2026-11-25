@@ -595,7 +595,7 @@ local function handleCreatureInteraction(
     local now = os.time() * 1000
 
     -- Execute interaction with server-authority validation via CreatureRules
-    local action = if actionType == "feed" then "feed" else "care" end
+    local action = if actionType == "feed" then "feed" else "care"
     local result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
 
     if not result or not result.success then
@@ -603,9 +603,14 @@ local function handleCreatureInteraction(
     end
 
     -- Record quest progress for interaction type
-    local questAction = if actionType == "feed" then "feed" else "discover" end
+    local questAction = if actionType == "feed" then "feed" else "discover"
     if not QuestRules.recordProgress(data.questProgress, questAction, def.id, 1) then
-        warn("Failed to record creature " .. questAction .. " progress for user " .. tostring(player.UserId))
+        warn(
+            "Failed to record creature "
+                .. questAction
+                .. " progress for user "
+                .. tostring(player.UserId)
+        )
     end
 
     -- Small progress towards creature-specific quests if available
@@ -666,7 +671,10 @@ local function handleCreatureInteraction(
     if result.friendshipProgress then
         message = message .. " (Friendship Level " .. tostring(result.friendshipProgress) .. ")"
         if result.friendshipLevelUp and result.friendshipRewards then
-            message = message .. " 🎉 Level Up! +" .. tostring(result.friendshipRewards.bells) .. " Bells"
+            message = message
+                .. " 🎉 Level Up! +"
+                .. tostring(result.friendshipRewards.bells)
+                .. " Bells"
             if result.friendshipRewards.items then
                 for itemId, amount in pairs(result.friendshipRewards.items) do
                     message = message .. ", " .. tostring(amount) .. "x " .. itemId
