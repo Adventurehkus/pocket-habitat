@@ -7,6 +7,13 @@ export type InventoryItem = {
     quantity: number,
 }
 
+export type CreatureFriendshipData = {
+    friendshipLevel: number,
+    friendshipXP: number,
+    totalInteractions: number,
+    lastInteractionTime: number,
+}
+
 export type PlayerData = {
     userId: number,
     bells: number,
@@ -15,6 +22,7 @@ export type PlayerData = {
     currentQuest: string?,
     questProgress: { [string]: number },
     creaturesDiscovered: { [string]: boolean },
+    creatures: { [string]: CreatureFriendshipData },
     upgrades: { [string]: number },
     plots: {
         [number]: { seedId: string?, plantedTime: number, waterCount: number, stage: number },

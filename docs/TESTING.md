@@ -101,5 +101,5 @@ This fix is structurally tested locally and in the workflow's embedded regressio
 2. Resource cooldowns and idempotent rewards.
 3. DataStore save/rejoin without data loss.
 4. Creature isolation and habitat-scoped interactions.
-5. Cross-player request rejection and ownership isolation.
+5. Cross-player request rejection and ownership isolation (confirmed: `CreatureManager.handleCreatureInteraction`).
 6. Join/respawn, gathering-to-harvest, quests, upgrades, and player-facing feedback.

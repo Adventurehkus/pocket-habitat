@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Constants = require(Shared:WaitForChild("Constants"))
 local EconomyRules = require(Shared:WaitForChild("EconomyRules"))
+local CreatureRules = require(Shared:WaitForChild("CreatureRules"))
 
 local QuestRules = {}
 
@@ -14,6 +15,8 @@ local validTargets = table.freeze({
     harvest = true,
     discover = true,
     upgrade = true,
+    friendship = true,
+    friendship_multi = true,
 })
 QuestRules.validTargets = validTargets
 
@@ -44,12 +47,14 @@ local function progressKey(targetType: any, targetId: any?): string?
 end
 
 local function isValidProgressValue(targetType: string, targetId: string?, value: number): boolean
-    if targetType ~= "upgrade" then
-        return true
+    if targetType == "upgrade" then
+        local upgradeDef = if targetId then Constants.UPGRADES[targetId] else nil
+        return upgradeDef ~= nil and value <= upgradeDef.maxLevel
     end
-
-    local upgradeDef = if targetId then Constants.UPGRADES[targetId] else nil
-    return upgradeDef ~= nil and value <= upgradeDef.maxLevel
+    if targetType == "friendship" or targetType == "friendship_multi" then
+        return value <= Constants.CREATURE_FRIENDSHIP.MAX_LEVEL
+    end
+    return true
 end
 
 function QuestRules.isValidProgress(progress: any): boolean
@@ -150,6 +155,18 @@ function QuestRules.isComplete(progress: any, questDef: any): boolean
         return false
     end
 
+    if questDef.targetType == "friendship" then
+        -- For friendship quests, we check the creature friendship levels from player data
+        -- This will be validated in tryClaim where we have access to full player data
+        return true -- Delegate to tryClaim for actual validation
+    end
+
+    if questDef.targetType == "friendship_multi" then
+        -- For friendship_multi quests, we check how many creatures are at target level
+        -- This will be validated in tryClaim where we have access to full player data
+        return true -- Delegate to tryClaim for actual validation
+    end
+
     local current = QuestRules.getProgress(progress, questDef.targetType, questDef.targetItemId)
     return current ~= nil and current >= questDef.targetCount
 end
@@ -175,6 +192,7 @@ function QuestRules.tryClaim(data: any, questId: any): (boolean, string?)
         or type(data.inventory) ~= "table"
         or type(data.upgrades) ~= "table"
         or type(data.creaturesDiscovered) ~= "table"
+        or type(data.creatures) ~= "table"
         or not QuestRules.isValidProgress(data.questProgress)
         or not isInteger(data.bells, true)
     then
@@ -213,6 +231,22 @@ function QuestRules.tryClaim(data: any, questId: any): (boolean, string?)
         local upgradeId = questDef.targetItemId
         completed = type(upgradeId) == "string"
             and (data.upgrades[upgradeId] or 1) >= questDef.targetCount
+    elseif questDef.targetType == "friendship" then
+        -- Check if any creature has reached the target friendship level
+        local targetLevel = questDef.targetCount
+        local count, err = CreatureRules.getCreaturesAtFriendshipLevel(data, targetLevel)
+        if not count or err then
+            return false, err or "Invalid friendship data"
+        end
+        completed = count >= 1
+    elseif questDef.targetType == "friendship_multi" then
+        -- Check if targetCount different creatures have reached the target friendship level
+        local targetLevel = questDef.targetCount
+        local count, err = CreatureRules.getCreaturesAtFriendshipLevel(data, targetLevel)
+        if not count or err then
+            return false, err or "Invalid friendship data"
+        end
+        completed = count >= questDef.targetCount
     else
         completed = QuestRules.isComplete(data.questProgress, questDef)
     end

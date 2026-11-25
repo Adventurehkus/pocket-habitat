@@ -357,6 +357,55 @@ Constants.QUESTS = {
         targetCount = 5,
         rewardBells = 150,
     },
+    q11_friendship = {
+        id = "q11_friendship",
+        title = "Befriend a Creature",
+        description = "Reach friendship level 2 with any creature by petting and feeding them.",
+        targetType = "friendship",
+        targetCount = 2,
+        rewardBells = 75,
+        rewardItems = { [Constants.RESOURCES.CROP_FLOWER] = 1 },
+    },
+    q12_deep_bond = {
+        id = "q12_deep_bond",
+        title = "Deep Bond",
+        description = "Reach maximum friendship level (5) with any creature.",
+        targetType = "friendship",
+        targetCount = 5,
+        rewardBells = 250,
+        rewardItems = { [Constants.RESOURCES.SEED_MOONFLOWER] = 1 },
+    },
+    q13_creature_caretaker = {
+        id = "q13_creature_caretaker",
+        title = "Creature Caretaker",
+        description = "Reach friendship level 3 with three different creatures.",
+        targetType = "friendship_multi",
+        targetCount = 3,
+        rewardBells = 300,
+        rewardItems = { [Constants.RESOURCES.SEED_GLOWCAP] = 1 },
+    },
+}
+
+-- Creature Feeding Cooldown
+-- Minimum minutes between feedings for creature care mechanism
+Constants.CREATURE_COOLDOWN_MINUTES = 10
+
+-- Creature Friendship System
+Constants.CREATURE_FRIENDSHIP = {
+    MAX_LEVEL = 5,
+    BASE_XP_PER_INTERACTION = 10,
+    XP_PER_LEVEL = 100,
+    PET_XP = 5,
+    FEED_XP = 15,
+    FAVORITE_FOOD_BONUS_XP = 10,
+    REWARDS = {
+        -- Per-level rewards (bells, items)
+        [1] = { bells = 25, items = {} },
+        [2] = { bells = 50, items = { [Constants.RESOURCES.DEWDROP] = 2 } },
+        [3] = { bells = 100, items = { [Constants.RESOURCES.CROP_BERRY] = 1 } },
+        [4] = { bells = 200, items = { [Constants.RESOURCES.SEED_FLOWER] = 1 } },
+        [5] = { bells = 500, items = { [Constants.RESOURCES.SEED_SUNPETAL] = 1 } },
+    },
 }
 
 Constants.QUEST_ORDER = {
@@ -370,6 +419,9 @@ Constants.QUEST_ORDER = {
     "q8_owned_plots",
     "q9_leafling",
     "q10_discovery",
+    "q11_friendship",
+    "q12_deep_bond",
+    "q13_creature_caretaker",
 }
 
 return Constants

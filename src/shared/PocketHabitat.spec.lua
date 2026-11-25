@@ -1418,4 +1418,145 @@ return function()
             expect(data.bells).to.equal(70)
         end)
     end)
+
+    describe("Creature Friendship Progression — Integrated Vertical Slice", function()
+        local _Constants = require(script.Parent.Parent.Constants)
+        local _QuestRules = require(script.Parent.Parent.QuestRules)
+        local _CreatureRules = require(script.Parent.Parent.CreatureRules)
+
+        local NOW_TEST = 10_000
+        local CROP_BERRY = _Constants.RESOURCES.CROP_BERRY
+        local CROP_FLOWER = _Constants.RESOURCES.CROP_FLOWER
+        local SEED_MOONFLOWER = _Constants.RESOURCES.SEED_MOONFLOWER
+        local SEED_GLOWCAP = _Constants.RESOURCES.SEED_GLOWCAP
+
+        local function makeFriendshipData()
+            return {
+                bells = 100,
+                inventory = {
+                    [CROP_BERRY] = 50,
+                },
+                creatures = {},
+                creaturesDiscovered = {
+                    bunny = true,
+                    sprite = true,
+                    leafling = true,
+                },
+                questProgress = {},
+                questsCompleted = {},
+                currentQuest = "q11_friendship",
+                resourceCooldowns = {},
+                upgrades = { storage_expansion = 1 },
+            }
+        end
+
+        local function setCreatureFriendship(data: any, creatureId: string, level: number)
+            local xpPerLevel = _Constants.CREATURE_FRIENDSHIP.XP_PER_LEVEL
+            data.creatures[creatureId] = {
+                friendshipLevel = level,
+                friendshipXP = level * xpPerLevel,
+                totalInteractions = level * 5,
+                lastInteractionTime = NOW_TEST,
+                care = { fedCount = 0, totalFeedings = 0 },
+            }
+        end
+
+        it("q11_friendship — befriend a creature to level 2", function()
+            local data = makeFriendshipData()
+            data.currentQuest = "q11_friendship"
+            setCreatureFriendship(data, "bunny", 2)
+
+            local success = _QuestRules.tryClaim(data, "q11_friendship")
+            expect(success).to.equal(true)
+            expect(data.questsCompleted.q11_friendship).to.equal(true)
+            expect(data.currentQuest).to.equal("q12_deep_bond")
+            expect(data.bells).to.equal(175) -- 100 + 75
+            expect(data.inventory[CROP_FLOWER]).to.equal(1)
+        end)
+
+        it("q11_friendship — fails when no creature at level 2", function()
+            local data = makeFriendshipData()
+            data.currentQuest = "q11_friendship"
+            setCreatureFriendship(data, "bunny", 1)
+
+            local success = _QuestRules.tryClaim(data, "q11_friendship")
+            expect(success).to.equal(false)
+        end)
+
+        it("q12_deep_bond — reach max friendship level 5 with a creature", function()
+            local data = makeFriendshipData()
+            data.currentQuest = "q12_deep_bond"
+            setCreatureFriendship(data, "bunny", 5)
+
+            local success = _QuestRules.tryClaim(data, "q12_deep_bond")
+            expect(success).to.equal(true)
+            expect(data.questsCompleted.q12_deep_bond).to.equal(true)
+            expect(data.currentQuest).to.equal("q13_creature_caretaker")
+            expect(data.bells).to.equal(350) -- 100 + 250
+            expect(data.inventory[SEED_MOONFLOWER]).to.equal(1)
+        end)
+
+        it("q12_deep_bond — fails when creature below max level", function()
+            local data = makeFriendshipData()
+            data.currentQuest = "q12_deep_bond"
+            setCreatureFriendship(data, "bunny", 4)
+
+            local success = _QuestRules.tryClaim(data, "q12_deep_bond")
+            expect(success).to.equal(false)
+        end)
+
+        it("q13_creature_caretaker — three creatures at friendship level 3", function()
+            local data = makeFriendshipData()
+            data.currentQuest = "q13_creature_caretaker"
+            setCreatureFriendship(data, "bunny", 3)
+            setCreatureFriendship(data, "sprite", 3)
+            setCreatureFriendship(data, "leafling", 3)
+
+            local success = _QuestRules.tryClaim(data, "q13_creature_caretaker")
+            expect(success).to.equal(true)
+            expect(data.questsCompleted.q13_creature_caretaker).to.equal(true)
+            expect(data.currentQuest).to.equal(nil) -- Final quest
+            expect(data.bells).to.equal(400) -- 100 + 300
+            expect(data.inventory[SEED_GLOWCAP]).to.equal(1)
+        end)
+
+        it("q13_creature_caretaker — fails with only two creatures at level 3", function()
+            local data = makeFriendshipData()
+            data.currentQuest = "q13_creature_caretaker"
+            setCreatureFriendship(data, "bunny", 3)
+            setCreatureFriendship(data, "sprite", 3)
+            setCreatureFriendship(data, "leafling", 2)
+
+            local success = _QuestRules.tryClaim(data, "q13_creature_caretaker")
+            expect(success).to.equal(false)
+        end)
+
+        it("CreatureRules friendship XP and rewards match Constants", function()
+            local data = makeFriendshipData()
+            data.creaturesDiscovered.bunny = true
+            data.inventory[CROP_BERRY] = 50
+
+            -- Test pet interaction XP
+            local petResult = _CreatureRules.validateInteraction(data, "bunny", "care", NOW_TEST)
+            expect(petResult.success).to.equal(true)
+            expect(data.creatures.bunny.friendshipXP).to.equal(_Constants.CREATURE_FRIENDSHIP.PET_XP)
+
+            -- Test feed interaction XP (with favorite food bonus)
+            local feedResult = _CreatureRules.validateInteraction(data, "bunny", "feed", NOW_TEST + 600_001)
+            expect(feedResult.success).to.equal(true)
+            local expectedFeedXP = _Constants.CREATURE_FRIENDSHIP.FEED_XP + _Constants.CREATURE_FRIENDSHIP.FAVORITE_FOOD_BONUS_XP
+            expect(data.creatures.bunny.friendshipXP).to.equal(_Constants.CREATURE_FRIENDSHIP.PET_XP + expectedFeedXP)
+
+            -- Test friendship level up rewards
+            data.creatures.bunny.friendshipLevel = 1
+            data.creatures.bunny.friendshipXP = _Constants.CREATURE_FRIENDSHIP.XP_PER_LEVEL
+            data.creatures.bunny.totalInteractions = 10
+
+            local levelUpResult = _CreatureRules.validateInteraction(data, "bunny", "care", NOW_TEST + 1_200_001)
+            expect(levelUpResult.success).to.equal(true)
+            expect(levelUpResult.friendshipLevelUp).to.equal(true)
+            expect(levelUpResult.friendshipRewards).to.be.ok()
+            expect(levelUpResult.friendshipRewards.bells).to.equal(_Constants.CREATURE_FRIENDSHIP.REWARDS[2].bells)
+        end)
+    end)
 end

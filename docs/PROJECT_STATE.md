@@ -19,7 +19,10 @@ The accumulated cycle-2 source diff from run 175 has been independently reviewed
 - Recovery classification: Governance artifact resolved; no gameplay defects
 
 **Vertical slice verification:**
-1. **Seed-to-Plant-to-Creature cycle (source-level) — COMPLETE**
+1. **Creature Ownership Enforcement (HIGH) — COMPLETE (Cycle 180)**
+   - `CreatureManager.handleCreatureInteraction` now validates `ownerUserId` to prevent cross-player interaction.
+
+2. **Seed-to-Plant-to-Creature cycle (source-level) — COMPLETE**
    Gather → Plant → Water → Harvest → Claim Quest → Discover Creature → Purchase Upgrade (all server-authority checks)
 
 2. **Decorative Tile implementation — COMPLETE (Cycle 164)**

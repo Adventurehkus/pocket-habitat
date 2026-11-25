@@ -513,7 +513,7 @@ function CreatureManager.cleanupPlayer(player: Player)
     end
 end
 
--- Handle creature interaction (petting)
+-- Handle creature interaction (petting/feeding)
 local function handleCreatureInteraction(
     player: Player,
     creatureId: string,
@@ -566,6 +566,10 @@ local function handleCreatureInteraction(
         return false, "Creature attributes missing"
     end
 
+    if ownerUserIdAttr ~= player.UserId then
+        return false, "Not your creature"
+    end
+
     if creatureIdAttr ~= creatureId then
         return false, "Creature ID mismatch"
     end
@@ -588,77 +592,93 @@ local function handleCreatureInteraction(
         return false, "Invalid creature type"
     end
 
-    -- Handle pet interaction
-    local function doPetInteraction()
-        -- Reward: small amount of creature affection/progress for quest tracking
-        -- Creature discovery is tracked separately via checkDiscoveries
-        if not QuestRules.recordProgress(data.questProgress, "discover", def.creatureId, 1) then
-            warn("Failed to record creature pet progress for user " .. tostring(player.UserId))
-        end
+    local now = os.time() * 1000
 
-        -- Small progress towards creature-specific quests if available
-        if def.finalReadySpecies and #def.finalReadySpecies > 0 then
-            if
-                not QuestRules.recordProgress(
-                    data.questProgress,
-                    "discover",
-                    def.finalReadySpecies[1],
-                    1
-                )
-            then
-                warn("Failed to record final species progress for user " .. tostring(player.UserId))
-            end
-        end
+    -- Execute interaction with server-authority validation via CreatureRules
+    local action = if actionType == "feed" then "feed" else "care" end
+    local result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
 
-        -- Fisher-Yates shuffle for random creature name
-        local names = def.petNames
-            or { "Fluffy", "Wiggles", "Snuggles", "Bouncy", "Sparkles", "Paws" }
-        local randomIndex = math.random(1, #names)
-        local randomName = names[randomIndex]
-
-        local message = "Petting " .. def.name .. ": " .. randomName .. "!"
-        RemoteEvents.SyncData:FireClient(player, data)
-        RemoteEvents.Notification:FireClient(player, message)
-
-        return true, "Success"
+    if not result or not result.success then
+        return false, reason or "Interaction failed"
     end
 
-    -- Handle creature feeding interaction
-    local function doFeedInteraction(feedFoodId: string)
-        if not EconomyManager.removeItem(player, feedFoodId, 1) then
-            return false, "No food to feed!"
-        end
+    -- Record quest progress for interaction type
+    local questAction = if actionType == "feed" then "feed" else "discover" end
+    if not QuestRules.recordProgress(data.questProgress, questAction, def.id, 1) then
+        warn("Failed to record creature " .. questAction .. " progress for user " .. tostring(player.UserId))
+    end
 
-        local isFavorite = (def.favoriteFood == feedFoodId)
+    -- Small progress towards creature-specific quests if available
+    if def.finalReadySpecies and #def.finalReadySpecies > 0 then
+        if
+            not QuestRules.recordProgress(
+                data.questProgress,
+                "discover",
+                def.finalReadySpecies[1],
+                1
+            )
+        then
+            warn("Failed to record final species progress for user " .. tostring(player.UserId))
+        end
+    end
+
+    -- Handle friendship level up rewards
+    if result.friendshipLevelUp and result.friendshipRewards then
+        local rewards = result.friendshipRewards
+        if rewards.bells and rewards.bells > 0 then
+            EconomyManager.addBells(player, rewards.bells)
+        end
+        if rewards.items then
+            for itemId, amount in pairs(rewards.items) do
+                EconomyManager.addItem(player, itemId, amount)
+            end
+        end
+    end
+
+    -- Build notification message
+    local message = ""
+    if actionType == "feed" then
+        local isFavorite = (def.favoriteFood == foodId)
         local reward = isFavorite and 20 or 5
         EconomyManager.addBells(player, reward)
 
-        -- Reward: small progress towards creature affection/quests
-        if not QuestRules.recordProgress(data.questProgress, "feed", def.id, 1) then
-            warn("Failed to record creature feed progress for user " .. tostring(player.UserId))
-        end
-
-        local message = "Fed "
+        message = "Fed "
             .. def.name
             .. " some "
-            .. feedFoodId
+            .. tostring(foodId)
             .. "! You earned "
             .. tostring(reward)
             .. " bells."
         if isFavorite then
             message = "Fed " .. def.name .. " their favorite treat! " .. message
         end
-        RemoteEvents.SyncData:FireClient(player, data)
-        RemoteEvents.Notification:FireClient(player, message)
+    else
+        -- Pet interaction message
+        local names = def.petNames
+            or { "Fluffy", "Wiggles", "Snuggles", "Bouncy", "Sparkles", "Paws" }
+        local randomIndex = math.random(1, #names)
+        local randomName = names[randomIndex]
 
-        return true, "Success"
+        message = "Petting " .. def.name .. ": " .. randomName .. "!"
     end
 
-    -- Execute interaction with server-authority validation
-    if actionType == "feed" and foodId then
-        return doFeedInteraction(foodId)
+    -- Add friendship progress info to message
+    if result.friendshipProgress then
+        message = message .. " (Friendship Level " .. tostring(result.friendshipProgress) .. ")"
+        if result.friendshipLevelUp and result.friendshipRewards then
+            message = message .. " 🎉 Level Up! +" .. tostring(result.friendshipRewards.bells) .. " Bells"
+            if result.friendshipRewards.items then
+                for itemId, amount in pairs(result.friendshipRewards.items) do
+                    message = message .. ", " .. tostring(amount) .. "x " .. itemId
+                end
+            end
+        end
     end
-    return doPetInteraction()
+
+    RemoteEvents.SyncData:FireClient(player, data)
+    RemoteEvents.Notification:FireClient(player, message)
+
+    return true, "Success"
 end
 
 function CreatureManager.init()

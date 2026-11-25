@@ -73,6 +73,7 @@ local function makeDefaultSessionData(userId: number)
         currentQuest = Constants.QUEST_ORDER[1],
         questProgress = {},
         creaturesDiscovered = {},
+        creatures = {},
         upgrades = {},
         resourceCooldowns = {},
         plots = plots,
@@ -256,6 +257,38 @@ local function normalizeSessionData(
     for creatureId, discovered in pairs(data.creaturesDiscovered) do
         if type(creatureId) ~= "string" or type(discovered) ~= "boolean" then
             return nil, "Malformed creature discovery entry"
+        end
+    end
+
+    if data.creatures == nil then
+        data.creatures = {}
+    end
+    if type(data.creatures) ~= "table" then
+        return nil, "Malformed creature friendship data"
+    end
+    for creatureId, creatureData in pairs(data.creatures) do
+        if type(creatureId) ~= "string" or type(creatureData) ~= "table" then
+            return nil, "Malformed creature friendship entry"
+        end
+        local friendshipLevel = creatureData.friendshipLevel
+        local friendshipXP = creatureData.friendshipXP
+        local totalInteractions = creatureData.totalInteractions
+        local lastInteractionTime = creatureData.lastInteractionTime
+        if
+            not isFiniteNumber(friendshipLevel)
+            or friendshipLevel < 0
+            or friendshipLevel % 1 ~= 0
+            or friendshipLevel > Constants.CREATURE_FRIENDSHIP.MAX_LEVEL
+            or not isFiniteNumber(friendshipXP)
+            or friendshipXP < 0
+            or friendshipXP % 1 ~= 0
+            or not isFiniteNumber(totalInteractions)
+            or totalInteractions < 0
+            or totalInteractions % 1 ~= 0
+            or not isFiniteNumber(lastInteractionTime)
+            or lastInteractionTime < 0
+        then
+            return nil, "Malformed creature friendship values"
         end
     end
 
