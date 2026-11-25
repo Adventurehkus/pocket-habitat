@@ -185,7 +185,7 @@ describe("CreatureRules — friendship progression system", function()
         local data = makePlayerData()
         setupDiscoveredCreature(data, "bunny", 10)
 
-        local petResult = CreatureRules.validateInteraction(data, "bunny", "care", os.time() * 1000)
+        CreatureRules.validateInteraction(data, "bunny", "care", os.time() * 1000)
         local petXP = data.creatures.bunny.friendshipXP
 
         data.creatures.bunny.friendshipXP = 0
@@ -193,8 +193,12 @@ describe("CreatureRules — friendship progression system", function()
         data.creatures.bunny.totalInteractions = 0
         data.inventory["crop_berry"] = 10
 
-        local feedResult =
-            CreatureRules.validateInteraction(data, "bunny", "feed", os.time() * 1000 + 1000)
+        CreatureRules.validateInteraction(
+            data,
+            "bunny",
+            "feed",
+            os.time() * 1000 + 1000
+        )
         local feedXP = data.creatures.bunny.friendshipXP
 
         expect(feedXP).to.be.greaterThan(petXP)
