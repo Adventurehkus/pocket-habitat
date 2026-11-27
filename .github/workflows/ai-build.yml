@@ -229,6 +229,7 @@ jobs:
           declare -A STAGE_PROVIDER=()
           declare -A STAGE_LOG=()
           MODEL_CHAIN=()
+          NEXT_RUN_RETRY_AT=0
           STAGE_FILES=()
           RUN_COUNTER=0
           TOTAL_MODEL_CALLS=0
@@ -824,6 +825,21 @@ jobs:
           PY
           }
 
+          # Preserve transient Google input-TPM deadlines across workflow handoffs.
+          # A five-minute floor lets the rolling minute-token bucket replenish.
+          handoff_retry_epoch() {
+            local provider="$1"
+            local log_file="$2"
+            local now_epoch="$3"
+            local delay_seconds="$4"
+            if [[ "$provider" == "google" ]] && grep -Eiq 'input tokens per minute|input token count per minute' "$log_file"; then
+              if (( delay_seconds < 300 )); then
+                delay_seconds=300
+              fi
+            fi
+            printf '%s' "$((now_epoch + delay_seconds))"
+          }
+
           # Return YES, NO, or INVALID from a reviewer transcript. Strip terminal
           # color codes first because some CLI renderers decorate the first line.
           review_decision() {
@@ -939,8 +955,19 @@ jobs:
             echo "::error::Retry-After parser failed the header regression test: $parsed_retry_delay"
             exit 1
           fi
+          printf '%s\\n' 'Generate content free tier input token count per minute limit exceeded. Please retry in 43.4s.' > "$retry_delay_test_file"
+          handoff_deadline="$(handoff_retry_epoch google "$retry_delay_test_file" 1000 49)"
+          if [[ "$handoff_deadline" -ne 1300 ]]; then
+            echo "::error::Google input-TPM handoff cooldown must be at least 300 seconds; got $((handoff_deadline - 1000))s."
+            exit 1
+          fi
+          handoff_deadline="$(handoff_retry_epoch groq "$retry_delay_test_file" 1000 49)"
+          if [[ "$handoff_deadline" -ne 1049 ]]; then
+            echo "::error::Non-Google handoff cooldown must preserve the provider retry delay; got $((handoff_deadline - 1000))s."
+            exit 1
+          fi
           rm -f "$retry_delay_test_file"
-          echo "Retry delay parser regression tests passed."
+          echo "Retry delay and cross-run handoff cooldown regression tests passed."
 
           review_classifier_test_file="$RUNNER_TEMP/review-classifier-test.log"
           printf '%s\n' 'REVIEW_FINDINGS: YES' > "$review_classifier_test_file"
@@ -1206,7 +1233,7 @@ jobs:
             local prompt="$3"
             shift 3
             local -a candidates=("$@")
-            local model provider status retry_count delay log_file
+            local model provider status retry_count delay log_file retry_at
             local attempt_key cooldown_until provider_cooldown earliest_cooldown now wait_seconds
             local remaining_stage remaining_total failure_class stage_deadline
             local stage_calls stage_temp_events temp_failure_count pool_key role_name reset_at reset_label
@@ -1486,8 +1513,18 @@ jobs:
                         fi
                         ;;
                     esac
-                    if [[ "$defer_route" != "true" ]]; then
-                      delay="$(retry_delay_seconds "$log_file" "$temp_failure_count" "$failure_class")"
+                    delay="$(retry_delay_seconds "$log_file" "$temp_failure_count" "$failure_class")"
+                    if [[ "$defer_route" == "true" ]]; then
+                      # Preserve the final Retry-After although this route is
+                      # quarantined for the remainder of this run.
+                      retry_at="$(handoff_retry_epoch "$provider" "$log_file" "$now" "$delay")"
+                      if [[ "$NEXT_RUN_RETRY_AT" -eq 0 || "$retry_at" -lt "$NEXT_RUN_RETRY_AT" ]]; then
+                        NEXT_RUN_RETRY_AT="$retry_at"
+                      fi
+                      retry_at_utc="$(date -u -d "@$retry_at" +%Y-%m-%dT%H:%M:%SZ)"
+                      record_attempt "$stage" "$provider" "$model" "$retry_count" "HANDOFF_COOLDOWN" "$failure_class; next workflow retry not before $retry_at_utc"
+                      echo "::notice::$provider/$model reached its run-wide temporary-limit cap; the next workflow will wait until $retry_at_utc before retrying."
+                    else
                       MODEL_COOLDOWN_UNTIL["$model"]=$((now + delay))
                       if [[ "$failure_class" == "PROVIDER_RATE_LIMIT" ]]; then
                         PROVIDER_COOLDOWN_UNTIL["$provider"]=$((now + delay))
@@ -2604,6 +2641,10 @@ jobs:
             fi
           fi
 
+          if [[ "$AUTO_CONTINUE" == "true" && "$NEXT_RUN_RETRY_AT" =~ ^[0-9]+$ ]] && (( NEXT_RUN_RETRY_AT > 0 )); then
+            QUOTA_RETRY_AT="$NEXT_RUN_RETRY_AT"
+          fi
+
           # A separate scheduled workflow handles 100%-exhausted quota runs.
           # It waits until every non-monthly pool has reset, then dispatches a
           # fresh workflow run without occupying a six-hour runner or retrying
@@ -2664,6 +2705,11 @@ jobs:
             echo "- Documentation-only/no-runtime-code cycles skipped: ${DOCUMENTATION_ONLY_CYCLES}"
             echo "- Stop reason: ${AUTONOMOUS_STOP_REASON}"
             echo "- Automatic temporary-limit wait: ${TOTAL_TEMP_WAIT_SECONDS}s across ${TEMP_LIMIT_EVENTS} classified events"
+            if (( QUOTA_RETRY_AT > 0 )); then
+              echo "- Cross-run temporary retry not before: $(date -u -d "@$QUOTA_RETRY_AT" +%Y-%m-%dT%H:%M:%SZ)"
+            else
+              echo "- Cross-run temporary retry not before: none"
+            fi
             echo "- Quota exhaustion events: ${QUOTA_EXHAUSTION_EVENTS}"
             echo "- Per-model call cap: ${MAX_MODEL_CALLS_PER_MODEL}; per-stage temporary-failure cap: ${MAX_MODEL_TEMP_ATTEMPTS}; run-wide model/provider temporary-failure caps: ${MAX_MODEL_RUN_TEMP_FAILURES}/${MAX_PROVIDER_RUN_TEMP_FAILURES}"
             echo "- Per-stage wait budget: ${STAGE_TEMP_WAIT_BUDGET_SECONDS}s; workflow-wide wait budget: ${TOTAL_TEMP_WAIT_BUDGET_SECONDS}s"
