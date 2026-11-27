@@ -46,6 +46,27 @@ sed 's/Quota target reached: true/Quota target reached: false/' "$TEMP_DIR/mixed
 result="$(assert_result false "$TEMP_DIR/not-exhausted.md" 99999)"
 grep -Fxq 'REASON=quota_target_not_reached' <<< "$result"
 
+cat > "$TEMP_DIR/no-progress-stop.md" <<'REPORT'
+- **Development result: NO VALIDATED DEVELOPMENT PROGRESS — AUTOMATIC CONTINUATION STOPPED**
+- Quota target reached: false
+- Provider-aware quota reset state: model:google/gemini-test@300,model:groq/qwen-test@200,provider:cohere@9999
+- Monthly quota pools excluded from reset wait: provider:cohere
+REPORT
+result="$(assert_result false "$TEMP_DIR/no-progress-stop.md" 299)"
+grep -Fxq 'REASON=waiting_for_all_nonmonthly_resets_after_no_progress_stop' <<< "$result"
+grep -Fxq 'DAILY_POOL_COUNT=2' <<< "$result"
+grep -Fxq 'MONTHLY_POOL_COUNT=1' <<< "$result"
+result="$(assert_result true "$TEMP_DIR/no-progress-stop.md" 300)"
+grep -Fxq 'REASON=all_nonmonthly_quota_pools_reset_after_no_progress_stop' <<< "$result"
+
+cat > "$TEMP_DIR/no-progress-without-reset.md" <<'REPORT'
+- **Development result: NO VALIDATED DEVELOPMENT PROGRESS — AUTOMATIC CONTINUATION STOPPED**
+- Quota target reached: false
+- Provider-aware quota reset state: none
+REPORT
+result="$(assert_result false "$TEMP_DIR/no-progress-without-reset.md" 99999)"
+grep -Fxq 'REASON=missing_reset_state' <<< "$result"
+
 cat > "$TEMP_DIR/monthly-only.md" <<'REPORT'
 - Quota target reached: true
 - Provider-aware quota reset state: provider:cohere@9999,provider:github-copilot@9999
