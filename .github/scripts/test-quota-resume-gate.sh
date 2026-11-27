@@ -76,3 +76,31 @@ result="$(assert_result false "$TEMP_DIR/monthly-only.md" 99999)"
 grep -Fxq 'REASON=no_nonmonthly_quota_pools' <<< "$result"
 
 echo "PASS: quota-resume gate waits for every non-monthly pool and ignores monthly pools"
+
+TEMP_GATE="$SCRIPT_DIR/temporary-limit-resume-gate.sh"
+cat > "$TEMP_DIR/transient-stop.md" <<'REPORT'
+- **Development result: NO VALIDATED DEVELOPMENT PROGRESS — AUTOMATIC CONTINUATION STOPPED**
+- Eligible quota pools remaining: 1
+- Quota target reached: false
+- Models deferred after repeated temporary limits: 1
+- Automatic temporary-limit wait: 151s across 4 classified events
+REPORT
+result="$(bash "$TEMP_GATE" "$TEMP_DIR/transient-stop.md" 2000 1699)"
+grep -Fxq 'READY=true' <<< "$result"
+grep -Fxq 'REASON=transient_model_retry_cooldown_elapsed' <<< "$result"
+
+result="$(bash "$TEMP_GATE" "$TEMP_DIR/transient-stop.md" 1998 1699)"
+grep -Fxq 'READY=false' <<< "$result"
+grep -Fxq 'REASON=waiting_for_transient_retry_cooldown' <<< "$result"
+
+sed 's/Eligible quota pools remaining: 1/Eligible quota pools remaining: 0/' "$TEMP_DIR/transient-stop.md" > "$TEMP_DIR/no-eligible-pool.md"
+result="$(bash "$TEMP_GATE" "$TEMP_DIR/no-eligible-pool.md" 2000 1699)"
+grep -Fxq 'READY=false' <<< "$result"
+grep -Fxq 'REASON=no_eligible_quota_pools' <<< "$result"
+
+sed 's/Models deferred after repeated temporary limits: 1/Models deferred after repeated temporary limits: 0/' "$TEMP_DIR/transient-stop.md" > "$TEMP_DIR/no-deferred-model.md"
+result="$(bash "$TEMP_GATE" "$TEMP_DIR/no-deferred-model.md" 2000 1699)"
+grep -Fxq 'READY=false' <<< "$result"
+grep -Fxq 'REASON=no_deferred_temporary_model' <<< "$result"
+
+echo "PASS: transient-limit recovery requires an eligible pool, a deferred model, and an elapsed cooldown"
