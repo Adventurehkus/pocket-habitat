@@ -626,6 +626,9 @@ local function handleCreatureInteraction(
     elseif actionType == "dance" then
         action = "dance"
         result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
+    elseif actionType == "groom" then
+        action = "groom"
+        result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
     else
         action = "care"
         result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
@@ -639,6 +642,7 @@ local function handleCreatureInteraction(
     local questAction = if actionType == "feed"
         then "feed"
         elseif actionType == "play" then "play"
+        elseif actionType == "groom" then "groom"
         else "care"
     if not QuestRules.recordProgress(data.questProgress, questAction, def.id, 1) then
         warn(
@@ -724,6 +728,8 @@ local function handleCreatureInteraction(
         end
     elseif actionType == "dance" then
         message = def.name .. " is dancing happily with you!"
+    elseif actionType == "groom" then
+        message = "Grooming " .. def.name .. ". They look much cleaner now!"
     else
         -- Pet interaction message
         local names = def.petNames
@@ -863,6 +869,13 @@ function CreatureManager.init()
         creatureModel: Model
     )
         return handleCreatureInteraction(player, creatureId, creatureModel, "dance")
+    end
+    RemoteEvents.GroomCreature.OnServerInvoke = function(
+        player: Player,
+        creatureId: string,
+        creatureModel: Model
+    )
+        return handleCreatureInteraction(player, creatureId, creatureModel, "groom")
     end
     RemoteEvents.RemoveCreature.OnServerInvoke = function(
         player: Player,

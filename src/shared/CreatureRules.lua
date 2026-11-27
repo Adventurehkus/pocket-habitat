@@ -12,6 +12,7 @@ type CreatureCare = {
     playCount: number?,
     musicCount: number?, -- Add musicCount
     danceCount: number?, -- Add danceCount
+    groomCount: number?, -- Add groomCount
 }
 
 type CreatureFriendshipData = {
@@ -113,7 +114,7 @@ local function initializeCreatureData(playerData: any, creatureId: string): Crea
             friendshipXP = 0,
             totalInteractions = 0,
             lastInteractionTime = 0,
-            care = { fedCount = 0, totalFeedings = 0, playCount = 0, musicCount = 0 },
+            care = { fedCount = 0, totalFeedings = 0, playCount = 0, musicCount = 0, danceCount = 0, groomCount = 0 },
         }
         playerData.creatures[creatureId] = creature
     else
@@ -123,6 +124,12 @@ local function initializeCreatureData(playerData: any, creatureId: string): Crea
         end
         if creature.care and creature.care.musicCount == nil then
             creature.care.musicCount = 0
+        end
+        if creature.care and creature.care.danceCount == nil then
+            creature.care.danceCount = 0
+        end
+        if creature.care and creature.care.groomCount == nil then
+            creature.care.groomCount = 0
         end
     end
     return creature

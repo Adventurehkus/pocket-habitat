@@ -309,6 +309,14 @@ Constants.UPGRADES = {
         costMultiplier = 1.8,
         maxLevel = 5,
     },
+    resource_efficiency = {
+        id = "resource_efficiency",
+        name = "Resource Efficiency",
+        description = "Reduce cooldown time for all resource nodes.",
+        baseCost = 150,
+        costMultiplier = 1.6,
+        maxLevel = 3,
+    },
     watering_can = {
         id = "watering_can",
         name = "Watering Can Bottle",
