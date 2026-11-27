@@ -632,6 +632,7 @@ local function handleCreatureInteraction(
     elseif actionType == "nap" then
         action = "nap"
         result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
+    end
 
     if not result or not result.success then
         return false, reason or "Interaction failed"

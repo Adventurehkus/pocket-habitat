@@ -3,16 +3,16 @@
 RECOVERY_STATUS: OPEN
 
 - Last updated by workflow run: 190
-- Cycle: 1
+- Cycle: 2
 
 ## Current required action
 
-The independent reviewer found actionable defects, but no repair model completed a fix in this cycle. Resolve the attached findings before unrelated feature work.
+No trustworthy independent review decision was available in cycle 2 after trying the review and fallback routes. The current diff is preserved below but is NOT approved. Obtain a valid independent review of the complete accumulated diff before normal validated checkpointing or unrelated feature work.
 
 ## Evidence
 
 Full review logs, validation output, model transcripts, and diffs are retained in the workflow artifact for run 190; do not paste them into this active note.
-- opencode-review-18.log (3942 bytes)
+- pocket-habitat-implementation.diff (2469 bytes)
 
 Do not start unrelated feature work until the active source-level issue is fixed and independently checked. Never weaken checks or claim unrun tests passed.
 
