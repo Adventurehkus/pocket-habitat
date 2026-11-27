@@ -49,7 +49,7 @@ jobs:
             --repo "$GH_REPOSITORY" \
             --workflow ai-build.yml \
             --limit 1 \
-            --json databaseId,number,status,createdAt)"
+            --json databaseId,number,status,createdAt,updatedAt)"
           latest_run="$(jq -c '.[0] // empty' <<< "$latest_run_json")"
           if [[ -z "$latest_run" ]]; then
             echo "::notice::No autonomous builder run exists yet; nothing to resume."
@@ -59,6 +59,7 @@ jobs:
           run_id="$(jq -r '.databaseId' <<< "$latest_run")"
           run_number="$(jq -r '.number' <<< "$latest_run")"
           run_status="$(jq -r '.status' <<< "$latest_run")"
+          run_updated_at="$(jq -r '.updatedAt // empty' <<< "$latest_run")"
           if [[ "$run_status" != "completed" ]]; then
             echo "::notice::Latest autonomous run #$run_number is $run_status; refusing to dispatch a duplicate."
             exit 0
@@ -82,19 +83,34 @@ jobs:
           fi
 
           now_epoch="$(date -u +%s)"
+          run_updated_epoch=0
+          if [[ -n "$run_updated_at" ]]; then
+            run_updated_epoch="$(date -u -d "$run_updated_at" +%s 2>/dev/null || printf '0')"
+          fi
           gate_output="$(bash .github/scripts/quota-resume-gate.sh "$report_file" "$now_epoch")"
+          transient_gate_output="$(bash .github/scripts/temporary-limit-resume-gate.sh "$report_file" "$now_epoch" "$run_updated_epoch")"
           printf '%s\n' "$gate_output"
+          printf '%s\n' "$transient_gate_output"
 
           ready="$(sed -n 's/^READY=//p' <<< "$gate_output")"
-          if [[ "$ready" != "true" ]]; then
+          transient_ready="$(sed -n 's/^READY=//p' <<< "$transient_gate_output")"
+          if [[ "$ready" != "true" && "$transient_ready" != "true" ]]; then
             reason="$(sed -n 's/^REASON=//p' <<< "$gate_output")"
+            transient_reason="$(sed -n 's/^REASON=//p' <<< "$transient_gate_output")"
             reset_utc="$(sed -n 's/^LATEST_DAILY_RESET_UTC=//p' <<< "$gate_output")"
-            echo "::notice::No restart for run #$run_number: $reason; latest non-monthly reset is ${reset_utc:-unknown}."
+            echo "::notice::No restart for run #$run_number: daily gate=$reason; temporary gate=$transient_reason; latest non-monthly reset is ${reset_utc:-unknown}."
             exit 0
           fi
 
           reset_state="$(sed -n 's/^- Provider-aware quota reset state: //p' "$report_file" | tail -n 1)"
-          monthly_state="$(sed -n 's/^MONTHLY_QUOTA_POOLS=//p' <<< "$gate_output")"
+          if [[ "$ready" == "true" ]]; then
+            monthly_state="$(sed -n 's/^MONTHLY_QUOTA_POOLS=//p' <<< "$gate_output")"
+            resume_reason="$(sed -n 's/^REASON=//p' <<< "$gate_output")"
+          else
+            monthly_state="$(sed -n 's/^- Monthly quota pools excluded from reset wait: //p' "$report_file" | tail -n 1)"
+            [[ "$monthly_state" == "none" ]] && monthly_state=""
+            resume_reason="$(sed -n 's/^REASON=//p' <<< "$transient_gate_output")"
+          fi
           task_file=".github/prompts/POCKET_HABITAT_EVERGREEN_HANDOFF.md"
           task="$(cat "$task_file")"
           if [[ -z "$reset_state" || "$reset_state" == "none" || -z "$task" ]]; then
@@ -102,11 +118,15 @@ jobs:
             exit 1
           fi
 
-          latest_reset="$(sed -n 's/^LATEST_DAILY_RESET_UTC=//p' <<< "$gate_output")"
-          resume_reason="$(sed -n 's/^REASON=//p' <<< "$gate_output")"
-          echo "::notice::Quota resume gate opened ($resume_reason): all $(
-            sed -n 's/^DAILY_POOL_COUNT=//p' <<< "$gate_output"
-          ) tracked non-monthly pools reset by $latest_reset. Monthly pools remain carried as unavailable."
+          if [[ "$ready" == "true" ]]; then
+            latest_reset="$(sed -n 's/^LATEST_DAILY_RESET_UTC=//p' <<< "$gate_output")"
+            echo "::notice::Quota resume gate opened ($resume_reason): all $(
+              sed -n 's/^DAILY_POOL_COUNT=//p' <<< "$gate_output"
+            ) tracked non-monthly pools reset by $latest_reset. Monthly pools remain carried as unavailable."
+          else
+            run_age="$(sed -n 's/^RUN_AGE_SECONDS=//p' <<< "$transient_gate_output")"
+            echo "::notice::Transient model-limit recovery opened ($resume_reason) after ${run_age}s; restarting with a clean no-progress counter while preserving quota cooldowns."
+          fi
           echo "::notice::Starting a fresh run with the saved evergreen handoff and a reset no-progress counter."
 
           gh workflow run ai-build.yml \
