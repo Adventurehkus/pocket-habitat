@@ -11,6 +11,7 @@ type CreatureCare = {
     totalFeedings: number,
     playCount: number?,
     musicCount: number?, -- Add musicCount
+    danceCount: number?, -- Add danceCount
 }
 
 type CreatureFriendshipData = {

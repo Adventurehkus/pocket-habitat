@@ -50,6 +50,8 @@ RemoteEvents.PlayWithCreature =
     getOrCreateRemote("RemoteFunction", "PlayWithCreature") :: RemoteFunction
 RemoteEvents.RemoveCreature =
     getOrCreateRemote("RemoteFunction", "RemoveCreature") :: RemoteFunction
+RemoteEvents.MusicCreature =
+    getOrCreateRemote("RemoteFunction", "MusicCreature") :: RemoteFunction
 RemoteEvents.RequestSync = getOrCreateRemote("RemoteFunction", "RequestSync") :: RemoteFunction
 
 RemoteEvents.SyncData = getOrCreateRemote("RemoteEvent", "SyncData") :: RemoteEvent

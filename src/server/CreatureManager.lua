@@ -142,7 +142,17 @@ local function idleBehavior(
             humanoid.Jump = true
         end
 
-        if now - lastMoveTime >= behavior.moveInterval then
+        local mood = model:GetAttribute("Mood") or 0
+        local moveInterval = behavior.moveInterval
+        -- Happy creatures (mood > 50) move faster
+        if mood > 50 then
+            moveInterval = math.max(0.5, moveInterval * 0.5)
+        -- Sad creatures (mood < -50) move slower
+        elseif mood < -50 then
+            moveInterval = moveInterval * 2
+        end
+
+        if now - lastMoveTime >= moveInterval then
             lastMoveTime = now
 
             local currentPos = root.Position
@@ -610,6 +620,12 @@ local function handleCreatureInteraction(
         end
         result, reason =
             CreatureRules.validateInteraction(data, creatureIdAttr, action, now, itemId)
+    elseif actionType == "music" then
+        action = "music"
+        result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
+    elseif actionType == "dance" then
+        action = "dance"
+        result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
     else
         action = "care"
         result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
@@ -646,6 +662,20 @@ local function handleCreatureInteraction(
             warn("Failed to record final species progress for user " .. tostring(player.UserId))
         end
     end
+
+    -- Update mood based on interaction
+    local currentMood = creatureModel:GetAttribute("Mood") or 0
+    local moodChange = 0
+    if actionType == "feed" then
+        moodChange = 5
+    elseif actionType == "play" then
+        moodChange = 10
+    elseif actionType == "dance" then
+        moodChange = 8
+    else
+        moodChange = 2
+    end
+    creatureModel:SetAttribute("Mood", math.clamp(currentMood + moodChange, -100, 100))
 
     -- Handle friendship level up rewards (or bonus rewards)
     if result.friendshipRewards then
@@ -692,6 +722,8 @@ local function handleCreatureInteraction(
         if isFavoriteToy then
             message = "Played with " .. def.name .. " using their favorite toy! " .. message
         end
+    elseif actionType == "dance" then
+        message = def.name .. " is dancing happily with you!"
     else
         -- Pet interaction message
         local names = def.petNames
@@ -817,6 +849,20 @@ function CreatureManager.init()
         toyId: string
     )
         return handleCreatureInteraction(player, creatureId, creatureModel, "play", toyId)
+    end
+    RemoteEvents.MusicCreature.OnServerInvoke = function(
+        player: Player,
+        creatureId: string,
+        creatureModel: Model
+    )
+        return handleCreatureInteraction(player, creatureId, creatureModel, "music")
+    end
+    RemoteEvents.DanceCreature.OnServerInvoke = function(
+        player: Player,
+        creatureId: string,
+        creatureModel: Model
+    )
+        return handleCreatureInteraction(player, creatureId, creatureModel, "dance")
     end
     RemoteEvents.RemoveCreature.OnServerInvoke = function(
         player: Player,
