@@ -10,6 +10,7 @@ type CreatureCare = {
     fedCount: number,
     totalFeedings: number,
     playCount: number?,
+    musicCount: number?, -- Add musicCount
 }
 
 type CreatureFriendshipData = {
@@ -111,13 +112,16 @@ local function initializeCreatureData(playerData: any, creatureId: string): Crea
             friendshipXP = 0,
             totalInteractions = 0,
             lastInteractionTime = 0,
-            care = { fedCount = 0, totalFeedings = 0, playCount = 0 },
+            care = { fedCount = 0, totalFeedings = 0, playCount = 0, musicCount = 0 },
         }
         playerData.creatures[creatureId] = creature
     else
-        -- Ensure playCount exists for existing creatures
+        -- Ensure playCount and musicCount exist for existing creatures
         if creature.care and creature.care.playCount == nil then
             creature.care.playCount = 0
+        end
+        if creature.care and creature.care.musicCount == nil then
+            creature.care.musicCount = 0
         end
     end
     return creature
@@ -455,8 +459,10 @@ local function careForCreature(
         local musicXP = Constants.CREATURE_FRIENDSHIP.MUSIC_XP
         local newLevel, leveledUp, rewards = addFriendshipXP(playerData, creatureId, musicXP, now)
 
+        creature.care.musicCount = (creature.care.musicCount or 0) + 1
+
         outcome.success = true
-        outcome.careProgress = creature.care.fedCount
+        outcome.careProgress = creature.care.musicCount
         outcome.friendshipProgress = newLevel
         outcome.friendshipLevelUp = leveledUp
         outcome.friendshipRewards = rewards

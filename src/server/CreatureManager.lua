@@ -190,6 +190,7 @@ local function createCreatureModel(
     model:SetAttribute("CreatureId", creatureId)
     model:SetAttribute("OwnerUserId", ownerUserId)
     model:SetAttribute("Behavior", def.behavior.mode)
+    model:SetAttribute("Mood", 0) -- Initialize mood
 
     local root = Instance.new("Part")
     root.Name = "HumanoidRootPart"
