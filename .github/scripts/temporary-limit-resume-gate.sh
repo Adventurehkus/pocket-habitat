@@ -12,11 +12,24 @@ if [[ ! -f "$report_file" || ! "$now_epoch" =~ ^[0-9]+$ || ! "$run_updated_epoch
   exit 2
 fi
 
-development_result="$(sed -n 's/^- \\*\\*Development result: \\(.*\\)\\*\\*$/\\1/p' "$report_file" | tail -n 1)"
-quota_target="$(sed -n 's/^- Quota target reached: //p' "$report_file" | tail -n 1)"
-eligible_pool_count="$(sed -n 's/^- Eligible quota pools remaining: //p' "$report_file" | tail -n 1)"
-deferred_model_count="$(sed -n 's/^- Models deferred after repeated temporary limits: //p' "$report_file" | tail -n 1)"
-temporary_wait_seconds="$(sed -n 's/^- Automatic temporary-limit wait: \\([0-9][0-9]*\\)s across .*/\\1/p' "$report_file" | tail -n 1)"
+report_value() {
+  local prefix="$1"
+  local line
+  line="$(grep -F -- "$prefix" "$report_file" | tail -n 1 || true)"
+  printf '%s' "${line#"$prefix"}"
+}
+
+development_prefix='- **Development result: '
+development_line="$(grep -F -- "$development_prefix" "$report_file" | tail -n 1 || true)"
+development_result="${development_line:${#development_prefix}}"
+if (( ${#development_result} >= 2 )); then
+  development_result="${development_result:0:${#development_result}-2}"
+fi
+quota_target="$(report_value '- Quota target reached: ')"
+eligible_pool_count="$(report_value '- Eligible quota pools remaining: ')"
+deferred_model_count="$(report_value '- Models deferred after repeated temporary limits: ')"
+temporary_wait_raw="$(report_value '- Automatic temporary-limit wait: ')"
+temporary_wait_seconds="${temporary_wait_raw%%s*}"
 
 ready=false
 reason="not_a_temporary_limit_circuit_breaker_stop"
@@ -32,7 +45,7 @@ elif [[ ! "$deferred_model_count" =~ ^[0-9]+$ ]] || (( deferred_model_count < 1 
   reason="no_deferred_temporary_model"
 elif [[ ! "$temporary_wait_seconds" =~ ^[0-9]+$ ]] || (( temporary_wait_seconds < 1 )); then
   reason="no_recorded_temporary_wait"
-elif (( now_epoch - run_updated_epoch < minimum_age_seconds )); then
+elif (( now_epoch < run_updated_epoch || now_epoch - run_updated_epoch < minimum_age_seconds )); then
   reason="waiting_for_transient_retry_cooldown"
 else
   ready=true
@@ -40,10 +53,10 @@ else
 fi
 
 run_age_seconds=$((now_epoch - run_updated_epoch))
-printf 'READY=%s\\n' "$ready"
-printf 'REASON=%s\\n' "$reason"
-printf 'ELIGIBLE_POOL_COUNT=%s\\n' "${eligible_pool_count:-0}"
-printf 'DEFERRED_MODEL_COUNT=%s\\n' "${deferred_model_count:-0}"
-printf 'TEMPORARY_WAIT_SECONDS=%s\\n' "${temporary_wait_seconds:-0}"
-printf 'RUN_AGE_SECONDS=%s\\n' "$run_age_seconds"
-printf 'MINIMUM_AGE_SECONDS=%s\\n' "$minimum_age_seconds"
+printf 'READY=%s\n' "$ready"
+printf 'REASON=%s\n' "$reason"
+printf 'ELIGIBLE_POOL_COUNT=%s\n' "${eligible_pool_count:-0}"
+printf 'DEFERRED_MODEL_COUNT=%s\n' "${deferred_model_count:-0}"
+printf 'TEMPORARY_WAIT_SECONDS=%s\n' "${temporary_wait_seconds:-0}"
+printf 'RUN_AGE_SECONDS=%s\n' "$run_age_seconds"
+printf 'MINIMUM_AGE_SECONDS=%s\n' "$minimum_age_seconds"
