@@ -35,6 +35,14 @@ local SEED_NODE_COLORS = {
     [Constants.RESOURCES.SEED_GLOWCAP] = Constants.PLANTS.glowcap.color,
 }
 
+local TOY_NODE_COLORS = {
+    [Constants.RESOURCES.TOY_BALL] = Color3.fromRGB(255, 100, 100),
+    [Constants.RESOURCES.TOY_FEATHER] = Color3.fromRGB(200, 200, 255),
+    [Constants.RESOURCES.TOY_BELL] = Color3.fromRGB(255, 220, 100),
+    [Constants.RESOURCES.TOY_MIRROR] = Color3.fromRGB(180, 255, 255),
+    [Constants.RESOURCES.TOY_RING] = Color3.fromRGB(255, 150, 255),
+}
+
 local function getPlotPosition(index: number): Vector3?
     return plotPositions[index]
 end
@@ -153,6 +161,21 @@ local function createResourceNode(
         part.Color = SEED_NODE_COLORS[resourceType]
         part.Shape = Enum.PartType.Ball
         part.Size = Vector3.new(2.5, 2.5, 2.5)
+    elseif TOY_NODE_COLORS[resourceType] then
+        part.Material = Enum.Material.Neon
+        part.Color = TOY_NODE_COLORS[resourceType]
+        part.Shape = Enum.PartType.Ball
+        part.Size = Vector3.new(1.5, 1.5, 1.5)
+        -- Add a sparkle effect for toys
+        local sparkle = Instance.new("ParticleEmitter")
+        sparkle.Color = ColorSequence.new(TOY_NODE_COLORS[resourceType])
+        sparkle.Size = NumberSequence.new(0.4)
+        sparkle.Transparency = NumberSequence.new(0.3, 0.9)
+        sparkle.Lifetime = NumberRange.new(0.3, 0.8)
+        sparkle.Rate = 8
+        sparkle.Speed = NumberRange.new(0.5, 1.5)
+        sparkle.SpreadAngle = Vector2.new(180, 180)
+        sparkle.Parent = part
     end
 
     -- Add proximity prompt

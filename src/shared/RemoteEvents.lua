@@ -45,6 +45,12 @@ RemoteEvents.PurchaseUpgrade =
 RemoteEvents.ClaimQuest = getOrCreateRemote("RemoteFunction", "ClaimQuest") :: RemoteFunction
 RemoteEvents.InteractCreature =
     getOrCreateRemote("RemoteFunction", "InteractCreature") :: RemoteFunction
+RemoteEvents.FeedCreature =
+    getOrCreateRemote("RemoteFunction", "FeedCreature") :: RemoteFunction
+RemoteEvents.PlayWithCreature =
+    getOrCreateRemote("RemoteFunction", "PlayWithCreature") :: RemoteFunction
+RemoteEvents.RemoveCreature =
+    getOrCreateRemote("RemoteFunction", "RemoveCreature") :: RemoteFunction
 RemoteEvents.RequestSync = getOrCreateRemote("RemoteFunction", "RequestSync") :: RemoteFunction
 
 RemoteEvents.SyncData = getOrCreateRemote("RemoteEvent", "SyncData") :: RemoteEvent

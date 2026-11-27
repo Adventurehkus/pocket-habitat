@@ -9,6 +9,7 @@ local CreatureRules = {}
 type CreatureCare = {
     fedCount: number,
     totalFeedings: number,
+    playCount: number?,
 }
 
 type CreatureFriendshipData = {
@@ -87,6 +88,10 @@ local function getCreature(creatureId: any): (CreatureData?, string?)
         return nil, "Creature has invalid favorite food"
     end
 
+    if not isNonEmptyString(creatureDef.favoriteToy) then
+        return nil, "Creature has invalid favorite toy"
+    end
+
     return creatureDef, nil
 end
 
@@ -106,9 +111,14 @@ local function initializeCreatureData(playerData: any, creatureId: string): Crea
             friendshipXP = 0,
             totalInteractions = 0,
             lastInteractionTime = 0,
-            care = { fedCount = 0, totalFeedings = 0 },
+            care = { fedCount = 0, totalFeedings = 0, playCount = 0 },
         }
         playerData.creatures[creatureId] = creature
+    else
+        -- Ensure playCount exists for existing creatures
+        if creature.care and creature.care.playCount == nil then
+            creature.care.playCount = 0
+        end
     end
     return creature
 end
@@ -278,11 +288,117 @@ local function validateFeeding(
         nil
 end
 
+local function validatePlaying(
+    playerData: any,
+    creatureId: string,
+    toyId: string,
+    now: number?
+): (CreatureActionResult?, string?)
+    -- Validate player data structure
+    if
+        type(playerData) ~= "table"
+        or type(playerData.creatures) ~= "table"
+        or type(playerData.creaturesDiscovered) ~= "table"
+        or type(playerData.inventory) ~= "table"
+        or type(playerData.bells) ~= "number"
+    then
+        return nil, "Invalid player data"
+    end
+
+    -- Validate creature definition
+    local creatureDef, creatureError = getCreature(creatureId)
+    if not creatureDef then
+        return nil, creatureError or "Invalid creature"
+    end
+
+    -- Validate creature ownership/validity
+    local discovered = playerData.creaturesDiscovered[creatureId]
+    if not isFiniteNumber(discovered) or discovered <= 0 then
+        return nil, "Creature not discovered"
+    end
+
+    -- Check if creature exists in creatures table
+    local creature = playerData.creatures[creatureId]
+    if
+        not creature
+        or type(creature) ~= "table"
+        or not creature.care
+        or type(creature.care) ~= "table"
+        or not isFiniteNumber(creature.care.fedCount or 0)
+        or not isFiniteNumber(creature.care.totalFeedings or 0)
+    then
+        return nil, "Creature not properly initialized"
+    end
+
+    -- Validate now timestamp
+    local validationTime = isFiniteNumber(now) and now >= 0
+    if not validationTime then
+        now = os.time() * 1000
+    end
+
+    -- Validate toy ID
+    if not isNonEmptyString(toyId) then
+        return nil, "Invalid toy ID"
+    end
+
+    -- Check if player has the toy in inventory
+    local toyAmount = playerData.inventory[toyId] or 0
+    if not isInteger(toyAmount) or toyAmount <= 0 then
+        return nil, "No " .. toyId .. " available"
+    end
+
+    -- Check if it's the creature's favorite toy
+    local favoriteToy = creatureDef.favoriteToy
+    local isFavoriteToy = toyId == favoriteToy
+
+    -- Deduct toy from inventory (toys are consumed on play)
+    local newToyAmount = toyAmount - 1
+    playerData.inventory[toyId] = newToyAmount
+    if newToyAmount < 0 then
+        newToyAmount = 0
+    end
+
+    -- Increment care stats
+    creature.care.playCount = (creature.care.playCount or 0) + 1
+    -- Add friendship XP for playing
+    local playXP = Constants.CREATURE_FRIENDSHIP.PLAY_XP
+    if isFavoriteToy then
+        playXP += Constants.CREATURE_FRIENDSHIP.FAVORITE_TOY_BONUS_XP
+    end
+
+    local newLevel, leveledUp, rewards = addFriendshipXP(playerData, creatureId, playXP, now)
+
+    -- If max level friendship and favorite toy, add bonus rare item
+    if isFavoriteToy and newLevel >= Constants.CREATURE_FRIENDSHIP.MAX_LEVEL then
+        if not rewards then
+            rewards = { bells = 0, items = {} }
+        end
+        if not rewards.items then
+            rewards.items = {}
+        end
+        rewards.items[Constants.RESOURCES.SEED_GLOWCAP] = (
+            rewards.items[Constants.RESOURCES.SEED_GLOWCAP] or 0
+        ) + 1
+    end
+
+    return {
+        success = true,
+        creature = creatureDef,
+        action = "play",
+        careProgress = creature.care.fedCount,
+        friendshipProgress = newLevel,
+        friendshipLevelUp = leveledUp,
+        friendshipRewards = rewards,
+    },
+        nil
+end
+
 local function careForCreature(
     playerData: any,
     creatureId: string,
     action: string,
-    now: number?
+    now: number?,
+    toyId: string?
 ): (CreatureActionResult?, string?)
     if not isFiniteNumber(now) or now < 0 then
         return nil, "Invalid timestamp"
@@ -334,9 +450,25 @@ local function careForCreature(
         outcome.friendshipProgress = newLevel
         outcome.friendshipLevelUp = leveledUp
         outcome.friendshipRewards = rewards
+    elseif action == "play" then
+        if not toyId then
+            outcome.success = false
+            return outcome, "Toy ID required for play action"
+        end
+        local result, reason = validatePlaying(playerData, creatureId, toyId, now)
+        if result then
+            outcome.success = true
+            outcome.careProgress = result.careProgress
+            outcome.friendshipProgress = result.friendshipProgress
+            outcome.friendshipLevelUp = result.friendshipLevelUp
+            outcome.friendshipRewards = result.friendshipRewards
+        else
+            outcome.success = false
+            return outcome, reason
+        end
     else
         outcome.success = false
-        return outcome, "Invalid action. Use 'feed' or 'care'"
+        return outcome, "Invalid action. Use 'feed', 'care', or 'play'"
     end
 
     return outcome, nil
@@ -348,6 +480,12 @@ end
 
 function CreatureRules.canFeed(playerData: any, creatureId: string): boolean
     local _, reason = validateFeeding(playerData, creatureId, os.time() * 1000)
+    local success = reason == nil
+    return success
+end
+
+function CreatureRules.canPlay(playerData: any, creatureId: string, toyId: string): boolean
+    local _, reason = validatePlaying(playerData, creatureId, toyId, os.time() * 1000)
     local success = reason == nil
     return success
 end
@@ -398,17 +536,50 @@ function CreatureRules.getFavoriteFood(creatureId: string): (string?, string?)
     return creatureDef.favoriteFood, nil
 end
 
+function CreatureRules.getFavoriteToy(creatureId: string): (string?, string?)
+    local creatureDef, error = getCreature(creatureId)
+    if not creatureDef then
+        return nil, error or "Invalid creature"
+    end
+    return creatureDef.favoriteToy, nil
+end
+
 function CreatureRules.validateInteraction(
     playerData: any,
     creatureId: string,
     action: string,
-    now: number?
+    now: number?,
+    toyId: string?
 ): (CreatureActionResult?, string?)
     if type(action) ~= "string" then
         return nil, "Invalid action type"
     end
 
-    return careForCreature(playerData, creatureId, action, now)
+    return careForCreature(playerData, creatureId, action, now, toyId)
+end
+
+function CreatureRules.getCreaturesWithPlayCount(playerData: any, targetCount: number): (number?, string?)
+    if type(playerData) ~= "table" or type(playerData.creatures) ~= "table" then
+        return nil, "Invalid player data"
+    end
+
+    if not isNonNegativeInteger(targetCount) then
+        return nil, "Invalid target count"
+    end
+
+    local count = 0
+    for _, creature in pairs(playerData.creatures) do
+        if
+            type(creature) == "table"
+            and creature.care
+            and isNonNegativeInteger(creature.care.playCount or 0)
+            and creature.care.playCount >= targetCount
+        then
+            count += 1
+        end
+    end
+
+    return count, nil
 end
 
 function CreatureRules.getCreaturesAtFriendshipLevel(

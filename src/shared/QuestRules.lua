@@ -17,6 +17,8 @@ local validTargets = table.freeze({
     upgrade = true,
     friendship = true,
     friendship_multi = true,
+    play = true,
+    play_multi = true,
 })
 QuestRules.validTargets = validTargets
 
@@ -53,6 +55,9 @@ local function isValidProgressValue(targetType: string, targetId: string?, value
     end
     if targetType == "friendship" or targetType == "friendship_multi" then
         return value <= Constants.CREATURE_FRIENDSHIP.MAX_LEVEL
+    end
+    if targetType == "play" or targetType == "play_multi" then
+        return value <= 100 -- Reasonable cap for play actions
     end
     return true
 end
@@ -167,6 +172,12 @@ function QuestRules.isComplete(progress: any, questDef: any): boolean
         return true -- Delegate to tryClaim for actual validation
     end
 
+    if questDef.targetType == "play" or questDef.targetType == "play_multi" then
+        -- For play quests, we check play progress from player data
+        -- This will be validated in tryClaim where we have access to full player data
+        return true -- Delegate to tryClaim for actual validation
+    end
+
     local current = QuestRules.getProgress(progress, questDef.targetType, questDef.targetItemId)
     return current ~= nil and current >= questDef.targetCount
 end
@@ -245,6 +256,22 @@ function QuestRules.tryClaim(data: any, questId: any): (boolean, string?)
         local count, err = CreatureRules.getCreaturesAtFriendshipLevel(data, targetLevel)
         if not count or err then
             return false, err or "Invalid friendship data"
+        end
+        completed = count >= questDef.targetCount
+    elseif questDef.targetType == "play" then
+        -- Check if any creature has been played with targetCount times (using favorite toy)
+        local targetCount = questDef.targetCount
+        local count, err = CreatureRules.getCreaturesWithPlayCount(data, targetCount)
+        if not count or err then
+            return false, err or "Invalid play data"
+        end
+        completed = count >= 1
+    elseif questDef.targetType == "play_multi" then
+        -- Check if targetCount different creatures have been played with targetCount times each
+        local targetCount = questDef.targetCount
+        local count, err = CreatureRules.getCreaturesWithPlayCount(data, targetCount)
+        if not count or err then
+            return false, err or "Invalid play data"
         end
         completed = count >= questDef.targetCount
     else

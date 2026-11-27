@@ -513,13 +513,13 @@ function CreatureManager.cleanupPlayer(player: Player)
     end
 end
 
--- Handle creature interaction (petting/feeding)
+-- Handle creature interaction (petting/feeding/playing)
 local function handleCreatureInteraction(
     player: Player,
     creatureId: string,
     creatureModel: Model,
     actionType: string,
-    foodId: string?
+    itemId: string?
 ): (boolean, string)
     if typeof(player) ~= "Instance" or not player:IsA("Player") then
         return false, "Invalid player"
@@ -595,15 +595,30 @@ local function handleCreatureInteraction(
     local now = os.time() * 1000
 
     -- Execute interaction with server-authority validation via CreatureRules
-    local action = if actionType == "feed" then "feed" else "care"
-    local result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
+    local action: string
+    local result: any
+    local reason: string?
+
+    if actionType == "feed" then
+        action = "feed"
+        result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
+    elseif actionType == "play" then
+        action = "play"
+        if not itemId then
+            return false, "Toy ID required for play action"
+        end
+        result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now, itemId)
+    else
+        action = "care"
+        result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
+    end
 
     if not result or not result.success then
         return false, reason or "Interaction failed"
     end
 
     -- Record quest progress for interaction type
-    local questAction = if actionType == "feed" then "feed" else "care"
+    local questAction = if actionType == "feed" then "feed" elseif actionType == "play" then "play" else "care"
     if not QuestRules.recordProgress(data.questProgress, questAction, def.id, 1) then
         warn(
             "Failed to record creature "
@@ -643,19 +658,34 @@ local function handleCreatureInteraction(
     -- Build notification message
     local message = ""
     if actionType == "feed" then
-        local isFavorite = (def.favoriteFood == foodId)
+        local isFavorite = (def.favoriteFood == itemId)
         local reward = isFavorite and 20 or 5
         EconomyManager.addBells(player, reward)
 
         message = "Fed "
             .. def.name
             .. " some "
-            .. tostring(foodId)
+            .. tostring(itemId)
             .. "! You earned "
             .. tostring(reward)
             .. " bells."
         if isFavorite then
             message = "Fed " .. def.name .. " their favorite treat! " .. message
+        end
+    elseif actionType == "play" then
+        local isFavoriteToy = (def.favoriteToy == itemId)
+        local reward = isFavoriteToy and 15 or 5
+        EconomyManager.addBells(player, reward)
+
+        message = "Played with "
+            .. def.name
+            .. " using "
+            .. tostring(itemId)
+            .. "! You earned "
+            .. tostring(reward)
+            .. " bells."
+        if isFavoriteToy then
+            message = "Played with " .. def.name .. " using their favorite toy! " .. message
         end
     else
         -- Pet interaction message
@@ -691,6 +721,73 @@ local function handleCreatureInteraction(
     return true, "Success"
 end
 
+-- Handle creature deletion/removal
+local function handleCreatureRemoval(
+    player: Player,
+    creatureId: string,
+    creatureModel: Model
+): (boolean, string)
+    -- Validate player
+    if typeof(player) ~= "Instance" or not player:IsA("Player") then
+        return false, "Invalid player"
+    end
+
+    -- Validate creature model
+    if not creatureModel or not creatureModel:IsA("Model") then
+        return false, "Invalid creature"
+    end
+
+    -- Validate session
+    local data = DataStoreManager.getSession(player)
+    if type(data) ~= "table" then
+        return false, "No session"
+    end
+
+    -- Validate creature attributes
+    local creatureIdAttr = creatureModel:GetAttribute("CreatureId")
+    local ownerUserIdAttr = creatureModel:GetAttribute("OwnerUserId")
+
+    if not creatureIdAttr or not ownerUserIdAttr then
+        return false, "Creature attributes missing"
+    end
+
+    -- Validate ownership
+    if ownerUserIdAttr ~= player.UserId then
+        return false, "Not your creature"
+    end
+
+    -- Verify creature exists in owner's discovered list
+    if not data.creaturesDiscovered[creatureIdAttr] then
+        return false, "Creature not discovered"
+    end
+
+    -- Get creature instance and destroy it
+    local model, success = pcall(function()
+        if creatureModel.PrimaryPart then
+            creatureModel.PrimaryPart.Anchored = false
+        end
+        creatureModel:Destroy()
+        return true
+    end)
+
+    if not success or not model then
+        return false, "Failed to destroy creature"
+    end
+
+    -- Record deletion in session data
+    data.creaturesDiscovered[creatureIdAttr] = false
+
+    -- Remove from runtime registry
+    if playerCreatures[player.UserId] and playerCreatures[player.UserId][creatureIdAttr] then
+        playerCreatures[player.UserId][creatureIdAttr] = nil
+    end
+
+    -- Notify player
+    RemoteEvents.Notification:FireClient(player, "Removed creature: " .. creatureIdAttr)
+
+    return true, "Success"
+end
+
 function CreatureManager.init()
     -- Set up creature interaction handlers
     RemoteEvents.InteractCreature.OnServerInvoke = function(
@@ -707,6 +804,21 @@ function CreatureManager.init()
         foodId: string
     )
         return handleCreatureInteraction(player, creatureId, creatureModel, "feed", foodId)
+    end
+    RemoteEvents.PlayWithCreature.OnServerInvoke = function(
+        player: Player,
+        creatureId: string,
+        creatureModel: Model,
+        toyId: string
+    )
+        return handleCreatureInteraction(player, creatureId, creatureModel, "play", toyId)
+    end
+    RemoteEvents.RemoveCreature.OnServerInvoke = function(
+        player: Player,
+        creatureId: string,
+        creatureModel: Model
+    )
+        return handleCreatureRemoval(player, creatureId, creatureModel)
     end
 end
 

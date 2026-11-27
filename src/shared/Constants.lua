@@ -16,6 +16,11 @@ Constants.RESOURCES = {
     CROP_SUNPETAL = "crop_sunpetal",
     CROP_MOONFLOWER = "crop_moonflower",
     CROP_GLOWCAP = "crop_glowcap",
+    TOY_BALL = "toy_ball",
+    TOY_FEATHER = "toy_feather",
+    TOY_BELL = "toy_bell",
+    TOY_MIRROR = "toy_mirror",
+    TOY_RING = "toy_ring",
     BELLS = "bells",
 }
 
@@ -100,6 +105,46 @@ Constants.RESOURCE_NODES = {
         position = Vector3.new(-20, 1.25, -10),
         cooldownMinutes = 15,
     },
+    {
+        id = "toy_ball_1",
+        name = "Toy_Ball_1",
+        type = Constants.RESOURCES.TOY_BALL,
+        amount = 1,
+        position = Vector3.new(25, 1.25, 0),
+        cooldownMinutes = 20,
+    },
+    {
+        id = "toy_feather_1",
+        name = "Toy_Feather_1",
+        type = Constants.RESOURCES.TOY_FEATHER,
+        amount = 1,
+        position = Vector3.new(-25, 1.25, 0),
+        cooldownMinutes = 20,
+    },
+    {
+        id = "toy_bell_1",
+        name = "Toy_Bell_1",
+        type = Constants.RESOURCES.TOY_BELL,
+        amount = 1,
+        position = Vector3.new(0, 1.25, 25),
+        cooldownMinutes = 20,
+    },
+    {
+        id = "toy_mirror_1",
+        name = "Toy_Mirror_1",
+        type = Constants.RESOURCES.TOY_MIRROR,
+        amount = 1,
+        position = Vector3.new(0, 1.25, -25),
+        cooldownMinutes = 20,
+    },
+    {
+        id = "toy_ring_1",
+        name = "Toy_Ring_1",
+        type = Constants.RESOURCES.TOY_RING,
+        amount = 1,
+        position = Vector3.new(18, 1.25, 18),
+        cooldownMinutes = 20,
+    },
 }
 
 Constants.PLANTS = {
@@ -164,6 +209,7 @@ Constants.CREATURES = {
         requiredWater = 1,
         bellReward = 50,
         favoriteFood = Constants.RESOURCES.CROP_BERRY,
+        favoriteToy = Constants.RESOURCES.TOY_BALL,
         petNames = { "Whiskers", "Bundle", "Nudge", "Hoppy", "Cotton", "Puffball" },
         behavior = {
             mode = "hop",
@@ -180,6 +226,7 @@ Constants.CREATURES = {
         requiredWater = 5,
         bellReward = 100,
         favoriteFood = Constants.RESOURCES.DEWDROP,
+        favoriteToy = Constants.RESOURCES.TOY_FEATHER,
         petNames = { "Sparkle", "Glimmer", "Twinkle", "Glow", "Dewdrop", "Mist" },
         behavior = {
             mode = "drift",
@@ -196,6 +243,7 @@ Constants.CREATURES = {
         requiredWater = 2,
         bellReward = 75,
         favoriteFood = Constants.RESOURCES.CROP_FLOWER,
+        favoriteToy = Constants.RESOURCES.TOY_RING,
         behavior = {
             mode = "forage",
             moveInterval = 6,
@@ -210,6 +258,7 @@ Constants.CREATURES = {
         requiredWater = 1,
         bellReward = 65,
         favoriteFood = Constants.RESOURCES.CROP_GLOWCAP,
+        favoriteToy = Constants.RESOURCES.TOY_MIRROR,
         behavior = {
             mode = "stroll",
             moveInterval = 8,
@@ -224,6 +273,7 @@ Constants.CREATURES = {
         requiredWater = 2,
         bellReward = 85,
         favoriteFood = Constants.RESOURCES.CROP_SUNPETAL,
+        favoriteToy = Constants.RESOURCES.TOY_BELL,
         behavior = {
             mode = "flutter",
             moveInterval = 3,
@@ -384,6 +434,24 @@ Constants.QUESTS = {
         rewardBells = 300,
         rewardItems = { [Constants.RESOURCES.SEED_GLOWCAP] = 1 },
     },
+    q14_playtime = {
+        id = "q14_playtime",
+        title = "Playtime!",
+        description = "Play with a creature using their favorite toy 5 times.",
+        targetType = "play",
+        targetCount = 5,
+        rewardBells = 120,
+        rewardItems = { [Constants.RESOURCES.TOY_RING] = 1 },
+    },
+    q15_toy_collector = {
+        id = "q15_toy_collector",
+        title = "Toy Collector",
+        description = "Play with three different creatures using their favorite toys.",
+        targetType = "play_multi",
+        targetCount = 3,
+        rewardBells = 200,
+        rewardItems = { [Constants.RESOURCES.SEED_MOONFLOWER] = 1 },
+    },
 }
 
 -- Creature Feeding Cooldown
@@ -397,7 +465,9 @@ Constants.CREATURE_FRIENDSHIP = {
     XP_PER_LEVEL = 100,
     PET_XP = 5,
     FEED_XP = 15,
+    PLAY_XP = 10,
     FAVORITE_FOOD_BONUS_XP = 10,
+    FAVORITE_TOY_BONUS_XP = 15,
     REWARDS = {
         -- Per-level rewards (bells, items)
         [1] = { bells = 25, items = {} },
@@ -422,6 +492,8 @@ Constants.QUEST_ORDER = {
     "q11_friendship",
     "q12_deep_bond",
     "q13_creature_caretaker",
+    "q14_playtime",
+    "q15_toy_collector",
 }
 
 return Constants
