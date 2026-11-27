@@ -607,7 +607,8 @@ local function handleCreatureInteraction(
         if not itemId then
             return false, "Toy ID required for play action"
         end
-        result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now, itemId)
+        result, reason =
+            CreatureRules.validateInteraction(data, creatureIdAttr, action, now, itemId)
     else
         action = "care"
         result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
@@ -618,7 +619,10 @@ local function handleCreatureInteraction(
     end
 
     -- Record quest progress for interaction type
-    local questAction = if actionType == "feed" then "feed" elseif actionType == "play" then "play" else "care"
+    local questAction = if actionType == "feed"
+        then "feed"
+        elseif actionType == "play" then "play"
+        else "care"
     if not QuestRules.recordProgress(data.questProgress, questAction, def.id, 1) then
         warn(
             "Failed to record creature "
@@ -649,8 +653,8 @@ local function handleCreatureInteraction(
             EconomyManager.addBells(player, rewards.bells)
         end
         if rewards.items then
-            for itemId, amount in pairs(rewards.items) do
-                EconomyManager.addItem(player, itemId, amount)
+            for rewardItemId, amount in pairs(rewards.items) do
+                EconomyManager.addItem(player, rewardItemId, amount)
             end
         end
     end
@@ -708,8 +712,8 @@ local function handleCreatureInteraction(
                     .. " Bells"
             end
             if result.friendshipRewards.items then
-                for itemId, amount in pairs(result.friendshipRewards.items) do
-                    message = message .. ", " .. tostring(amount) .. "x " .. itemId
+                for rewardItemId, amount in pairs(result.friendshipRewards.items) do
+                    message = message .. ", " .. tostring(amount) .. "x " .. rewardItemId
                 end
             end
         end

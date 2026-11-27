@@ -558,7 +558,10 @@ function CreatureRules.validateInteraction(
     return careForCreature(playerData, creatureId, action, now, toyId)
 end
 
-function CreatureRules.getCreaturesWithPlayCount(playerData: any, targetCount: number): (number?, string?)
+function CreatureRules.getCreaturesWithPlayCount(
+    playerData: any,
+    targetCount: number
+): (number?, string?)
     if type(playerData) ~= "table" or type(playerData.creatures) ~= "table" then
         return nil, "Invalid player data"
     end
