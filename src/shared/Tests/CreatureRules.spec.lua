@@ -88,15 +88,16 @@ describe("CreatureRules — feeding and care mechanics", function()
         expect(string.find(reason, "Creature not found") ~= nil).to.equal(true)
     end)
 
-    it("allows generic care action", function()
+    it("allows music interaction and grants XP", function()
         local data = makePlayerData()
-        data.creaturesDiscovered["bunny"] = true
+        setupDiscoveredCreature(data, "bunny", 10)
 
         local success, action =
-            CreatureRules.validateInteraction(data, "bunny", "care", os.time() * 1000)
+            CreatureRules.validateInteraction(data, "bunny", "music", os.time() * 1000)
         expect(success).to.equal(true)
-        expect(action.success).to.equal(true)
-        expect(action.action).to.equal("care")
+        expect(action.action).to.equal("music")
+        expect(action.friendshipProgress).to.equal(1)
+        expect(data.creatures.bunny.friendshipXP).to.equal(Constants.CREATURE_FRIENDSHIP.MUSIC_XP)
     end)
 
     it("rejects invalid action type", function()
