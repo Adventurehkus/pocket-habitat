@@ -1,8 +1,14 @@
 name: Pocket Habitat Quota Resume
 
 on:
-  # Poll away from the top of the hour. GitHub may delay scheduled events
-  # during high load, so this is a best-effort prompt restart after reset.
+  # Validate and immediately apply changes to this recovery workflow.
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/ai-quota-resume.yml"
+  # Poll away from the top of the hour. This also recovers no-progress
+  # circuit-breaker stops after all recorded non-monthly pools have reset.
   schedule:
     - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
@@ -29,7 +35,7 @@ jobs:
         shell: bash
         run: bash .github/scripts/test-quota-resume-gate.sh
 
-      - name: Dispatch one fresh autonomous run after every daily quota reset
+      - name: Dispatch one fresh autonomous run when the quota-resume gate opens
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPOSITORY: ${{ github.repository }}
@@ -97,9 +103,10 @@ jobs:
           fi
 
           latest_reset="$(sed -n 's/^LATEST_DAILY_RESET_UTC=//p' <<< "$gate_output")"
-          echo "::notice::All $(
+          resume_reason="$(sed -n 's/^REASON=//p' <<< "$gate_output")"
+          echo "::notice::Quota resume gate opened ($resume_reason): all $(
             sed -n 's/^DAILY_POOL_COUNT=//p' <<< "$gate_output"
-          ) non-monthly quota pools reset by $latest_reset. Monthly pools remain carried as unavailable."
+          ) tracked non-monthly pools reset by $latest_reset. Monthly pools remain carried as unavailable."
           echo "::notice::Starting a fresh run with the saved evergreen handoff and a reset no-progress counter."
 
           gh workflow run ai-build.yml \
