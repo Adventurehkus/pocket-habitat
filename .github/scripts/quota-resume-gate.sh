@@ -12,6 +12,7 @@ if [[ ! -f "$report_file" || ! "$now_epoch" =~ ^[0-9]+$ ]]; then
 fi
 
 quota_target="$(sed -n 's/^- Quota target reached: //p' "$report_file" | tail -n 1)"
+development_result="$(sed -n 's/^- \*\*Development result: \(.*\)\*\*$/\1/p' "$report_file" | tail -n 1)"
 reset_state="$(sed -n 's/^- Provider-aware quota reset state: //p' "$report_file" | tail -n 1)"
 monthly_state="$(sed -n 's/^- Monthly quota pools excluded from reset wait: //p' "$report_file" | tail -n 1)"
 
@@ -22,7 +23,12 @@ monthly_pool_count=0
 latest_daily_reset=0
 monthly_pools=()
 
-if [[ "$quota_target" != "true" ]]; then
+resume_after_no_progress_stop=false
+if [[ "$quota_target" != "true" && "$development_result" == "NO VALIDATED DEVELOPMENT PROGRESS — AUTOMATIC CONTINUATION STOPPED" ]]; then
+  resume_after_no_progress_stop=true
+fi
+
+if [[ "$quota_target" != "true" && "$resume_after_no_progress_stop" != "true" ]]; then
   :
 elif [[ -z "$reset_state" || "$reset_state" == "none" ]]; then
   reason="missing_reset_state"
@@ -73,10 +79,18 @@ else
   if (( daily_pool_count == 0 )); then
     reason="no_nonmonthly_quota_pools"
   elif (( now_epoch < latest_daily_reset )); then
-    reason="waiting_for_all_nonmonthly_resets"
+    if [[ "$resume_after_no_progress_stop" == "true" ]]; then
+      reason="waiting_for_all_nonmonthly_resets_after_no_progress_stop"
+    else
+      reason="waiting_for_all_nonmonthly_resets"
+    fi
   else
     ready=true
-    reason="all_nonmonthly_quota_pools_reset"
+    if [[ "$resume_after_no_progress_stop" == "true" ]]; then
+      reason="all_nonmonthly_quota_pools_reset_after_no_progress_stop"
+    else
+      reason="all_nonmonthly_quota_pools_reset"
+    fi
   fi
 fi
 
