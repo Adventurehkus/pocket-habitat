@@ -15,7 +15,7 @@ All source-level defects, variable shadowing warnings, session persistence safeg
 - `stylua --check src`: PASS (0 errors, 0 warnings)
 - `selene src`: PASS (0 errors, 0 warnings, 0 parse errors)
 - `git diff --check`: PASS (Clean working tree, no trailing whitespace or conflicts)
-- `CreatureManager.lua` variable shadowing resolved (0 warnings).
+- 2026-11-27: Implemented 'music' creature interaction in `src/shared/CreatureRules.lua` as an integrated vertical slice.
 
 ## Unverified Runtime Gaps (Explicitly Outstanding)
 

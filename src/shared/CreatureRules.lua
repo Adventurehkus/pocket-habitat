@@ -115,7 +115,15 @@ local function initializeCreatureData(playerData: any, creatureId: string): Crea
             friendshipXP = 0,
             totalInteractions = 0,
             lastInteractionTime = 0,
-            care = { fedCount = 0, totalFeedings = 0, playCount = 0, musicCount = 0, danceCount = 0, groomCount = 0, napCount = 0 },
+            care = {
+                fedCount = 0,
+                totalFeedings = 0,
+                playCount = 0,
+                musicCount = 0,
+                danceCount = 0,
+                groomCount = 0,
+                napCount = 0,
+            },
         }
         playerData.creatures[creatureId] = creature
     else
@@ -478,6 +486,18 @@ local function careForCreature(
         outcome.friendshipProgress = newLevel
         outcome.friendshipLevelUp = leveledUp
         outcome.friendshipRewards = rewards
+    elseif action == "music" then
+        -- Creature listens to music
+        local musicXP = Constants.CREATURE_FRIENDSHIP.MUSIC_XP or 3
+        local newLevel, leveledUp, rewards = addFriendshipXP(playerData, creatureId, musicXP, now)
+
+        creature.care.musicCount = (creature.care.musicCount or 0) + 1
+
+        outcome.success = true
+        outcome.careProgress = creature.care.musicCount
+        outcome.friendshipProgress = newLevel
+        outcome.friendshipLevelUp = leveledUp
+        outcome.friendshipRewards = rewards
     elseif action == "play" then
         if not toyId then
             outcome.success = false
@@ -496,7 +516,7 @@ local function careForCreature(
         end
     else
         outcome.success = false
-        return outcome, "Invalid action. Use 'feed', 'care', 'play', or 'music'"
+        return outcome, "Invalid action. Use 'feed', 'care', 'play', 'nap', or 'music'"
     end
 
     return outcome, nil
