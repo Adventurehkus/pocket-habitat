@@ -65,9 +65,11 @@ function ResourceManager.init()
         end
 
         -- Calculate cooldown based on resource_efficiency upgrade
-        local efficiencyLevel = (sessionData.upgrades and sessionData.upgrades.resource_efficiency) or 1
+        local efficiencyLevel = (sessionData.upgrades and sessionData.upgrades.resource_efficiency)
+            or 1
         local cooldownMultiplier = 1.0 - (math.min(efficiencyLevel - 1, 2) * 0.2) -- 0%, 20%, 40% reduction
-        local cooldownSeconds = math.max(10, math.floor(staticNode.cooldownMinutes * 60 * cooldownMultiplier))
+        local cooldownSeconds =
+            math.max(10, math.floor(staticNode.cooldownMinutes * 60 * cooldownMultiplier))
 
         -- Server-side validation: Verify exact resource Instance ownership and distance
         local HabitatManager = require(script.Parent:WaitForChild("HabitatManager"))
