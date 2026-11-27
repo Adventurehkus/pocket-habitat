@@ -7,6 +7,10 @@ on:
       - main
     paths:
       - ".github/workflows/ai-quota-resume.yml"
+      - ".github/workflows/ai-build.yml"
+      - ".github/scripts/quota-resume-gate.sh"
+      - ".github/scripts/temporary-limit-resume-gate.sh"
+      - ".github/scripts/test-quota-resume-gate.sh"
   # Poll away from the top of the hour. This also recovers no-progress
   # circuit-breaker stops after all recorded non-monthly pools have reset.
   schedule:
