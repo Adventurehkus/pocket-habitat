@@ -629,10 +629,9 @@ local function handleCreatureInteraction(
     elseif actionType == "groom" then
         action = "groom"
         result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
-    else
-        action = "care"
+    elseif actionType == "nap" then
+        action = "nap"
         result, reason = CreatureRules.validateInteraction(data, creatureIdAttr, action, now)
-    end
 
     if not result or not result.success then
         return false, reason or "Interaction failed"
@@ -643,6 +642,7 @@ local function handleCreatureInteraction(
         then "feed"
         elseif actionType == "play" then "play"
         elseif actionType == "groom" then "groom"
+        elseif actionType == "nap" then "nap"
         else "care"
     if not QuestRules.recordProgress(data.questProgress, questAction, def.id, 1) then
         warn(
@@ -676,6 +676,8 @@ local function handleCreatureInteraction(
         moodChange = 10
     elseif actionType == "dance" then
         moodChange = 8
+    elseif actionType == "nap" then
+        moodChange = 12
     else
         moodChange = 2
     end
@@ -876,6 +878,13 @@ function CreatureManager.init()
         creatureModel: Model
     )
         return handleCreatureInteraction(player, creatureId, creatureModel, "groom")
+    end
+    RemoteEvents.NapCreature.OnServerInvoke = function(
+        player: Player,
+        creatureId: string,
+        creatureModel: Model
+    )
+        return handleCreatureInteraction(player, creatureId, creatureModel, "nap")
     end
     RemoteEvents.RemoveCreature.OnServerInvoke = function(
         player: Player,

@@ -13,6 +13,7 @@ type CreatureCare = {
     musicCount: number?, -- Add musicCount
     danceCount: number?, -- Add danceCount
     groomCount: number?, -- Add groomCount
+    napCount: number?, -- Add napCount
 }
 
 type CreatureFriendshipData = {
@@ -114,7 +115,7 @@ local function initializeCreatureData(playerData: any, creatureId: string): Crea
             friendshipXP = 0,
             totalInteractions = 0,
             lastInteractionTime = 0,
-            care = { fedCount = 0, totalFeedings = 0, playCount = 0, musicCount = 0, danceCount = 0, groomCount = 0 },
+            care = { fedCount = 0, totalFeedings = 0, playCount = 0, musicCount = 0, danceCount = 0, groomCount = 0, napCount = 0 },
         }
         playerData.creatures[creatureId] = creature
     else
@@ -130,6 +131,9 @@ local function initializeCreatureData(playerData: any, creatureId: string): Crea
         end
         if creature.care and creature.care.groomCount == nil then
             creature.care.groomCount = 0
+        end
+        if creature.care and creature.care.napCount == nil then
+            creature.care.napCount = 0
         end
     end
     return creature
@@ -462,15 +466,15 @@ local function careForCreature(
         outcome.friendshipProgress = newLevel
         outcome.friendshipLevelUp = leveledUp
         outcome.friendshipRewards = rewards
-    elseif action == "music" then
-        -- Play music for the creature
-        local musicXP = Constants.CREATURE_FRIENDSHIP.MUSIC_XP
-        local newLevel, leveledUp, rewards = addFriendshipXP(playerData, creatureId, musicXP, now)
+    elseif action == "nap" then
+        -- Creature takes a nap
+        local napXP = Constants.CREATURE_FRIENDSHIP.NAP_XP or 2
+        local newLevel, leveledUp, rewards = addFriendshipXP(playerData, creatureId, napXP, now)
 
-        creature.care.musicCount = (creature.care.musicCount or 0) + 1
+        creature.care.napCount = (creature.care.napCount or 0) + 1
 
         outcome.success = true
-        outcome.careProgress = creature.care.musicCount
+        outcome.careProgress = creature.care.napCount
         outcome.friendshipProgress = newLevel
         outcome.friendshipLevelUp = leveledUp
         outcome.friendshipRewards = rewards

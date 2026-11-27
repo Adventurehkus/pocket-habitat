@@ -54,6 +54,8 @@ RemoteEvents.DanceCreature =
     getOrCreateRemote("RemoteFunction", "DanceCreature") :: RemoteFunction
 RemoteEvents.GroomCreature =
     getOrCreateRemote("RemoteFunction", "GroomCreature") :: RemoteFunction
+RemoteEvents.NapCreature =
+    getOrCreateRemote("RemoteFunction", "NapCreature") :: RemoteFunction
 RemoteEvents.RequestSync = getOrCreateRemote("RemoteFunction", "RequestSync") :: RemoteFunction
 
 RemoteEvents.SyncData = getOrCreateRemote("RemoteEvent", "SyncData") :: RemoteEvent
